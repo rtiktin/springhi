@@ -1,0 +1,37 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: portfolio-service
+  config:
+    import: optional:classpath:application-local.yaml
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postf1?currentSchema=springhi
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: SNake118P
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: springhi
+
+application:
+  security:
+    jwt:
+      secret-key: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+      expiration: 86400000 # 1 day
+
+alpaca:
+  base-url: https://data.alpaca.markets
+  api_key_id: ""
+  api_secret_key: ""
+
+gemini:
+  base-url: https://generativelanguage.googleapis.com
+  model: gemini-3-flash-preview
+  api-key: ""

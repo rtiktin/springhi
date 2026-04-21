@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: demo-web
+  config:
+    import: optional:classpath:application-local.yaml
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postf1?currentSchema=springhi
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: SNake118P
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: springhi
