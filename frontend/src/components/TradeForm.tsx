@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getQuote } from '../api/marketApi';
 import { submitTransaction, getCashBalance } from '../api/portfolioApi';
 import type { TransactionRequest } from '../api/portfolioApi';
@@ -17,6 +17,14 @@ const TradeForm: React.FC<Props> = ({ onClose, onSuccess, defaultSymbol = '' }) 
     const [quoteLoading, setQuoteLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const [cashBalance, setCashBalance] = useState<number | null>(null);
+
+    useEffect(() => {
+        getCashBalance().then(setCashBalance).catch(() => {});
+    }, []);
+
+    const fmtCash = (n: number) =>
+        `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
     const lookupQuote = async () => {
         if (!symbol.trim()) return;
@@ -49,8 +57,9 @@ const TradeForm: React.FC<Props> = ({ onClose, onSuccess, defaultSymbol = '' }) 
             const totalCost = qty * prc;
             try {
                 const cash = await getCashBalance();
+                setCashBalance(cash);
                 if (cash < totalCost) {
-                    setError(`Insufficient cash. Available: $${cash.toFixed(2)}, Required: $${totalCost.toFixed(2)}`);
+                    setError(`Insufficient cash. Available: ${fmtCash(cash)}, Required: ${fmtCash(totalCost)}`);
                     return;
                 }
             } catch {
@@ -84,6 +93,13 @@ const TradeForm: React.FC<Props> = ({ onClose, onSuccess, defaultSymbol = '' }) 
                 <div className="modal-header">
                     <h2>Place Trade</h2>
                     <button className="modal-close" onClick={onClose}>✕</button>
+                </div>
+
+                <div style={{ textAlign: 'center', marginBottom: '0.75rem', fontSize: '1.1rem' }}>
+                    Available Cash:&nbsp;
+                    <strong>
+                        {cashBalance !== null ? fmtCash(cashBalance) : '—'}
+                    </strong>
                 </div>
 
                 {error && <div className="error-msg">{error}</div>}

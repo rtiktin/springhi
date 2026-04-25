@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getHoldings, getPortfolioSnapshots, takePortfolioSnapshot, getCashBalance } from '../api/portfolioApi';
+import { getHoldings, getPortfolioSnapshots, takePortfolioSnapshot, getCashBalance, getCompanyName } from '../api/portfolioApi';
 import type { AssetWithPrice, PortfolioSnapshot } from '../api/portfolioApi';
 import { getQuoteHistory } from '../api/marketApi';
 import type { QuoteResponse } from '../api/marketApi';
@@ -13,7 +13,7 @@ const PortfolioDashboard: React.FC = () => {
     const [holdings, setHoldings] = useState<AssetWithPrice[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
+    const [selectedHolding, setSelectedHolding] = useState<AssetWithPrice | null>(null);
     const [chartData, setChartData] = useState<QuoteResponse[]>([]);
     const [chartLoading, setChartLoading] = useState(false);
     const [snapshots, setSnapshots] = useState<PortfolioSnapshot[]>([]);
@@ -24,7 +24,7 @@ const PortfolioDashboard: React.FC = () => {
         getHoldings()
             .then(data => {
                 setHoldings(data);
-                if (data.length > 0) selectSymbol(data[0].symbol);
+                if (data.length > 0) selectHolding(data[0]);
             })
             .catch(() => setError('Failed to load portfolio holdings.'))
             .finally(() => setLoading(false));
@@ -48,14 +48,28 @@ const PortfolioDashboard: React.FC = () => {
             .finally(() => setSnapshotting(false));
     };
 
-    const selectSymbol = (symbol: string) => {
-        setSelectedSymbol(symbol);
+    const selectHolding = (holding: AssetWithPrice) => {
+        setSelectedHolding(holding);
         setChartLoading(true);
-        getQuoteHistory(symbol)
+        getQuoteHistory(holding.symbol)
             .then(setChartData)
             .catch(() => setChartData([]))
             .finally(() => setChartLoading(false));
     };
+
+    useEffect(() => {
+        if (!selectedHolding) return;
+        getCompanyName(selectedHolding.symbol).then(name => {
+            if (name) {
+                setSelectedHolding(prev => prev?.symbol === selectedHolding.symbol
+                    ? { ...prev, companyName: name }
+                    : prev);
+                setHoldings(prev => prev.map(h =>
+                    h.symbol === selectedHolding.symbol ? { ...h, companyName: name } : h
+                ));
+            }
+        }).catch(() => {});
+    }, [selectedHolding?.symbol]);
 
     const totalMarketValue = holdings.reduce((sum, h) => sum + (h.marketValue ?? 0), 0);
     const totalCostBasis = holdings.reduce((sum, h) => sum + (h.costBasis ?? 0), 0);
@@ -79,7 +93,12 @@ const PortfolioDashboard: React.FC = () => {
                         {snapshotting ? 'Saving…' : 'Snapshot Now'}
                     </button>
                 </div>
-                <PortfolioChart snapshots={snapshots} />
+                {snapshots.length >= 5 && <PortfolioChart snapshots={snapshots} />}
+                {snapshots.length < 5 && snapshots.length > 0 && (
+                    <p style={{ color: 'var(--text-gray)', fontSize: '0.9em', margin: '0.5rem 0' }}>
+                        Portfolio chart will appear after {5 - snapshots.length} more snapshot{5 - snapshots.length !== 1 ? 's' : ''} ({snapshots.length}/5 collected).
+                    </p>
+                )}
             </div>
 
             <div className="portfolio-summary">
@@ -130,8 +149,8 @@ const PortfolioDashboard: React.FC = () => {
                         {holdings.map(h => (
                             <tr
                                 key={h.id}
-                                className={selectedSymbol === h.symbol ? 'selected-row' : ''}
-                                onClick={() => selectSymbol(h.symbol)}
+                                className={selectedHolding?.symbol === h.symbol ? 'selected-row' : ''}
+                                onClick={() => selectHolding(h)}
                             >
                                 <td className="symbol-cell">{h.symbol}</td>
                                 <td>{h.assetType}</td>
@@ -152,12 +171,16 @@ const PortfolioDashboard: React.FC = () => {
                 </table>
             </div>
 
-            {selectedSymbol && (
+            {selectedHolding && (
                 <div className="chart-section">
                     {chartLoading ? (
                         <div className="portfolio-loading">Loading chart…</div>
                     ) : (
-                        <StockChart symbol={selectedSymbol} data={chartData} />
+                        <StockChart
+                            symbol={selectedHolding.symbol}
+                            companyName={selectedHolding.companyName ?? undefined}
+                            data={chartData}
+                        />
                     )}
                 </div>
             )}

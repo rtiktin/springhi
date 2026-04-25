@@ -9,6 +9,7 @@ public class AssetWithPrice {
 
     private Long id;
     private String symbol;
+    private String companyName;
     private String assetType;
     private BigDecimal quantity;
     private BigDecimal averagePrice;
@@ -22,6 +23,7 @@ public class AssetWithPrice {
         AssetWithPrice awp = new AssetWithPrice();
         awp.setId(asset.getId());
         awp.setSymbol(asset.getSymbol());
+        awp.setCompanyName(asset.getCompanyName());
         awp.setAssetType(asset.getAssetType());
         awp.setQuantity(asset.getQuantity());
         awp.setAveragePrice(asset.getAveragePrice());
@@ -49,6 +51,8 @@ public class AssetWithPrice {
     public void setId(Long id) { this.id = id; }
     public String getSymbol() { return symbol; }
     public void setSymbol(String symbol) { this.symbol = symbol; }
+    public String getCompanyName() { return companyName; }
+    public void setCompanyName(String companyName) { this.companyName = companyName; }
     public String getAssetType() { return assetType; }
     public void setAssetType(String assetType) { this.assetType = assetType; }
     public BigDecimal getQuantity() { return quantity; }

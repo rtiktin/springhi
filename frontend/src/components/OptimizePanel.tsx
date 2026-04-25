@@ -272,7 +272,7 @@ const OptimizePanel: React.FC<Props> = ({ onTradeSuccess }) => {
                         <Link to="/profile" className="optimize-link">investor profile</Link>.
                         {ran && recommendations.length > 0 && (
                             <span style={{ marginLeft: '0.5rem', fontSize: '0.78rem', color: 'var(--text-gray)' }}>
-                                Generated {new Date(recommendations[0].generatedAt).toLocaleDateString()}
+                                Generated {new Date(recommendations[0].generatedAt).toLocaleString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                             </span>
                         )}
                     </p>

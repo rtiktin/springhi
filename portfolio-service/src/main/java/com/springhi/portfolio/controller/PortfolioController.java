@@ -89,6 +89,16 @@ public class PortfolioController {
         return ResponseEntity.ok(snapshotService.takeSnapshotForUser(principal.getId()));
     }
 
+    @GetMapping("/company-name/{symbol}")
+    public ResponseEntity<java.util.Map<String, String>> getCompanyName(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable String symbol) {
+        if (principal == null) return ResponseEntity.status(403).build();
+        return portfolioService.getOrFetchCompanyName(principal.getId(), symbol.toUpperCase())
+                .map(name -> ResponseEntity.ok(java.util.Map.of("symbol", symbol.toUpperCase(), "companyName", name)))
+                .orElse(ResponseEntity.ok(java.util.Map.of("symbol", symbol.toUpperCase(), "companyName", "")));
+    }
+
     @GetMapping("/test")
     public ResponseEntity<String> test() {
         return ResponseEntity.ok("Portfolio service is reachable and secured");

@@ -18,13 +18,16 @@ public class PortfolioService {
     private final AssetRepository assetRepository;
     private final TransactionRepository transactionRepository;
     private final MarketDataService marketDataService;
+    private final AlpacaService alpacaService;
 
     public PortfolioService(AssetRepository assetRepository,
                             TransactionRepository transactionRepository,
-                            MarketDataService marketDataService) {
+                            MarketDataService marketDataService,
+                            AlpacaService alpacaService) {
         this.assetRepository = assetRepository;
         this.transactionRepository = transactionRepository;
         this.marketDataService = marketDataService;
+        this.alpacaService = alpacaService;
     }
 
     public List<Asset> getUserAssets(Long userId) {
@@ -46,6 +49,23 @@ public class PortfolioService {
 
     public BigDecimal getCashBalance(Long userId) {
         return transactionRepository.computeCashBalance(userId);
+    }
+
+    @Transactional
+    public Optional<String> getOrFetchCompanyName(Long userId, String symbol) {
+        Optional<Asset> assetOpt = assetRepository.findByUserIdAndSymbol(userId, symbol);
+        if (assetOpt.isPresent() && assetOpt.get().getCompanyName() != null
+                && !assetOpt.get().getCompanyName().isBlank()) {
+            return Optional.of(assetOpt.get().getCompanyName());
+        }
+        Optional<String> fetched = alpacaService.fetchCompanyName(symbol);
+        fetched.ifPresent(name -> {
+            assetOpt.ifPresent(asset -> {
+                asset.setCompanyName(name);
+                assetRepository.save(asset);
+            });
+        });
+        return fetched;
     }
 
     @Transactional
@@ -75,6 +95,8 @@ public class PortfolioService {
             asset.setQuantity(BigDecimal.ZERO);
             asset.setAveragePrice(BigDecimal.ZERO);
             asset.setAssetType("STOCK");
+            alpacaService.fetchCompanyName(transaction.getSymbol())
+                    .ifPresent(asset::setCompanyName);
         }
 
         if ("BUY".equals(type)) {

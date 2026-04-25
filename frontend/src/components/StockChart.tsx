@@ -4,10 +4,11 @@ import type { QuoteResponse } from '../api/marketApi';
 
 interface Props {
     symbol: string;
+    companyName?: string;
     data: QuoteResponse[];
 }
 
-const StockChart: React.FC<Props> = ({ symbol, data }) => {
+const StockChart: React.FC<Props> = ({ symbol, companyName, data }) => {
     const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -68,7 +69,9 @@ const StockChart: React.FC<Props> = ({ symbol, data }) => {
 
     return (
         <div className="chart-card">
-            <h3 className="chart-title">{symbol} — Price History</h3>
+            <h3 className="chart-title">
+                {companyName ? `${companyName} (${symbol})` : symbol} — Price History
+            </h3>
             {data.length === 0 ? (
                 <div className="chart-empty">
                     No price history yet. Data accumulates each scheduled refresh (9am &amp; 3pm ET on weekdays).

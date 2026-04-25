@@ -1,5 +1,5 @@
 server:
-  port: 9000
+  port: ${PORT:9000}
 
 spring:
   application:
@@ -9,25 +9,25 @@ spring:
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOrigins: "http://localhost:5173"
+            allowedOrigins: ${ALLOWED_ORIGIN:http://localhost:5173}
             allowedMethods: "GET,POST,PUT,DELETE,OPTIONS"
             allowedHeaders: "*"
             allowCredentials: true
             maxAge: 3600
       routes:
         - id: backend
-          uri: http://localhost:8080
+          uri: ${BACKEND_URL:http://localhost:8080}
           predicates:
             - Path=/api/v1/auth/**, /api/v1/users/**
         - id: portfolio-service
-          uri: http://localhost:8081
+          uri: ${PORTFOLIO_URL:http://localhost:8081}
           predicates:
             - Path=/api/v1/portfolio/**
         - id: market-data
-          uri: http://localhost:8081
+          uri: ${PORTFOLIO_URL:http://localhost:8081}
           predicates:
             - Path=/api/v1/market/**
         - id: profile-service
-          uri: http://localhost:8081
+          uri: ${PORTFOLIO_URL:http://localhost:8081}
           predicates:
             - Path=/api/v1/profile/**

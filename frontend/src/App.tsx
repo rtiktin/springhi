@@ -6,6 +6,7 @@ import Signup from './pages/Signup';
 import Portfolio from './pages/Portfolio';
 import ProfileEdit from './pages/ProfileEdit';
 import AccountMaintenance from './pages/AccountMaintenance';
+import About from './pages/About';
 import { isLoggedIn } from './utils/auth';
 import './App.css';
 
@@ -24,6 +25,7 @@ function App() {
           <Route path="/portfolio" element={<RequireAuth><Portfolio /></RequireAuth>} />
           <Route path="/profile" element={<RequireAuth><ProfileEdit /></RequireAuth>} />
           <Route path="/account" element={<RequireAuth><AccountMaintenance /></RequireAuth>} />
+          <Route path="/about" element={<About />} />
         </Routes>
       </div>
     </Router>

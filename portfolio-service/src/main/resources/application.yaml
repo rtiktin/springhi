@@ -1,5 +1,5 @@
 server:
-  port: 8081
+  port: ${PORT:8081}
 
 spring:
   application:
@@ -7,14 +7,14 @@ spring:
   config:
     import: optional:classpath:application-local.yaml
   datasource:
-    url: jdbc:postgresql://localhost:5432/postf1?currentSchema=springhi
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/postf1?currentSchema=springhi}
     driver-class-name: org.postgresql.Driver
-    username: postgres
-    password: SNake118P
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:SNake118P}
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -23,15 +23,17 @@ spring:
 application:
   security:
     jwt:
-      secret-key: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
-      expiration: 86400000 # 1 day
+      secret-key: ${JWT_SECRET_KEY:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+      expiration: ${JWT_EXPIRATION:86400000}
 
 alpaca:
-  base-url: https://data.alpaca.markets
-  api_key_id: ""
-  api_secret_key: ""
+  base-url: ${ALPACA_BASE_URL:https://data.alpaca.markets}
+  api_key_id: ${ALPACA_API_KEY_ID:}
+  api_secret_key: ${ALPACA_API_SECRET_KEY:}
+  ssl-bypass: ${ALPACA_SSL_BYPASS:false}
 
 gemini:
-  base-url: https://generativelanguage.googleapis.com
-  model: gemini-3-flash-preview
-  api-key: ""
+  base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
+  model: ${GEMINI_MODEL:gemini-3.1-flash-lite-preview}
+  api-key: ${GEMINI_API_KEY:}
+

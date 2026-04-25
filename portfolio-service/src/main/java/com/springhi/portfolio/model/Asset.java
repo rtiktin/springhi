@@ -19,6 +19,9 @@ public class Asset {
     @Column(nullable = false)
     private String symbol;
 
+    @Column
+    private String companyName;
+
     @Column(nullable = false)
     private String assetType;
 
@@ -44,6 +47,8 @@ public class Asset {
     public void setUserId(Long userId) { this.userId = userId; }
     public String getSymbol() { return symbol; }
     public void setSymbol(String symbol) { this.symbol = symbol; }
+    public String getCompanyName() { return companyName; }
+    public void setCompanyName(String companyName) { this.companyName = companyName; }
     public String getAssetType() { return assetType; }
     public void setAssetType(String assetType) { this.assetType = assetType; }
     public BigDecimal getQuantity() { return quantity; }

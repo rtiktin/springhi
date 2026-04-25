@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const BASE_URL = 'http://localhost:9000/api/v1/market';
+import API_GATEWAY from './apiBase';
+const BASE_URL = `${API_GATEWAY}/api/v1/market`;
 
 const authHeader = () => ({
     Authorization: `Bearer ${localStorage.getItem('token')}`,

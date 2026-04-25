@@ -10,6 +10,7 @@ const Home: React.FC = () => {
       <header className="navbar">
         <div className="logo">SpringHi.ai</div>
         <nav>
+          <Link to="/about" className="nav-link">About</Link>
           {isLoggedIn() ? (
             <Link to="/portfolio" className="btn-primary">My Portfolio</Link>
           ) : (

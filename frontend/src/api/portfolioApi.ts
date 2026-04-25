@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const BASE_URL = 'http://localhost:9000/api/v1/portfolio';
+import API_GATEWAY from './apiBase';
+const BASE_URL = `${API_GATEWAY}/api/v1/portfolio`;
 
 const authHeader = () => ({
     Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -9,6 +10,7 @@ const authHeader = () => ({
 export interface AssetWithPrice {
     id: number;
     symbol: string;
+    companyName: string | null;
     assetType: string;
     quantity: number;
     averagePrice: number;
@@ -91,4 +93,10 @@ export const markRecommendationExecuted = async (id: number, transactionId: numb
 export const markRecommendationSkipped = async (id: number) => {
     const response = await axios.post(`${BASE_URL}/recommendations/${id}/skip`, {}, { headers: authHeader() });
     return response.data;
+};
+
+export const getCompanyName = async (symbol: string): Promise<string | null> => {
+    const response = await axios.get(`${BASE_URL}/company-name/${symbol}`, { headers: authHeader() });
+    const name = response.data.companyName;
+    return name && name.trim() ? name : null;
 };

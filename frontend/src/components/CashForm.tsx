@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { submitTransaction } from '../api/portfolioApi';
+import React, { useState, useEffect } from 'react';
+import { submitTransaction, getCashBalance } from '../api/portfolioApi';
 
 interface Props {
     onClose: () => void;
@@ -11,6 +11,11 @@ const CashForm: React.FC<Props> = ({ onClose, onSuccess }) => {
     const [amount, setAmount] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const [cashBalance, setCashBalance] = useState<number | null>(null);
+
+    useEffect(() => {
+        getCashBalance().then(setCashBalance).catch(() => {});
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -36,6 +41,15 @@ const CashForm: React.FC<Props> = ({ onClose, onSuccess }) => {
                 <div className="modal-header">
                     <h2>Cash</h2>
                     <button className="modal-close" onClick={onClose}>✕</button>
+                </div>
+
+                <div style={{ textAlign: 'center', marginBottom: '0.75rem', fontSize: '1.1rem' }}>
+                    Available Balance:&nbsp;
+                    <strong>
+                        {cashBalance !== null
+                            ? `$${cashBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : '—'}
+                    </strong>
                 </div>
 
                 {error && <div className="error-msg">{error}</div>}
