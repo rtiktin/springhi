@@ -12,4 +12,7 @@ import java.util.Optional;
 public interface PortfolioSnapshotRepository extends JpaRepository<PortfolioSnapshot, Long> {
     List<PortfolioSnapshot> findByUserIdOrderBySnapshotDateAsc(Long userId);
     Optional<PortfolioSnapshot> findByUserIdAndSnapshotDate(Long userId, LocalDate snapshotDate);
+
+    List<PortfolioSnapshot> findByPortfolioIdOrderBySnapshotDateAsc(Long portfolioId);
+    Optional<PortfolioSnapshot> findByPortfolioIdAndSnapshotDate(Long portfolioId, LocalDate snapshotDate);
 }

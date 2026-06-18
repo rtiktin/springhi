@@ -18,6 +18,9 @@ public class PortfolioRecommendation {
     @Column(nullable = false)
     private Long userId;
 
+    @Column
+    private Long portfolioId;
+
     @Column(nullable = false)
     private LocalDateTime generatedAt;
 
@@ -61,6 +64,8 @@ public class PortfolioRecommendation {
     public void setId(Long id) { this.id = id; }
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
+    public Long getPortfolioId() { return portfolioId; }
+    public void setPortfolioId(Long portfolioId) { this.portfolioId = portfolioId; }
     public LocalDateTime getGeneratedAt() { return generatedAt; }
     public void setGeneratedAt(LocalDateTime generatedAt) { this.generatedAt = generatedAt; }
     public String getTicker() { return ticker; }

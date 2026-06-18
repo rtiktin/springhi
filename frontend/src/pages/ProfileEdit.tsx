@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getProfile, saveProfile } from '../api/profileApi';
 import type { UserProfile } from '../api/profileApi';
-import { getCashBalance } from '../api/portfolioApi';
+import { getCashBalance, getOrCreateDefaultPortfolio } from '../api/portfolioApi';
 import CashForm from '../components/CashForm';
 import { getLoggedInUsername } from '../utils/auth';
 
@@ -49,8 +49,9 @@ const ProfileEdit: React.FC = () => {
     const [error, setError] = useState('');
     const [cashBalance, setCashBalance] = useState<number | null>(null);
     const [showCashForm, setShowCashForm] = useState(false);
+    const [defaultPortfolioId, setDefaultPortfolioId] = useState<number | null>(null);
 
-    const loadCash = () => getCashBalance().then(setCashBalance).catch(() => {});
+    const loadCash = (portfolioId: number) => getCashBalance(portfolioId).then(setCashBalance).catch(() => {});
 
     useEffect(() => {
         getProfile()
@@ -61,7 +62,12 @@ const ProfileEdit: React.FC = () => {
                 }
             })
             .catch(() => {});
-        loadCash();
+        getOrCreateDefaultPortfolio()
+            .then(p => {
+                setDefaultPortfolioId(p.id);
+                loadCash(p.id);
+            })
+            .catch(() => {});
     }, []);
 
     const handleChange = (field: keyof UserProfile, value: string | number | string[]) => {
@@ -106,10 +112,11 @@ const ProfileEdit: React.FC = () => {
 
     return (
         <div className="portfolio-page">
-            {showCashForm && (
+            {showCashForm && defaultPortfolioId != null && (
                 <CashForm
+                    portfolioId={defaultPortfolioId}
                     onClose={() => setShowCashForm(false)}
-                    onSuccess={() => { loadCash(); setShowCashForm(false); }}
+                    onSuccess={() => { loadCash(defaultPortfolioId); setShowCashForm(false); }}
                 />
             )}
             <header className="navbar">

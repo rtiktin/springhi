@@ -23,6 +23,10 @@ spring:
           uri: ${PORTFOLIO_URL:http://localhost:8081}
           predicates:
             - Path=/api/v1/portfolio/**
+        - id: portfolios-service
+          uri: ${PORTFOLIO_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/portfolios/**
         - id: market-data
           uri: ${PORTFOLIO_URL:http://localhost:8081}
           predicates:

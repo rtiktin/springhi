@@ -20,6 +20,7 @@ interface ReadinessIssue {
 }
 
 interface Props {
+    portfolioId: number;
     onTradeSuccess?: () => void;
 }
 
@@ -50,7 +51,7 @@ function checkReadiness(
 const fmt = (n: number | null) =>
     n != null ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
 
-const OptimizePanel: React.FC<Props> = ({ onTradeSuccess }) => {
+const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess }) => {
     const [loading, setLoading] = useState(false);
     const [checking, setChecking] = useState(true);
     const [readinessIssues, setReadinessIssues] = useState<ReadinessIssue[]>([]);
@@ -65,14 +66,14 @@ const OptimizePanel: React.FC<Props> = ({ onTradeSuccess }) => {
     const [showSkipConfirm, setShowSkipConfirm] = useState<'sellAll' | 'sellChecked' | null>(null);
     const [pendingBuyAction, setPendingBuyAction] = useState<'all' | 'checked' | null>(null);
 
-    const loadCash = () => getCashBalance().then(c => { setCashBalance(c); return c; }).catch(() => 0);
+    const loadCash = () => getCashBalance(portfolioId).then(c => { setCashBalance(c); return c; }).catch(() => 0);
 
     useEffect(() => {
         Promise.all([
             getProfile().catch(() => null),
             getAccountProfile().catch(() => null),
             loadCash(),
-            getTodayRecommendations().catch(() => []),
+            getTodayRecommendations(portfolioId).catch(() => []),
         ]).then(([prof, account, , recs]) => {
             setProfile(prof);
             setReadinessIssues(checkReadiness(prof, account));
@@ -90,7 +91,7 @@ const OptimizePanel: React.FC<Props> = ({ onTradeSuccess }) => {
         setCheckedIds(new Set());
         setExecMsg(null);
         try {
-            const result = await optimizePortfolio();
+            const result = await optimizePortfolio(portfolioId);
             if (result.error) {
                 setError(result.error);
                 setRecommendations([]);
@@ -126,7 +127,7 @@ const OptimizePanel: React.FC<Props> = ({ onTradeSuccess }) => {
 
         let holdingsMap = new Map<string, number>();
         try {
-            const h = await getHoldings();
+            const h = await getHoldings(portfolioId);
             h.forEach(h => holdingsMap.set(h.symbol, h.quantity));
         } catch {
             failed.push('Could not fetch holdings for sell quantities');
@@ -137,8 +138,8 @@ const OptimizePanel: React.FC<Props> = ({ onTradeSuccess }) => {
             if (!qty || qty <= 0) { failed.push(`${rec.t}: no position found`); continue; }
             try {
                 const quote = await getQuote(rec.t);
-                const tx = await submitTransaction({ symbol: rec.t, type: 'SELL', quantity: qty, price: quote.price });
-                await markRecommendationExecuted(rec.id, tx.id);
+                const tx = await submitTransaction({ symbol: rec.t, type: 'SELL', quantity: qty, price: quote.price }, portfolioId);
+                await markRecommendationExecuted(rec.id, tx.id, portfolioId);
                 updateRec({ ...rec, status: 'EXECUTED', transactionId: tx.id });
                 succeeded++;
             } catch (e) {
@@ -157,9 +158,9 @@ const OptimizePanel: React.FC<Props> = ({ onTradeSuccess }) => {
             const allocation = cash * (rec.w / 100);
             const quantity = Math.floor((allocation / quote.price) * 100) / 100;
             if (quantity <= 0) throw new Error(`${rec.t}: allocation too small`);
-            const tx = await submitTransaction({ symbol: rec.t, type: 'BUY', quantity, price: quote.price });
+            const tx = await submitTransaction({ symbol: rec.t, type: 'BUY', quantity, price: quote.price }, portfolioId);
             const actualAmount = tx.quantity * tx.price;
-            await markRecommendationExecuted(rec.id, tx.id, actualAmount);
+            await markRecommendationExecuted(rec.id, tx.id, portfolioId, actualAmount);
             updateRec({ ...rec, status: 'EXECUTED', transactionId: tx.id, estimatedValue: actualAmount });
             return rec.t;
         }));
@@ -222,7 +223,7 @@ const OptimizePanel: React.FC<Props> = ({ onTradeSuccess }) => {
 
     const handleSkipSellsConfirmed = async () => {
         for (const r of pendingSells) {
-            await markRecommendationSkipped(r.id).catch(() => {});
+            await markRecommendationSkipped(r.id, portfolioId).catch(() => {});
             updateRec({ ...r, status: 'SKIPPED' });
         }
         setShowSkipConfirm(null);

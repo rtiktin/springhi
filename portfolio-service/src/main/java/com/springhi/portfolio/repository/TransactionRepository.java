@@ -12,6 +12,7 @@ import java.util.List;
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
     List<Transaction> findByUserId(Long userId);
+    List<Transaction> findByPortfolioId(Long portfolioId);
 
     @Query("""
             SELECT COALESCE(SUM(
@@ -26,4 +27,18 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             FROM Transaction t WHERE t.userId = :userId
             """)
     BigDecimal computeCashBalance(@Param("userId") Long userId);
+
+    @Query("""
+            SELECT COALESCE(SUM(
+                CASE t.type
+                    WHEN 'DEPOSIT'    THEN  t.quantity * t.price
+                    WHEN 'SELL'       THEN  t.quantity * t.price
+                    WHEN 'BUY'        THEN -(t.quantity * t.price)
+                    WHEN 'WITHDRAWAL' THEN -(t.quantity * t.price)
+                    ELSE 0
+                END
+            ), 0)
+            FROM Transaction t WHERE t.portfolioId = :portfolioId
+            """)
+    BigDecimal computeCashBalanceByPortfolio(@Param("portfolioId") Long portfolioId);
 }

@@ -15,6 +15,9 @@ public class PortfolioSnapshot {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    @Column(name = "portfolio_id")
+    private Long portfolioId;
+
     @Column(name = "snapshot_date", nullable = false)
     private LocalDate snapshotDate;
 
@@ -33,6 +36,8 @@ public class PortfolioSnapshot {
     public void setId(Long id) { this.id = id; }
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
+    public Long getPortfolioId() { return portfolioId; }
+    public void setPortfolioId(Long portfolioId) { this.portfolioId = portfolioId; }
     public LocalDate getSnapshotDate() { return snapshotDate; }
     public void setSnapshotDate(LocalDate snapshotDate) { this.snapshotDate = snapshotDate; }
     public BigDecimal getTotalValue() { return totalValue; }

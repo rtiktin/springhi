@@ -171,11 +171,22 @@ public class AlpacaService {
     }
 
     public Optional<AlpacaSnapshotResponse.Snapshot> fetchSnapshot(String symbol) {
+        Map<String, AlpacaSnapshotResponse.Snapshot> response = fetchSnapshots(List.of(symbol));
+        if (!response.containsKey(symbol)) {
+            log.warn("No snapshot returned from Alpaca for symbol: {}", symbol);
+            return Optional.empty();
+        }
+        return Optional.ofNullable(response.get(symbol));
+    }
+
+    public Map<String, AlpacaSnapshotResponse.Snapshot> fetchSnapshots(List<String> symbols) {
+        if (symbols == null || symbols.isEmpty()) return Map.of();
+        String joined = String.join(",", symbols);
         try {
             Map<String, AlpacaSnapshotResponse.Snapshot> response = webClient.get()
                     .uri(uriBuilder -> uriBuilder
                             .path("/v2/stocks/snapshots")
-                            .queryParam("symbols", symbol)
+                            .queryParam("symbols", joined)
                             .build())
                     .header("APCA-API-KEY-ID", apiKeyId)
                     .header("APCA-API-SECRET-KEY", apiSecretKey)
@@ -183,15 +194,10 @@ public class AlpacaService {
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, AlpacaSnapshotResponse.Snapshot>>() {})
                     .block();
-
-            if (response == null || !response.containsKey(symbol)) {
-                log.warn("No snapshot returned from Alpaca for symbol: {}", symbol);
-                return Optional.empty();
-            }
-            return Optional.ofNullable(response.get(symbol));
+            return response != null ? response : Map.of();
         } catch (Exception e) {
-            log.error("Failed to fetch Alpaca snapshot for {}: {}", symbol, e.getMessage());
-            return Optional.empty();
+            log.error("Failed to fetch Alpaca snapshots for [{}]: {}", joined, e.getMessage());
+            return Map.of();
         }
     }
 }

@@ -4,6 +4,7 @@ import { getLoggedInUsername } from '../utils/auth';
 import { getAccountProfile, updateAccountProfile } from '../api/accountApi';
 import type { AccountProfile } from '../api/accountApi';
 import CashForm from '../components/CashForm';
+import { getOrCreateDefaultPortfolio } from '../api/portfolioApi';
 
 const empty: AccountProfile = {
     firstName: '', lastName: '', bio: '', phone: '',
@@ -59,8 +60,10 @@ const AccountMaintenance: React.FC = () => {
     const [saved, setSaved] = useState(false);
     const [error, setError] = useState('');
     const [showCashForm, setShowCashForm] = useState(false);
+    const [defaultPortfolioId, setDefaultPortfolioId] = useState<number | null>(null);
 
     useEffect(() => {
+        getOrCreateDefaultPortfolio().then(p => setDefaultPortfolioId(p.id)).catch(() => {});
         getAccountProfile()
             .then(data => setForm(data))
             .catch((err) => {
@@ -231,8 +234,8 @@ const AccountMaintenance: React.FC = () => {
                     </div>
                 </div>
             </main>
-            {showCashForm && (
-                <CashForm onClose={() => setShowCashForm(false)} onSuccess={() => {}} />
+            {showCashForm && defaultPortfolioId != null && (
+                <CashForm portfolioId={defaultPortfolioId} onClose={() => setShowCashForm(false)} onSuccess={() => {}} />
             )}
         </div>
     );

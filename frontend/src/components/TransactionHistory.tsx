@@ -1,8 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getTransactions, getCompanyName } from '../api/portfolioApi';
 import type { Transaction } from '../api/portfolioApi';
 
-const TransactionHistory: React.FC = () => {
+interface Props {
+    portfolioId: number;
+}
+
+const TransactionHistory: React.FC<Props> = ({ portfolioId }) => {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -11,19 +15,20 @@ const TransactionHistory: React.FC = () => {
     const [lookingUp, setLookingUp] = useState(false);
 
     useEffect(() => {
-        getTransactions()
+        setLoading(true);
+        getTransactions(portfolioId)
             .then(data => setTransactions(data.sort((a, b) =>
                 new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
             )))
             .catch(() => setError('Failed to load transaction history.'))
             .finally(() => setLoading(false));
-    }, []);
+    }, [portfolioId]);
 
     const handleSymbolClick = (symbol: string) => {
         if (!symbol || symbol === 'CASH') return;
         setSelectedSymbol(symbol);
         setLookingUp(true);
-        getCompanyName(symbol)
+        getCompanyName(symbol, portfolioId)
             .then(name => setCompanyNameMap(prev => ({ ...prev, [symbol]: name })))
             .catch(() => setCompanyNameMap(prev => ({ ...prev, [symbol]: null })))
             .finally(() => setLookingUp(false));

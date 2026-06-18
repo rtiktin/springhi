@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { submitTransaction, getCashBalance } from '../api/portfolioApi';
 
 interface Props {
+    portfolioId: number;
     onClose: () => void;
     onSuccess: () => void;
 }
 
-const CashForm: React.FC<Props> = ({ onClose, onSuccess }) => {
+const CashForm: React.FC<Props> = ({ portfolioId, onClose, onSuccess }) => {
     const [mode, setMode] = useState<'DEPOSIT' | 'WITHDRAWAL'>('DEPOSIT');
     const [amount, setAmount] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -14,8 +15,8 @@ const CashForm: React.FC<Props> = ({ onClose, onSuccess }) => {
     const [cashBalance, setCashBalance] = useState<number | null>(null);
 
     useEffect(() => {
-        getCashBalance().then(setCashBalance).catch(() => {});
-    }, []);
+        getCashBalance(portfolioId).then(setCashBalance).catch(() => {});
+    }, [portfolioId]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -25,7 +26,7 @@ const CashForm: React.FC<Props> = ({ onClose, onSuccess }) => {
 
         setSubmitting(true);
         try {
-            await submitTransaction({ symbol: 'CASH', type: mode, quantity: amt, price: 1 });
+            await submitTransaction({ symbol: 'CASH', type: mode, quantity: amt, price: 1 }, portfolioId);
             onSuccess();
             onClose();
         } catch (err: any) {

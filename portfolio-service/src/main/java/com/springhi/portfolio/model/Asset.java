@@ -16,6 +16,9 @@ public class Asset {
     @Column(nullable = false)
     private Long userId;
 
+    @Column
+    private Long portfolioId;
+
     @Column(nullable = false)
     private String symbol;
 
@@ -45,6 +48,8 @@ public class Asset {
     public void setId(Long id) { this.id = id; }
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
+    public Long getPortfolioId() { return portfolioId; }
+    public void setPortfolioId(Long portfolioId) { this.portfolioId = portfolioId; }
     public String getSymbol() { return symbol; }
     public void setSymbol(String symbol) { this.symbol = symbol; }
     public String getCompanyName() { return companyName; }

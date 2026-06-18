@@ -1,8 +1,10 @@
 package com.springhi.portfolio.service;
 
 import com.springhi.portfolio.model.Asset;
+import com.springhi.portfolio.model.Portfolio;
 import com.springhi.portfolio.model.PortfolioSnapshot;
 import com.springhi.portfolio.repository.AssetRepository;
+import com.springhi.portfolio.repository.PortfolioRepository;
 import com.springhi.portfolio.repository.PortfolioSnapshotRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,35 +23,41 @@ public class PortfolioSnapshotService {
     private final PortfolioSnapshotRepository snapshotRepository;
     private final MarketDataService marketDataService;
     private final PortfolioService portfolioService;
+    private final PortfolioRepository portfolioRepository;
 
     public PortfolioSnapshotService(AssetRepository assetRepository,
                                     PortfolioSnapshotRepository snapshotRepository,
                                     MarketDataService marketDataService,
-                                    PortfolioService portfolioService) {
+                                    PortfolioService portfolioService,
+                                    PortfolioRepository portfolioRepository) {
         this.assetRepository = assetRepository;
         this.snapshotRepository = snapshotRepository;
         this.marketDataService = marketDataService;
         this.portfolioService = portfolioService;
+        this.portfolioRepository = portfolioRepository;
     }
 
     public void takeSnapshotsForAllUsers() {
-        List<Long> userIds = assetRepository.findDistinctUserIds();
-        if (userIds.isEmpty()) {
-            log.info("No users with holdings to snapshot");
+        List<Long> portfolioIds = assetRepository.findDistinctPortfolioIds();
+        if (portfolioIds.isEmpty()) {
+            log.info("No portfolios with holdings to snapshot");
             return;
         }
-        log.info("Taking portfolio snapshots for {} user(s)", userIds.size());
-        for (Long userId : userIds) {
+        log.info("Taking portfolio snapshots for {} portfolio(s)", portfolioIds.size());
+        for (Long portfolioId : portfolioIds) {
             try {
-                takeSnapshotForUser(userId);
+                takeSnapshotForPortfolio(portfolioId);
             } catch (Exception e) {
-                log.error("Failed to take snapshot for userId={}: {}", userId, e.getMessage());
+                log.error("Failed to take snapshot for portfolioId={}: {}", portfolioId, e.getMessage());
             }
         }
     }
 
-    public PortfolioSnapshot takeSnapshotForUser(Long userId) {
-        List<Asset> assets = assetRepository.findByUserId(userId);
+    public PortfolioSnapshot takeSnapshotForPortfolio(Long portfolioId) {
+        Portfolio portfolio = portfolioRepository.findById(portfolioId).orElse(null);
+        Long userId = portfolio != null ? portfolio.getUserId() : null;
+
+        List<Asset> assets = assetRepository.findByPortfolioId(portfolioId);
 
         BigDecimal investedValue = assets.stream()
                 .map(asset -> {
@@ -60,27 +68,28 @@ public class PortfolioSnapshotService {
                 })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal cashValue = portfolioService.getCashBalance(userId);
+        BigDecimal cashValue = portfolioService.getCashBalance(portfolioId);
 
         BigDecimal totalValue = investedValue.add(cashValue);
         LocalDate today = LocalDate.now();
 
         PortfolioSnapshot snapshot = snapshotRepository
-                .findByUserIdAndSnapshotDate(userId, today)
+                .findByPortfolioIdAndSnapshotDate(portfolioId, today)
                 .orElse(new PortfolioSnapshot());
 
-        snapshot.setUserId(userId);
+        snapshot.setPortfolioId(portfolioId);
+        snapshot.setUserId(userId != null ? userId : 0L);
         snapshot.setSnapshotDate(today);
         snapshot.setInvestedValue(investedValue);
         snapshot.setCashValue(cashValue);
         snapshot.setTotalValue(totalValue);
 
         PortfolioSnapshot saved = snapshotRepository.save(snapshot);
-        log.info("Snapshot saved for userId={}: total={}", userId, totalValue);
+        log.info("Snapshot saved for portfolioId={}: total={}", portfolioId, totalValue);
         return saved;
     }
 
-    public List<PortfolioSnapshot> getSnapshotsForUser(Long userId) {
-        return snapshotRepository.findByUserIdOrderBySnapshotDateAsc(userId);
+    public List<PortfolioSnapshot> getSnapshotsForPortfolio(Long portfolioId) {
+        return snapshotRepository.findByPortfolioIdOrderBySnapshotDateAsc(portfolioId);
     }
 }

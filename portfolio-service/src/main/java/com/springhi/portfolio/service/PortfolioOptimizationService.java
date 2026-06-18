@@ -45,29 +45,29 @@ public class PortfolioOptimizationService {
         this.recommendationRepository = recommendationRepository;
     }
 
-    public List<RecommendationDto> getTodayRecommendations(Long userId) {
+    public List<RecommendationDto> getTodayRecommendations(Long portfolioId) {
         LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
         LocalDateTime endOfDay = LocalDate.now().atTime(LocalTime.MAX);
         return recommendationRepository
-                .findByUserIdAndGeneratedAtBetweenOrderByActionDescIdAsc(userId, startOfDay, endOfDay)
+                .findByPortfolioIdAndGeneratedAtBetweenOrderByActionDescIdAsc(portfolioId, startOfDay, endOfDay)
                 .stream()
                 .map(RecommendationDto::from)
                 .collect(Collectors.toList());
     }
 
     @Transactional
-    public OptimizationResponse optimize(Long userId) {
+    public OptimizationResponse optimize(Long userId, Long portfolioId) {
         UserProfileResponse profile = userProfileService.getProfile(userId).orElse(null);
-        List<AssetWithPrice> holdings = portfolioService.getUserAssetsWithPrices(userId);
-        BigDecimal cashBalance = portfolioService.getCashBalance(userId);
+        List<AssetWithPrice> holdings = portfolioService.getUserAssetsWithPrices(portfolioId);
+        BigDecimal cashBalance = portfolioService.getCashBalance(portfolioId);
 
         BigDecimal portfolioMarketValue = holdings.stream()
                 .map(h -> h.getMarketValue() != null ? h.getMarketValue() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         String prompt = buildPrompt(profile, holdings, cashBalance, portfolioMarketValue);
-        log.info("Sending rebalancing prompt to Gemini for userId={}, holdings={}, cash={}",
-                userId, holdings.size(), cashBalance);
+        log.info("Sending rebalancing prompt to Gemini for portfolioId={}, holdings={}, cash={}",
+                portfolioId, holdings.size(), cashBalance);
 
         try {
             String rawText = geminiService.generateContent(prompt);
@@ -75,20 +75,21 @@ public class PortfolioOptimizationService {
             List<SecurityRecommendation> recs = objectMapper.readValue(json,
                     new TypeReference<List<SecurityRecommendation>>() {});
 
-            List<RecommendationDto> saved = persistRecommendations(userId, recs, holdings, cashBalance, portfolioMarketValue);
+            List<RecommendationDto> saved = persistRecommendations(userId, portfolioId, recs, holdings, cashBalance, portfolioMarketValue);
             return new OptimizationResponse(saved, null);
         } catch (Exception e) {
-            log.error("Optimization failed for userId={}: {}", userId, e.getMessage(), e);
+            log.error("Optimization failed for portfolioId={}: {}", portfolioId, e.getMessage(), e);
             return new OptimizationResponse(Collections.emptyList(), e.getMessage());
         }
     }
 
     private List<RecommendationDto> persistRecommendations(Long userId,
+                                                            Long portfolioId,
                                                             List<SecurityRecommendation> recs,
                                                             List<AssetWithPrice> holdings,
                                                             BigDecimal cashBalance,
                                                             BigDecimal portfolioMarketValue) {
-        recommendationRepository.deleteAllForUser(userId);
+        recommendationRepository.deleteAllForPortfolio(portfolioId);
 
         Map<String, AssetWithPrice> holdingMap = holdings.stream()
                 .collect(Collectors.toMap(AssetWithPrice::getSymbol, h -> h));
@@ -100,6 +101,7 @@ public class PortfolioOptimizationService {
         List<PortfolioRecommendation> entities = recs.stream().map(rec -> {
             PortfolioRecommendation entity = new PortfolioRecommendation();
             entity.setUserId(userId);
+            entity.setPortfolioId(portfolioId);
             entity.setGeneratedAt(now);
             entity.setTicker(rec.t());
             entity.setName(rec.n());

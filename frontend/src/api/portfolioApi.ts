@@ -2,10 +2,20 @@ import axios from 'axios';
 
 import API_GATEWAY from './apiBase';
 const BASE_URL = `${API_GATEWAY}/api/v1/portfolio`;
+const PORTFOLIOS_URL = `${API_GATEWAY}/api/v1/portfolios`;
 
 const authHeader = () => ({
     Authorization: `Bearer ${localStorage.getItem('token')}`,
 });
+
+export interface Portfolio {
+    id: number;
+    userId: number;
+    name: string;
+    description?: string;
+    createdAt: string;
+    updatedAt: string;
+}
 
 export interface AssetWithPrice {
     id: number;
@@ -37,66 +47,103 @@ export interface TransactionRequest {
     price: number;
 }
 
-export const getHoldings = async (): Promise<AssetWithPrice[]> => {
-    const response = await axios.get(BASE_URL, { headers: authHeader() });
+export const listPortfolios = async (): Promise<Portfolio[]> => {
+    const response = await axios.get(PORTFOLIOS_URL, { headers: authHeader() });
     return response.data;
 };
 
-export const getTransactions = async (): Promise<Transaction[]> => {
-    const response = await axios.get(`${BASE_URL}/transactions`, { headers: authHeader() });
+export const createPortfolio = async (name: string, description?: string): Promise<Portfolio> => {
+    const response = await axios.post(PORTFOLIOS_URL, { name, description }, { headers: authHeader() });
     return response.data;
 };
 
-export const submitTransaction = async (req: TransactionRequest): Promise<Transaction> => {
-    const response = await axios.post(`${BASE_URL}/transactions`, req, { headers: authHeader() });
+export const updatePortfolio = async (id: number, name: string, description?: string): Promise<Portfolio> => {
+    const response = await axios.put(`${PORTFOLIOS_URL}/${id}`, { name, description }, { headers: authHeader() });
+    return response.data;
+};
+
+export const deletePortfolio = async (id: number): Promise<void> => {
+    await axios.delete(`${PORTFOLIOS_URL}/${id}`, { headers: authHeader() });
+};
+
+export const getOrCreateDefaultPortfolio = async (): Promise<Portfolio> => {
+    const response = await axios.get(`${BASE_URL}/default-portfolio`, { headers: authHeader() });
+    return response.data;
+};
+
+export const getHoldings = async (portfolioId: number): Promise<AssetWithPrice[]> => {
+    const response = await axios.get(BASE_URL, { headers: authHeader(), params: { portfolioId } });
+    return response.data;
+};
+
+export const getTransactions = async (portfolioId: number): Promise<Transaction[]> => {
+    const response = await axios.get(`${BASE_URL}/transactions`, { headers: authHeader(), params: { portfolioId } });
+    return response.data;
+};
+
+export const submitTransaction = async (req: TransactionRequest, portfolioId: number): Promise<Transaction> => {
+    const response = await axios.post(`${BASE_URL}/transactions`, req, {
+        headers: authHeader(),
+        params: { portfolioId },
+    });
     return response.data;
 };
 
 export interface PortfolioSnapshot {
     id: number;
     userId: number;
+    portfolioId: number;
     snapshotDate: string;
     totalValue: number;
     cashValue: number | null;
     investedValue: number | null;
 }
 
-export const getCashBalance = async (): Promise<number> => {
-    const response = await axios.get(`${BASE_URL}/cash`, { headers: authHeader() });
+export const getCashBalance = async (portfolioId: number): Promise<number> => {
+    const response = await axios.get(`${BASE_URL}/cash`, { headers: authHeader(), params: { portfolioId } });
     return response.data.balance;
 };
 
-export const getPortfolioSnapshots = async (): Promise<PortfolioSnapshot[]> => {
-    const response = await axios.get(`${BASE_URL}/snapshots`, { headers: authHeader() });
+export const getPortfolioSnapshots = async (portfolioId: number): Promise<PortfolioSnapshot[]> => {
+    const response = await axios.get(`${BASE_URL}/snapshots`, { headers: authHeader(), params: { portfolioId } });
     return response.data;
 };
 
-export const takePortfolioSnapshot = async (): Promise<PortfolioSnapshot> => {
-    const response = await axios.post(`${BASE_URL}/snapshots`, {}, { headers: authHeader() });
+export const takePortfolioSnapshot = async (portfolioId: number): Promise<PortfolioSnapshot> => {
+    const response = await axios.post(`${BASE_URL}/snapshots`, {}, {
+        headers: authHeader(),
+        params: { portfolioId },
+    });
     return response.data;
 };
 
-export const getTodayRecommendations = async () => {
-    const response = await axios.get(`${BASE_URL}/recommendations`, { headers: authHeader() });
+export const getTodayRecommendations = async (portfolioId: number) => {
+    const response = await axios.get(`${BASE_URL}/recommendations`, { headers: authHeader(), params: { portfolioId } });
     return response.data;
 };
 
-export const markRecommendationExecuted = async (id: number, transactionId: number, actualAmount?: number) => {
+export const markRecommendationExecuted = async (id: number, transactionId: number, portfolioId: number, actualAmount?: number) => {
     const response = await axios.post(
         `${BASE_URL}/recommendations/${id}/execute`,
         { transactionId, actualAmount },
-        { headers: authHeader() }
+        { headers: authHeader(), params: { portfolioId } }
     );
     return response.data;
 };
 
-export const markRecommendationSkipped = async (id: number) => {
-    const response = await axios.post(`${BASE_URL}/recommendations/${id}/skip`, {}, { headers: authHeader() });
+export const markRecommendationSkipped = async (id: number, portfolioId: number) => {
+    const response = await axios.post(`${BASE_URL}/recommendations/${id}/skip`, {}, {
+        headers: authHeader(),
+        params: { portfolioId },
+    });
     return response.data;
 };
 
-export const getCompanyName = async (symbol: string): Promise<string | null> => {
-    const response = await axios.get(`${BASE_URL}/company-name/${symbol}`, { headers: authHeader() });
+export const getCompanyName = async (symbol: string, portfolioId: number): Promise<string | null> => {
+    const response = await axios.get(`${BASE_URL}/company-name/${symbol}`, {
+        headers: authHeader(),
+        params: { portfolioId },
+    });
     const name = response.data.companyName;
     return name && name.trim() ? name : null;
 };

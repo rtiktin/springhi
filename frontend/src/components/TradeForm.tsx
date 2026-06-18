@@ -4,12 +4,13 @@ import { submitTransaction, getCashBalance } from '../api/portfolioApi';
 import type { TransactionRequest } from '../api/portfolioApi';
 
 interface Props {
+    portfolioId: number;
     onClose: () => void;
     onSuccess: () => void;
     defaultSymbol?: string;
 }
 
-const TradeForm: React.FC<Props> = ({ onClose, onSuccess, defaultSymbol = '' }) => {
+const TradeForm: React.FC<Props> = ({ portfolioId, onClose, onSuccess, defaultSymbol = '' }) => {
     const [symbol, setSymbol] = useState(defaultSymbol.toUpperCase());
     const [tradeType, setTradeType] = useState<'BUY' | 'SELL'>('BUY');
     const [quantity, setQuantity] = useState('');
@@ -20,8 +21,8 @@ const TradeForm: React.FC<Props> = ({ onClose, onSuccess, defaultSymbol = '' }) 
     const [cashBalance, setCashBalance] = useState<number | null>(null);
 
     useEffect(() => {
-        getCashBalance().then(setCashBalance).catch(() => {});
-    }, []);
+        getCashBalance(portfolioId).then(setCashBalance).catch(() => {});
+    }, [portfolioId]);
 
     const fmtCash = (n: number) =>
         `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -56,7 +57,7 @@ const TradeForm: React.FC<Props> = ({ onClose, onSuccess, defaultSymbol = '' }) 
         if (tradeType === 'BUY') {
             const totalCost = qty * prc;
             try {
-                const cash = await getCashBalance();
+                const cash = await getCashBalance(portfolioId);
                 setCashBalance(cash);
                 if (cash < totalCost) {
                     setError(`Insufficient cash. Available: ${fmtCash(cash)}, Required: ${fmtCash(totalCost)}`);
@@ -77,7 +78,7 @@ const TradeForm: React.FC<Props> = ({ onClose, onSuccess, defaultSymbol = '' }) 
 
         setSubmitting(true);
         try {
-            await submitTransaction(req);
+            await submitTransaction(req, portfolioId);
             onSuccess();
             onClose();
         } catch (err: any) {

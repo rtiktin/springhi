@@ -2,15 +2,19 @@ package com.springhi.portfolio.service;
 
 import com.springhi.portfolio.dto.AssetWithPrice;
 import com.springhi.portfolio.model.Asset;
+import com.springhi.portfolio.model.Portfolio;
 import com.springhi.portfolio.model.Transaction;
 import com.springhi.portfolio.repository.AssetRepository;
+import com.springhi.portfolio.repository.PortfolioRepository;
 import com.springhi.portfolio.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.springhi.portfolio.model.MarketQuote;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -19,58 +23,104 @@ public class PortfolioService {
     private final TransactionRepository transactionRepository;
     private final MarketDataService marketDataService;
     private final AlpacaService alpacaService;
+    private final PortfolioRepository portfolioRepository;
 
     public PortfolioService(AssetRepository assetRepository,
                             TransactionRepository transactionRepository,
                             MarketDataService marketDataService,
-                            AlpacaService alpacaService) {
+                            AlpacaService alpacaService,
+                            PortfolioRepository portfolioRepository) {
         this.assetRepository = assetRepository;
         this.transactionRepository = transactionRepository;
         this.marketDataService = marketDataService;
         this.alpacaService = alpacaService;
+        this.portfolioRepository = portfolioRepository;
     }
 
-    public List<Asset> getUserAssets(Long userId) {
-        return assetRepository.findByUserId(userId);
+    public List<Portfolio> listPortfolios(Long userId) {
+        return portfolioRepository.findByUserIdOrderByCreatedAtAsc(userId);
     }
 
-    public List<AssetWithPrice> getUserAssetsWithPrices(Long userId) {
-        return assetRepository.findByUserId(userId).stream()
+    public Portfolio getOrCreateDefaultPortfolio(Long userId) {
+        List<Portfolio> portfolios = portfolioRepository.findByUserIdOrderByCreatedAtAsc(userId);
+        if (!portfolios.isEmpty()) return portfolios.get(0);
+        Portfolio p = new Portfolio();
+        p.setUserId(userId);
+        p.setName("Default Portfolio");
+        return portfolioRepository.save(p);
+    }
+
+    public Portfolio createPortfolio(Long userId, String name, String description) {
+        Portfolio p = new Portfolio();
+        p.setUserId(userId);
+        p.setName(name);
+        p.setDescription(description);
+        return portfolioRepository.save(p);
+    }
+
+    public Portfolio updatePortfolio(Long userId, Long portfolioId, String name, String description) {
+        Portfolio p = validatePortfolioOwnership(userId, portfolioId);
+        if (name != null && !name.isBlank()) p.setName(name);
+        p.setDescription(description);
+        return portfolioRepository.save(p);
+    }
+
+    public void deletePortfolio(Long userId, Long portfolioId) {
+        Portfolio p = validatePortfolioOwnership(userId, portfolioId);
+        portfolioRepository.delete(p);
+    }
+
+    public Portfolio validatePortfolioOwnership(Long userId, Long portfolioId) {
+        return portfolioRepository.findById(portfolioId)
+                .filter(p -> p.getUserId().equals(userId))
+                .orElseThrow(() -> new SecurityException("Portfolio not found or access denied"));
+    }
+
+    public List<Asset> getUserAssets(Long portfolioId) {
+        return assetRepository.findByPortfolioId(portfolioId);
+    }
+
+    public List<AssetWithPrice> getUserAssetsWithPrices(Long portfolioId) {
+        List<Asset> assets = assetRepository.findByPortfolioId(portfolioId);
+        if (assets.isEmpty()) return List.of();
+        List<String> symbols = assets.stream().map(Asset::getSymbol).distinct().toList();
+        Map<String, MarketQuote> freshQuotes = marketDataService.refreshQuotes(symbols);
+        return assets.stream()
                 .map(asset -> AssetWithPrice.from(
                         asset,
-                        marketDataService.getLatestCachedQuote(asset.getSymbol()).orElse(null)
+                        freshQuotes.getOrDefault(asset.getSymbol(),
+                                marketDataService.getLatestCachedQuote(asset.getSymbol()).orElse(null))
                 ))
                 .toList();
     }
 
-    public List<Transaction> getUserTransactions(Long userId) {
-        return transactionRepository.findByUserId(userId);
+    public List<Transaction> getUserTransactions(Long portfolioId) {
+        return transactionRepository.findByPortfolioId(portfolioId);
     }
 
-    public BigDecimal getCashBalance(Long userId) {
-        return transactionRepository.computeCashBalance(userId);
+    public BigDecimal getCashBalance(Long portfolioId) {
+        return transactionRepository.computeCashBalanceByPortfolio(portfolioId);
     }
 
     @Transactional
-    public Optional<String> getOrFetchCompanyName(Long userId, String symbol) {
-        Optional<Asset> assetOpt = assetRepository.findByUserIdAndSymbol(userId, symbol);
+    public Optional<String> getOrFetchCompanyName(Long portfolioId, String symbol) {
+        Optional<Asset> assetOpt = assetRepository.findByPortfolioIdAndSymbol(portfolioId, symbol);
         if (assetOpt.isPresent() && assetOpt.get().getCompanyName() != null
                 && !assetOpt.get().getCompanyName().isBlank()) {
             return Optional.of(assetOpt.get().getCompanyName());
         }
         Optional<String> fetched = alpacaService.fetchCompanyName(symbol);
-        fetched.ifPresent(name -> {
-            assetOpt.ifPresent(asset -> {
-                asset.setCompanyName(name);
-                assetRepository.save(asset);
-            });
-        });
+        fetched.ifPresent(name -> assetOpt.ifPresent(asset -> {
+            asset.setCompanyName(name);
+            assetRepository.save(asset);
+        }));
         return fetched;
     }
 
     @Transactional
     public Transaction processTransaction(Transaction transaction) {
         String type = transaction.getType();
+        Long portfolioId = transaction.getPortfolioId();
 
         if ("DEPOSIT".equals(type) || "WITHDRAWAL".equals(type)) {
             if (transaction.getSymbol() == null || transaction.getSymbol().isBlank()) {
@@ -86,11 +136,15 @@ public class PortfolioService {
             throw new IllegalArgumentException("Invalid transaction type: " + type);
         }
 
-        Asset asset = assetRepository.findByUserIdAndSymbol(transaction.getUserId(), transaction.getSymbol())
-                .orElse(new Asset());
+        Optional<Asset> existingAsset = portfolioId != null
+                ? assetRepository.findByPortfolioIdAndSymbol(portfolioId, transaction.getSymbol())
+                : assetRepository.findByUserIdAndSymbol(transaction.getUserId(), transaction.getSymbol());
+
+        Asset asset = existingAsset.orElse(new Asset());
 
         if (asset.getId() == null) {
             asset.setUserId(transaction.getUserId());
+            asset.setPortfolioId(portfolioId);
             asset.setSymbol(transaction.getSymbol());
             asset.setQuantity(BigDecimal.ZERO);
             asset.setAveragePrice(BigDecimal.ZERO);

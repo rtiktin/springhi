@@ -17,8 +17,16 @@ public interface PortfolioRecommendationRepository extends JpaRepository<Portfol
     List<PortfolioRecommendation> findByUserIdAndGeneratedAtBetweenOrderByActionDescIdAsc(
             Long userId, LocalDateTime start, LocalDateTime end);
 
+    List<PortfolioRecommendation> findByPortfolioIdAndGeneratedAtBetweenOrderByActionDescIdAsc(
+            Long portfolioId, LocalDateTime start, LocalDateTime end);
+
     @Modifying
     @Transactional
     @Query("DELETE FROM PortfolioRecommendation r WHERE r.userId = :userId")
     void deleteAllForUser(@Param("userId") Long userId);
+
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM PortfolioRecommendation r WHERE r.portfolioId = :portfolioId")
+    void deleteAllForPortfolio(@Param("portfolioId") Long portfolioId);
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getHoldings, getPortfolioSnapshots, takePortfolioSnapshot, getCashBalance, getCompanyName } from '../api/portfolioApi';
 import type { AssetWithPrice, PortfolioSnapshot } from '../api/portfolioApi';
 import { getQuoteHistory } from '../api/marketApi';
@@ -9,7 +9,11 @@ import PortfolioChart from './PortfolioChart';
 const fmt = (val: number | null, decimals = 2, prefix = '') =>
     val != null ? `${prefix}${val.toFixed(decimals)}` : '—';
 
-const PortfolioDashboard: React.FC = () => {
+interface Props {
+    portfolioId: number;
+}
+
+const PortfolioDashboard: React.FC<Props> = ({ portfolioId }) => {
     const [holdings, setHoldings] = useState<AssetWithPrice[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -21,7 +25,9 @@ const PortfolioDashboard: React.FC = () => {
     const [cashBalance, setCashBalance] = useState<number | null>(null);
 
     useEffect(() => {
-        getHoldings()
+        setLoading(true);
+        setError('');
+        getHoldings(portfolioId)
             .then(data => {
                 setHoldings(data);
                 if (data.length > 0) selectHolding(data[0]);
@@ -29,18 +35,18 @@ const PortfolioDashboard: React.FC = () => {
             .catch(() => setError('Failed to load portfolio holdings.'))
             .finally(() => setLoading(false));
 
-        getPortfolioSnapshots()
+        getPortfolioSnapshots(portfolioId)
             .then(setSnapshots)
             .catch(() => setSnapshots([]));
 
-        getCashBalance()
+        getCashBalance(portfolioId)
             .then(setCashBalance)
             .catch(() => setCashBalance(null));
-    }, []);
+    }, [portfolioId]);
 
     const handleSnapshotNow = () => {
         setSnapshotting(true);
-        takePortfolioSnapshot()
+        takePortfolioSnapshot(portfolioId)
             .then(snap => setSnapshots(prev => {
                 const filtered = prev.filter(s => s.snapshotDate !== snap.snapshotDate);
                 return [...filtered, snap].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
@@ -59,7 +65,7 @@ const PortfolioDashboard: React.FC = () => {
 
     useEffect(() => {
         if (!selectedHolding) return;
-        getCompanyName(selectedHolding.symbol).then(name => {
+        getCompanyName(selectedHolding.symbol, portfolioId).then(name => {
             if (name) {
                 setSelectedHolding(prev => prev?.symbol === selectedHolding.symbol
                     ? { ...prev, companyName: name }
@@ -69,7 +75,7 @@ const PortfolioDashboard: React.FC = () => {
                 ));
             }
         }).catch(() => {});
-    }, [selectedHolding?.symbol]);
+    }, [selectedHolding?.symbol, portfolioId]);
 
     const totalMarketValue = holdings.reduce((sum, h) => sum + (h.marketValue ?? 0), 0);
     const totalCostBasis = holdings.reduce((sum, h) => sum + (h.costBasis ?? 0), 0);

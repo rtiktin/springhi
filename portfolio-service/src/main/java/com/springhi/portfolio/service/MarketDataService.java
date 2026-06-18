@@ -15,6 +15,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -42,6 +43,15 @@ public class MarketDataService {
     public Optional<MarketQuote> fetchAndSave(String symbol) {
         return alpacaService.fetchSnapshot(symbol)
                 .map(snapshot -> save(symbol, snapshot));
+    }
+
+    public Map<String, MarketQuote> refreshQuotes(List<String> symbols) {
+        if (symbols == null || symbols.isEmpty()) return Map.of();
+        Map<String, AlpacaSnapshotResponse.Snapshot> snapshots = alpacaService.fetchSnapshots(symbols);
+        java.util.Map<String, MarketQuote> result = new java.util.HashMap<>();
+        snapshots.forEach((symbol, snapshot) -> result.put(symbol, save(symbol, snapshot)));
+        log.info("Refreshed prices for {} symbol(s)", result.size());
+        return result;
     }
 
     public List<MarketQuote> getQuoteHistory(String symbol) {
