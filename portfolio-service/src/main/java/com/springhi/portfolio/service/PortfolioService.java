@@ -1,18 +1,24 @@
 package com.springhi.portfolio.service;
 
 import com.springhi.portfolio.dto.AssetWithPrice;
+import com.springhi.portfolio.dto.PortfolioProfileDto;
 import com.springhi.portfolio.model.Asset;
 import com.springhi.portfolio.model.Portfolio;
+import com.springhi.portfolio.model.PortfolioProfile;
 import com.springhi.portfolio.model.Transaction;
 import com.springhi.portfolio.repository.AssetRepository;
+import com.springhi.portfolio.repository.PortfolioProfileRepository;
 import com.springhi.portfolio.repository.PortfolioRepository;
 import com.springhi.portfolio.repository.TransactionRepository;
+import com.springhi.portfolio.service.UserProfileService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.springhi.portfolio.model.MarketQuote;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -24,17 +30,23 @@ public class PortfolioService {
     private final MarketDataService marketDataService;
     private final AlpacaService alpacaService;
     private final PortfolioRepository portfolioRepository;
+    private final PortfolioProfileRepository portfolioProfileRepository;
+    private final UserProfileService userProfileService;
 
     public PortfolioService(AssetRepository assetRepository,
                             TransactionRepository transactionRepository,
                             MarketDataService marketDataService,
                             AlpacaService alpacaService,
-                            PortfolioRepository portfolioRepository) {
+                            PortfolioRepository portfolioRepository,
+                            PortfolioProfileRepository portfolioProfileRepository,
+                            UserProfileService userProfileService) {
         this.assetRepository = assetRepository;
         this.transactionRepository = transactionRepository;
         this.marketDataService = marketDataService;
         this.alpacaService = alpacaService;
         this.portfolioRepository = portfolioRepository;
+        this.portfolioProfileRepository = portfolioProfileRepository;
+        this.userProfileService = userProfileService;
     }
 
     public List<Portfolio> listPortfolios(Long userId) {
@@ -55,7 +67,73 @@ public class PortfolioService {
         p.setUserId(userId);
         p.setName(name);
         p.setDescription(description);
-        return portfolioRepository.save(p);
+        Portfolio saved = portfolioRepository.save(p);
+        initPortfolioProfileFromInvestorProfile(saved.getId(), userId);
+        return saved;
+    }
+
+    private void initPortfolioProfileFromInvestorProfile(Long portfolioId, Long userId) {
+        PortfolioProfile pp = new PortfolioProfile();
+        pp.setPortfolioId(portfolioId);
+        userProfileService.getProfile(userId).ifPresent(ip -> {
+            pp.setRiskLevel(ip.riskLevel());
+            pp.setGoal(ip.goal());
+            pp.setHorizonYears(ip.horizonYears());
+            pp.setLiquidityNeeds(ip.liquidityNeeds());
+            pp.setAdditionalComments(ip.additionalComments());
+            pp.setCurrency(ip.currency() != null ? ip.currency() : "USD");
+            if (ip.sectorConstraints() != null && !ip.sectorConstraints().isEmpty()) {
+                pp.setSectorConstraints(String.join(",", ip.sectorConstraints()));
+            }
+        });
+        if (pp.getCurrency() == null) pp.setCurrency("USD");
+        portfolioProfileRepository.save(pp);
+    }
+
+    public PortfolioProfileDto getOrCreatePortfolioProfile(Long portfolioId, Long userId) {
+        PortfolioProfile pp = portfolioProfileRepository.findByPortfolioId(portfolioId)
+                .orElseGet(() -> {
+                    initPortfolioProfileFromInvestorProfile(portfolioId, userId);
+                    return portfolioProfileRepository.findByPortfolioId(portfolioId).orElseThrow();
+                });
+        return PortfolioProfileDto.from(pp);
+    }
+
+    public PortfolioProfileDto savePortfolioProfile(Long portfolioId, Map<String, Object> body) {
+        PortfolioProfile pp = portfolioProfileRepository.findByPortfolioId(portfolioId)
+                .orElse(new PortfolioProfile());
+        pp.setPortfolioId(portfolioId);
+
+        pp.setRiskLevel(strOrNull(body.get("riskLevel")));
+        pp.setGoal(strOrNull(body.get("goal")));
+        Object horizon = body.get("horizonYears");
+        pp.setHorizonYears(horizon != null && !horizon.toString().isBlank()
+                ? Integer.parseInt(horizon.toString()) : null);
+        pp.setLiquidityNeeds(strOrNull(body.get("liquidityNeeds")));
+        pp.setAdditionalComments(strOrNull(body.get("additionalComments")));
+        String currency = strOrNull(body.get("currency"));
+        pp.setCurrency(currency != null ? currency : "USD");
+
+        Object sectors = body.get("sectorConstraints");
+        if (sectors instanceof List<?> list) {
+            pp.setSectorConstraints(list.isEmpty() ? null
+                    : String.join(",", list.stream().map(Object::toString).toList()));
+        } else {
+            pp.setSectorConstraints(null);
+        }
+
+        return PortfolioProfileDto.from(portfolioProfileRepository.save(pp));
+    }
+
+    private String strOrNull(Object val) {
+        if (val == null) return null;
+        String s = val.toString().trim();
+        return s.isBlank() ? null : s;
+    }
+
+    public Optional<PortfolioProfileDto> getPortfolioProfileIfExists(Long portfolioId) {
+        return portfolioProfileRepository.findByPortfolioId(portfolioId)
+                .map(PortfolioProfileDto::from);
     }
 
     public Portfolio updatePortfolio(Long userId, Long portfolioId, String name, String description) {

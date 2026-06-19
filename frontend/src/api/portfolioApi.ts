@@ -139,6 +139,27 @@ export const markRecommendationSkipped = async (id: number, portfolioId: number)
     return response.data;
 };
 
+export interface PortfolioProfile {
+    portfolioId: number;
+    riskLevel: string | null;
+    goal: string | null;
+    horizonYears: number | null;
+    liquidityNeeds: string | null;
+    additionalComments: string | null;
+    currency: string;
+    sectorConstraints: string[];
+}
+
+export const getPortfolioProfile = async (portfolioId: number): Promise<PortfolioProfile> => {
+    const response = await axios.get(`${PORTFOLIOS_URL}/${portfolioId}/profile`, { headers: authHeader() });
+    return response.data;
+};
+
+export const savePortfolioProfile = async (portfolioId: number, profile: Partial<PortfolioProfile>): Promise<PortfolioProfile> => {
+    const response = await axios.put(`${PORTFOLIOS_URL}/${portfolioId}/profile`, profile, { headers: authHeader() });
+    return response.data;
+};
+
 export const getCompanyName = async (symbol: string, portfolioId: number): Promise<string | null> => {
     const response = await axios.get(`${BASE_URL}/company-name/${symbol}`, {
         headers: authHeader(),

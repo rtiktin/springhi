@@ -6,10 +6,11 @@ import TransactionHistory from '../components/TransactionHistory';
 import TradeForm from '../components/TradeForm';
 import CashForm from '../components/CashForm';
 import OptimizePanel from '../components/OptimizePanel';
+import PortfolioProfileForm from '../components/PortfolioProfileForm';
 import { listPortfolios, createPortfolio, updatePortfolio, deletePortfolio, getOrCreateDefaultPortfolio } from '../api/portfolioApi';
 import type { Portfolio as PortfolioType } from '../api/portfolioApi';
 
-type Tab = 'holdings' | 'transactions' | 'optimize';
+type Tab = 'holdings' | 'transactions' | 'optimize' | 'profile';
 
 const Portfolio: React.FC = () => {
     const navigate = useNavigate();
@@ -235,6 +236,12 @@ const Portfolio: React.FC = () => {
                             >
                                 AI Optimize
                             </button>
+                            <button
+                                className={`tab-btn ${activeTab === 'profile' ? 'tab-active' : ''}`}
+                                onClick={() => setActiveTab('profile')}
+                            >
+                                Profile
+                            </button>
                         </div>
 
                         {activeTab === 'holdings' && (
@@ -245,6 +252,9 @@ const Portfolio: React.FC = () => {
                         )}
                         {activeTab === 'optimize' && (
                             <OptimizePanel key={`opt-${activePortfolioId}-${refreshKey}`} portfolioId={activePortfolioId} onTradeSuccess={handleTradeSuccess} />
+                        )}
+                        {activeTab === 'profile' && (
+                            <PortfolioProfileForm key={`prof-${activePortfolioId}`} portfolioId={activePortfolioId} />
                         )}
                     </>
                 )}
