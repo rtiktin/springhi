@@ -270,7 +270,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess }) => {
                     <h2 className="optimize-title">AI Portfolio Optimizer</h2>
                     <p className="optimize-sub">
                         Powered by Gemini Flash. Rebalances your portfolio based on your{' '}
-                        <Link to="/profile" className="optimize-link">investor profile</Link>.
+                        <Link to="/portfolio-profile" className="optimize-link">portfolio profile</Link>.
                         {ran && recommendations.length > 0 && (
                             <span style={{ marginLeft: '0.5rem', fontSize: '0.78rem', color: 'var(--text-gray)' }}>
                                 Generated {new Date(recommendations[0].generatedAt).toLocaleString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}

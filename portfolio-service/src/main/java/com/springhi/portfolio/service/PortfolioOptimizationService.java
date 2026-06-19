@@ -5,7 +5,6 @@ import com.springhi.portfolio.dto.OptimizationResponse;
 import com.springhi.portfolio.dto.PortfolioProfileDto;
 import com.springhi.portfolio.dto.RecommendationDto;
 import com.springhi.portfolio.dto.SecurityRecommendation;
-import com.springhi.portfolio.dto.UserProfileResponse;
 import com.springhi.portfolio.model.PortfolioRecommendation;
 import com.springhi.portfolio.repository.PortfolioRecommendationRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -30,17 +29,14 @@ public class PortfolioOptimizationService {
 
     private static final Logger log = LoggerFactory.getLogger(PortfolioOptimizationService.class);
 
-    private final UserProfileService userProfileService;
     private final GeminiService geminiService;
     private final PortfolioService portfolioService;
     private final PortfolioRecommendationRepository recommendationRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public PortfolioOptimizationService(UserProfileService userProfileService,
-                                        GeminiService geminiService,
+    public PortfolioOptimizationService(GeminiService geminiService,
                                         PortfolioService portfolioService,
                                         PortfolioRecommendationRepository recommendationRepository) {
-        this.userProfileService = userProfileService;
         this.geminiService = geminiService;
         this.portfolioService = portfolioService;
         this.recommendationRepository = recommendationRepository;
@@ -58,8 +54,7 @@ public class PortfolioOptimizationService {
 
     @Transactional
     public OptimizationResponse optimize(Long userId, Long portfolioId) {
-        PortfolioProfileDto portfolioProfile = portfolioService.getPortfolioProfileIfExists(portfolioId).orElse(null);
-        UserProfileResponse investorProfile = userProfileService.getProfile(userId).orElse(null);
+        PortfolioProfileDto portfolioProfile = portfolioService.getOrCreatePortfolioProfile(portfolioId, userId);
         List<AssetWithPrice> holdings = portfolioService.getUserAssetsWithPrices(portfolioId);
         BigDecimal cashBalance = portfolioService.getCashBalance(portfolioId);
 
@@ -67,7 +62,7 @@ public class PortfolioOptimizationService {
                 .map(h -> h.getMarketValue() != null ? h.getMarketValue() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        String prompt = buildPrompt(portfolioProfile, investorProfile, holdings, cashBalance, portfolioMarketValue);
+        String prompt = buildPrompt(portfolioProfile, holdings, cashBalance, portfolioMarketValue);
         log.info("Sending rebalancing prompt to Gemini for portfolioId={}, holdings={}, cash={}",
                 portfolioId, holdings.size(), cashBalance);
 
@@ -138,7 +133,7 @@ public class PortfolioOptimizationService {
                 .collect(Collectors.toList());
     }
 
-    private String buildPrompt(PortfolioProfileDto portfolioProfile, UserProfileResponse investorProfile,
+    private String buildPrompt(PortfolioProfileDto profile,
                                List<AssetWithPrice> holdings,
                                BigDecimal cashBalance, BigDecimal portfolioMarketValue) {
         StringBuilder sb = new StringBuilder();
@@ -149,40 +144,28 @@ public class PortfolioOptimizationService {
         sb.append("Weight rules: For BUY entries, w = % of available cash to deploy (all BUY weights must sum to 100). For SELL entries, w = 0.\n\n");
 
         sb.append("Client Profile:\n");
-        String riskLevel = portfolioProfile != null ? portfolioProfile.riskLevel()
-                : (investorProfile != null ? investorProfile.riskLevel() : null);
-        String goal = portfolioProfile != null ? portfolioProfile.goal()
-                : (investorProfile != null ? investorProfile.goal() : null);
-        Integer horizonYears = portfolioProfile != null ? portfolioProfile.horizonYears()
-                : (investorProfile != null ? investorProfile.horizonYears() : null);
-        String liquidityNeeds = portfolioProfile != null ? portfolioProfile.liquidityNeeds()
-                : (investorProfile != null ? investorProfile.liquidityNeeds() : null);
-        String additionalComments = portfolioProfile != null ? portfolioProfile.additionalComments()
-                : (investorProfile != null ? investorProfile.additionalComments() : null);
-        List<String> sectorConstraints = portfolioProfile != null ? portfolioProfile.sectorConstraints()
-                : (investorProfile != null ? investorProfile.sectorConstraints() : null);
-        String knowledgeLevel = investorProfile != null ? investorProfile.knowledgeLevel() : null;
+        boolean hasNotes = profile != null && profile.additionalComments() != null && !profile.additionalComments().isBlank();
 
-        boolean hasNotes = additionalComments != null && !additionalComments.isBlank();
+        if (profile != null) {
+            if (profile.riskLevel() != null) sb.append("Risk Tolerance: ").append(profile.riskLevel()).append("\n");
+            else if (!hasNotes) sb.append("Risk Tolerance: Moderate\n");
 
-        if (riskLevel != null) sb.append("Risk Tolerance: ").append(riskLevel).append("\n");
-        else if (!hasNotes) sb.append("Risk Tolerance: Moderate\n");
+            if (profile.goal() != null) sb.append("Primary Objective: ").append(profile.goal()).append("\n");
+            else if (!hasNotes) sb.append("Primary Objective: Growth\n");
 
-        if (goal != null) sb.append("Primary Objective: ").append(goal).append("\n");
-        else if (!hasNotes) sb.append("Primary Objective: Growth\n");
+            if (profile.horizonYears() != null) sb.append("Time Horizon: ").append(profile.horizonYears()).append(" years\n");
+            else if (!hasNotes) sb.append("Time Horizon: 10+ years\n");
 
-        if (horizonYears != null) sb.append("Time Horizon: ").append(horizonYears).append(" years\n");
-        else if (!hasNotes) sb.append("Time Horizon: 10+ years\n");
+            if (profile.liquidityNeeds() != null) sb.append("Liquidity Needs: ").append(profile.liquidityNeeds()).append("\n");
+            else if (!hasNotes) sb.append("Liquidity Needs: Low\n");
 
-        if (liquidityNeeds != null) sb.append("Liquidity Needs: ").append(liquidityNeeds).append("\n");
-        else if (!hasNotes) sb.append("Liquidity Needs: Low\n");
+            if (hasNotes) sb.append("Additional Notes: ").append(profile.additionalComments()).append("\n");
 
-        if (knowledgeLevel != null) sb.append("Knowledge Level: ").append(knowledgeLevel).append("\n");
-
-        if (hasNotes) sb.append("Additional Notes: ").append(additionalComments).append("\n");
-
-        if (sectorConstraints != null && !sectorConstraints.isEmpty()) {
-            sb.append("Preferred Sectors: ").append(String.join(", ", sectorConstraints)).append("\n");
+            if (profile.sectorConstraints() != null && !profile.sectorConstraints().isEmpty()) {
+                sb.append("Preferred Sectors: ").append(String.join(", ", profile.sectorConstraints())).append("\n");
+            }
+        } else {
+            sb.append("Risk Tolerance: Moderate\nPrimary Objective: Growth\nTime Horizon: 10+ years\n");
         }
 
         sb.append("\nCurrent Portfolio:\n");
