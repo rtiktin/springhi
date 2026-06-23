@@ -22,6 +22,7 @@ interface ReadinessIssue {
 interface Props {
     portfolioId: number;
     onTradeSuccess?: () => void;
+    onNavigateToProfile?: () => void;
 }
 
 function checkReadiness(
@@ -51,7 +52,7 @@ function checkReadiness(
 const fmt = (n: number | null) =>
     n != null ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
 
-const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess }) => {
+const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigateToProfile }) => {
     const [loading, setLoading] = useState(false);
     const [checking, setChecking] = useState(true);
     const [readinessIssues, setReadinessIssues] = useState<ReadinessIssue[]>([]);
@@ -91,6 +92,17 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess }) => {
         setCheckedIds(new Set());
         setExecMsg(null);
         try {
+            const [holdings, cash] = await Promise.all([
+                getHoldings(portfolioId).catch(() => []),
+                loadCash(),
+            ]);
+            const holdingsValue = holdings.reduce((sum, h) => sum + (h.marketValue ?? 0), 0);
+            const totalAvailable = holdingsValue + cash;
+            if (totalAvailable < 1000) {
+                setError(`Insufficient funds: total portfolio value is ${fmt(totalAvailable)}. At least $1,000 in cash or holdings is required to run optimization.`);
+                setLoading(false);
+                return;
+            }
             const result = await optimizePortfolio(portfolioId);
             if (result.error) {
                 setError(result.error);
@@ -139,8 +151,9 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess }) => {
             try {
                 const quote = await getQuote(rec.t);
                 const tx = await submitTransaction({ symbol: rec.t, type: 'SELL', quantity: qty, price: quote.price }, portfolioId);
-                await markRecommendationExecuted(rec.id, tx.id, portfolioId);
-                updateRec({ ...rec, status: 'EXECUTED', transactionId: tx.id });
+                const actualProceeds = tx.quantity * tx.price;
+                await markRecommendationExecuted(rec.id, tx.id, portfolioId, actualProceeds);
+                updateRec({ ...rec, status: 'EXECUTED', transactionId: tx.id, estimatedValue: actualProceeds });
                 succeeded++;
             } catch (e) {
                 failed.push(`SELL ${rec.t}: ${e instanceof Error ? e.message : String(e)}`);
@@ -177,17 +190,16 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess }) => {
         const { succeeded, failed } = await executeSells(targets);
         const newCash = await loadCash();
         setExecuting(false);
-        if (succeeded > 0) onTradeSuccess?.();
         setExecMsg({
             ok: failed.length === 0,
             text: `${succeeded} sell(s) executed. Cash refreshed to ${fmt(newCash)}.${failed.length ? ' Failures: ' + failed.join(', ') : ''}`,
         });
-        // Refresh estimated values on pending buys
         setRecommendations(prev => prev.map(r =>
             r.action === 'BUY' && r.status === 'PENDING'
                 ? { ...r, estimatedValue: newCash * r.w / 100 }
                 : r
         ));
+        if (succeeded > 0) onTradeSuccess?.();
     };
 
     const handleBuys = async (targets: Recommendation[]) => {
@@ -270,7 +282,11 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess }) => {
                     <h2 className="optimize-title">AI Portfolio Optimizer</h2>
                     <p className="optimize-sub">
                         Powered by Gemini Flash. Rebalances your portfolio based on your{' '}
-                        <Link to="/portfolio-profile" className="optimize-link">portfolio profile</Link>.
+                        <button
+                            className="optimize-link"
+                            onClick={() => onNavigateToProfile?.()}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit' }}
+                        >portfolio profile</button>.
                         {ran && recommendations.length > 0 && (
                             <span style={{ marginLeft: '0.5rem', fontSize: '0.78rem', color: 'var(--text-gray)' }}>
                                 Generated {new Date(recommendations[0].generatedAt).toLocaleString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
@@ -352,7 +368,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess }) => {
                                         <th>Name</th>
                                         <th>Sector</th>
                                         <th>Portfolio %</th>
-                                        <th>Est. Proceeds</th>
+                                        <th>Est. / Actual Proceeds</th>
                                         <th>Rationale</th>
                                         <th>Status</th>
                                     </tr>
@@ -370,7 +386,12 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess }) => {
                                             <td>{rec.n}</td>
                                             <td>{rec.s}</td>
                                             <td>{rec.w.toFixed(1)}%</td>
-                                            <td>{fmt(rec.estimatedValue)}</td>
+                                            <td>
+                                                {rec.status === 'EXECUTED'
+                                                    ? <span title="Actual proceeds received">{fmt(rec.estimatedValue)}</span>
+                                                    : <span style={{ color: 'var(--text-gray)', fontSize: '0.85em' }} title="Estimated at current market value">~{fmt(rec.estimatedValue)}</span>
+                                                }
+                                            </td>
                                             <td className="optimize-rationale">{rec.r}</td>
                                             <td><span className={`rec-status rec-${rec.status.toLowerCase()}`}>{rec.status}</span></td>
                                         </tr>

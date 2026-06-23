@@ -38,6 +38,27 @@ export interface Transaction {
     quantity: number;
     price: number;
     timestamp: string;
+    recommendationId: number | null;
+    aiRunGeneratedAt: string | null;
+}
+
+export interface AiRunRec {
+    id: number;
+    t: string;
+    n: string;
+    s: string;
+    action: 'BUY' | 'SELL';
+    w: number;
+    r: string;
+    status: 'PENDING' | 'EXECUTED' | 'SKIPPED';
+    estimatedValue: number | null;
+    transactionId: number | null;
+    generatedAt: string;
+}
+
+export interface AiRunDetails {
+    recommendations: AiRunRec[];
+    profile: PortfolioProfile | null;
 }
 
 export interface TransactionRequest {
@@ -167,4 +188,57 @@ export const getCompanyName = async (symbol: string, portfolioId: number): Promi
     });
     const name = response.data.companyName;
     return name && name.trim() ? name : null;
+};
+
+export interface PnlSummary {
+    currentMarketValue: number;
+    currentCostBasis: number;
+    unrealizedPnl: number;
+    totalBuyCost: number;
+    totalSellProceeds: number;
+    realizedPnl: number;
+    totalPnl: number;
+}
+
+export const getPnlSummary = async (portfolioId: number): Promise<PnlSummary> => {
+    const response = await axios.get(`${BASE_URL}/pnl`, {
+        headers: authHeader(),
+        params: { portfolioId },
+    });
+    return response.data;
+};
+
+export interface TwrSubPeriod {
+    startDate: string;
+    endDate: string;
+    beginValue: number;
+    endValue: number;
+    netCashFlow: number;
+    periodReturnPercent: number;
+}
+
+export interface TwrResult {
+    twrPercent: number;
+    startDate: string;
+    endDate: string;
+    snapshotCount: number;
+    subPeriods: TwrSubPeriod[];
+}
+
+export type TwrRange = '1M' | '3M' | '6M' | 'YTD' | '1Y' | 'ALL';
+
+export const getTwr = async (portfolioId: number, range: TwrRange = 'ALL'): Promise<TwrResult> => {
+    const response = await axios.get(`${BASE_URL}/performance/twr`, {
+        headers: authHeader(),
+        params: { portfolioId, range },
+    });
+    return response.data;
+};
+
+export const getAiRunDetails = async (portfolioId: number, generatedAt: string): Promise<AiRunDetails> => {
+    const response = await axios.get(`${BASE_URL}/recommendations/run`, {
+        headers: authHeader(),
+        params: { portfolioId, generatedAt },
+    });
+    return response.data;
 };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getHoldings, getPortfolioSnapshots, takePortfolioSnapshot, getCashBalance, getCompanyName } from '../api/portfolioApi';
-import type { AssetWithPrice, PortfolioSnapshot } from '../api/portfolioApi';
+import { getHoldings, getPortfolioSnapshots, takePortfolioSnapshot, getCashBalance, getCompanyName, getTwr, getPnlSummary } from '../api/portfolioApi';
+import type { AssetWithPrice, PortfolioSnapshot, TwrResult, TwrRange, PnlSummary } from '../api/portfolioApi';
 import { getQuoteHistory } from '../api/marketApi';
 import type { QuoteResponse } from '../api/marketApi';
 import StockChart from './StockChart';
@@ -23,6 +23,10 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId }) => {
     const [snapshots, setSnapshots] = useState<PortfolioSnapshot[]>([]);
     const [snapshotting, setSnapshotting] = useState(false);
     const [cashBalance, setCashBalance] = useState<number | null>(null);
+    const [twrData, setTwrData] = useState<TwrResult | null>(null);
+    const [twrRange, setTwrRange] = useState<TwrRange>('ALL');
+    const [twrLoading, setTwrLoading] = useState(false);
+    const [pnl, setPnl] = useState<PnlSummary | null>(null);
 
     useEffect(() => {
         setLoading(true);
@@ -42,7 +46,19 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId }) => {
         getCashBalance(portfolioId)
             .then(setCashBalance)
             .catch(() => setCashBalance(null));
+
+        getPnlSummary(portfolioId)
+            .then(setPnl)
+            .catch(() => setPnl(null));
     }, [portfolioId]);
+
+    useEffect(() => {
+        setTwrLoading(true);
+        getTwr(portfolioId, twrRange)
+            .then(setTwrData)
+            .catch(() => setTwrData(null))
+            .finally(() => setTwrLoading(false));
+    }, [portfolioId, twrRange]);
 
     const handleSnapshotNow = () => {
         setSnapshotting(true);
@@ -117,9 +133,25 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId }) => {
                     <span className="summary-value">${totalCostBasis.toFixed(2)}</span>
                 </div>
                 <div className={`summary-card ${totalGainLoss >= 0 ? 'positive' : 'negative'}`}>
-                    <span className="summary-label">Total Gain / Loss</span>
-                    <span className="summary-value">
+                    <span className="summary-label">Unrealized G/L</span>
+                    <span className="summary-value" title="Current holdings vs cost basis">
                         {totalGainLoss >= 0 ? '+' : ''}{totalGainLoss.toFixed(2)} ({totalGainLossPercent.toFixed(2)}%)
+                    </span>
+                </div>
+                <div className={`summary-card ${(pnl?.realizedPnl ?? 0) >= 0 ? 'positive' : 'negative'}`}>
+                    <span className="summary-label">Realized G/L</span>
+                    <span className="summary-value" title="Profit/loss from sold positions">
+                        {pnl != null
+                            ? `${pnl.realizedPnl >= 0 ? '+' : ''}$${pnl.realizedPnl.toFixed(2)}`
+                            : '—'}
+                    </span>
+                </div>
+                <div className={`summary-card ${(pnl?.totalPnl ?? 0) >= 0 ? 'positive' : 'negative'}`}>
+                    <span className="summary-label">Total G/L (All-Time)</span>
+                    <span className="summary-value" title="Unrealized + realized gain/loss">
+                        {pnl != null
+                            ? `${pnl.totalPnl >= 0 ? '+' : ''}$${pnl.totalPnl.toFixed(2)}`
+                            : '—'}
                     </span>
                 </div>
                 <div className="summary-card">
@@ -133,6 +165,45 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId }) => {
                     <span className="summary-value">
                         ${(totalMarketValue + (cashBalance ?? 0)).toFixed(2)}
                     </span>
+                </div>
+                <div className={`summary-card ${twrData && twrData.twrPercent >= 0 ? 'positive' : 'negative'}`}
+                    style={{ minWidth: 200 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                        <span className="summary-label">TWR</span>
+                        <div style={{ display: 'flex', gap: '3px' }}>
+                            {(['1M', '3M', '6M', 'YTD', '1Y', 'ALL'] as TwrRange[]).map(r => (
+                                <button
+                                    key={r}
+                                    onClick={() => setTwrRange(r)}
+                                    style={{
+                                        padding: '1px 5px',
+                                        fontSize: '0.68rem',
+                                        fontWeight: twrRange === r ? 700 : 400,
+                                        background: twrRange === r ? 'var(--accent)' : 'transparent',
+                                        color: twrRange === r ? '#fff' : 'var(--text-gray)',
+                                        border: '1px solid var(--border)',
+                                        borderRadius: 3,
+                                        cursor: 'pointer',
+                                    }}
+                                >{r}</button>
+                            ))}
+                        </div>
+                    </div>
+                    <span className="summary-value" style={{ fontSize: '1.2rem' }}>
+                        {twrLoading ? '…' : twrData && twrData.snapshotCount >= 2
+                            ? `${twrData.twrPercent >= 0 ? '+' : ''}${twrData.twrPercent.toFixed(2)}%`
+                            : '—'}
+                    </span>
+                    {twrData && twrData.snapshotCount >= 2 && (
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-gray)' }}>
+                            {twrData.startDate} → {twrData.endDate}
+                        </span>
+                    )}
+                    {twrData && twrData.snapshotCount < 2 && (
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-gray)' }}>
+                            Need 2+ snapshots
+                        </span>
+                    )}
                 </div>
             </div>
 

@@ -1,13 +1,17 @@
 package com.springhi.portfolio.service;
 
 import com.springhi.portfolio.dto.AssetWithPrice;
+import com.springhi.portfolio.dto.PnlSummaryDto;
 import com.springhi.portfolio.dto.PortfolioProfileDto;
+import com.springhi.portfolio.dto.TransactionDto;
 import com.springhi.portfolio.model.Asset;
 import com.springhi.portfolio.model.Portfolio;
 import com.springhi.portfolio.model.PortfolioProfile;
+import com.springhi.portfolio.model.PortfolioRecommendation;
 import com.springhi.portfolio.model.Transaction;
 import com.springhi.portfolio.repository.AssetRepository;
 import com.springhi.portfolio.repository.PortfolioProfileRepository;
+import com.springhi.portfolio.repository.PortfolioRecommendationRepository;
 import com.springhi.portfolio.repository.PortfolioRepository;
 import com.springhi.portfolio.repository.TransactionRepository;
 import com.springhi.portfolio.service.UserProfileService;
@@ -22,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class PortfolioService {
@@ -32,6 +37,7 @@ public class PortfolioService {
     private final PortfolioRepository portfolioRepository;
     private final PortfolioProfileRepository portfolioProfileRepository;
     private final UserProfileService userProfileService;
+    private final PortfolioRecommendationRepository recommendationRepository;
 
     public PortfolioService(AssetRepository assetRepository,
                             TransactionRepository transactionRepository,
@@ -39,7 +45,8 @@ public class PortfolioService {
                             AlpacaService alpacaService,
                             PortfolioRepository portfolioRepository,
                             PortfolioProfileRepository portfolioProfileRepository,
-                            UserProfileService userProfileService) {
+                            UserProfileService userProfileService,
+                            PortfolioRecommendationRepository recommendationRepository) {
         this.assetRepository = assetRepository;
         this.transactionRepository = transactionRepository;
         this.marketDataService = marketDataService;
@@ -47,6 +54,7 @@ public class PortfolioService {
         this.portfolioRepository = portfolioRepository;
         this.portfolioProfileRepository = portfolioProfileRepository;
         this.userProfileService = userProfileService;
+        this.recommendationRepository = recommendationRepository;
     }
 
     public List<Portfolio> listPortfolios(Long userId) {
@@ -172,12 +180,56 @@ public class PortfolioService {
                 .toList();
     }
 
-    public List<Transaction> getUserTransactions(Long portfolioId) {
-        return transactionRepository.findByPortfolioId(portfolioId);
+    public List<TransactionDto> getUserTransactions(Long portfolioId) {
+        List<Transaction> txns = transactionRepository.findByPortfolioId(portfolioId);
+        if (txns.isEmpty()) return List.of();
+        List<Long> txnIds = txns.stream().map(Transaction::getId).toList();
+        Map<Long, PortfolioRecommendation> recByTxnId = recommendationRepository
+                .findByTransactionIdIn(txnIds).stream()
+                .collect(Collectors.toMap(PortfolioRecommendation::getTransactionId, r -> r, (a, b) -> a));
+        return txns.stream()
+                .map(t -> {
+                    PortfolioRecommendation rec = recByTxnId.get(t.getId());
+                    return rec != null
+                            ? TransactionDto.of(t, rec.getId(), rec.getGeneratedAt())
+                            : TransactionDto.of(t);
+                })
+                .toList();
     }
 
     public BigDecimal getCashBalance(Long portfolioId) {
         return transactionRepository.computeCashBalanceByPortfolio(portfolioId);
+    }
+
+    public PnlSummaryDto getPnlSummary(Long portfolioId) {
+        List<AssetWithPrice> holdings = getUserAssetsWithPrices(portfolioId);
+
+        BigDecimal currentMarketValue = holdings.stream()
+                .map(h -> h.getMarketValue() != null ? h.getMarketValue() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal currentCostBasis = holdings.stream()
+                .map(h -> h.getCostBasis() != null ? h.getCostBasis() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal unrealizedPnl = currentMarketValue.subtract(currentCostBasis);
+
+        BigDecimal totalBuyCost = transactionRepository.totalBuyCost(portfolioId);
+        BigDecimal totalSellProceeds = transactionRepository.totalSellProceeds(portfolioId);
+
+        BigDecimal realizedPnl = totalSellProceeds.subtract(totalBuyCost).add(currentCostBasis);
+
+        BigDecimal totalPnl = unrealizedPnl.add(realizedPnl);
+
+        return new PnlSummaryDto(
+                currentMarketValue,
+                currentCostBasis,
+                unrealizedPnl,
+                totalBuyCost,
+                totalSellProceeds,
+                realizedPnl,
+                totalPnl
+        );
     }
 
     @Transactional

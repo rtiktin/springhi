@@ -1,7 +1,11 @@
 package com.springhi.portfolio.controller;
 
+import com.springhi.portfolio.dto.AiRunDetailsDto;
 import com.springhi.portfolio.dto.OptimizationResponse;
+import com.springhi.portfolio.dto.PortfolioProfileDto;
 import com.springhi.portfolio.dto.RecommendationDto;
+import com.springhi.portfolio.model.PortfolioRecommendation;
+import com.springhi.portfolio.repository.PortfolioProfileRepository;
 import com.springhi.portfolio.repository.PortfolioRecommendationRepository;
 import com.springhi.portfolio.security.UserPrincipal;
 import com.springhi.portfolio.service.PortfolioOptimizationService;
@@ -25,13 +29,16 @@ public class PortfolioOptimizationController {
     private final PortfolioOptimizationService optimizationService;
     private final PortfolioRecommendationRepository recommendationRepository;
     private final PortfolioService portfolioService;
+    private final PortfolioProfileRepository profileRepository;
 
     public PortfolioOptimizationController(PortfolioOptimizationService optimizationService,
                                            PortfolioRecommendationRepository recommendationRepository,
-                                           PortfolioService portfolioService) {
+                                           PortfolioService portfolioService,
+                                           PortfolioProfileRepository profileRepository) {
         this.optimizationService = optimizationService;
         this.recommendationRepository = recommendationRepository;
         this.portfolioService = portfolioService;
+        this.profileRepository = profileRepository;
     }
 
     @PostMapping("/optimize")
@@ -90,5 +97,41 @@ public class PortfolioOptimizationController {
                     return ResponseEntity.ok(RecommendationDto.from(recommendationRepository.save(r)));
                 })
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/recommendations/run")
+    public ResponseEntity<AiRunDetailsDto> getAiRunDetails(
+            @RequestParam Long portfolioId,
+            @RequestParam String generatedAt,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) return ResponseEntity.status(403).build();
+        portfolioService.validatePortfolioOwnership(principal.getId(), portfolioId);
+        LocalDateTime ts = LocalDateTime.parse(generatedAt);
+        List<PortfolioRecommendation> runRecs = recommendationRepository
+                .findByPortfolioIdAndGeneratedAtOrderByActionDescIdAsc(portfolioId, ts);
+        List<RecommendationDto> recs = runRecs.stream().map(RecommendationDto::from).toList();
+        PortfolioProfileDto profileDto = runRecs.stream()
+                .filter(r -> r.getSnapshotRiskLevel() != null || r.getSnapshotGoal() != null
+                        || r.getSnapshotHorizonYears() != null || r.getSnapshotAdditionalComments() != null)
+                .findFirst()
+                .map(r -> {
+                    java.util.List<String> sectors = (r.getSnapshotSectorConstraints() != null
+                            && !r.getSnapshotSectorConstraints().isBlank())
+                            ? java.util.Arrays.stream(r.getSnapshotSectorConstraints().split(","))
+                                    .map(String::trim).filter(s -> !s.isBlank()).toList()
+                            : java.util.List.of();
+                    return new PortfolioProfileDto(
+                            portfolioId,
+                            r.getSnapshotRiskLevel(),
+                            r.getSnapshotGoal(),
+                            r.getSnapshotHorizonYears(),
+                            r.getSnapshotLiquidityNeeds(),
+                            r.getSnapshotAdditionalComments(),
+                            r.getSnapshotCurrency() != null ? r.getSnapshotCurrency() : "USD",
+                            sectors);
+                })
+                .orElseGet(() -> profileRepository.findByPortfolioId(portfolioId)
+                        .map(PortfolioProfileDto::from).orElse(null));
+        return ResponseEntity.ok(new AiRunDetailsDto(recs, profileDto));
     }
 }

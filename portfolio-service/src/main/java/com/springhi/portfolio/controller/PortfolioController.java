@@ -1,12 +1,16 @@
 package com.springhi.portfolio.controller;
 
 import com.springhi.portfolio.dto.AssetWithPrice;
+import com.springhi.portfolio.dto.PnlSummaryDto;
+import com.springhi.portfolio.dto.TransactionDto;
+import com.springhi.portfolio.dto.TwrResponseDto;
 import com.springhi.portfolio.model.Portfolio;
 import com.springhi.portfolio.model.PortfolioSnapshot;
 import com.springhi.portfolio.model.Transaction;
 import com.springhi.portfolio.security.UserPrincipal;
 import com.springhi.portfolio.service.PortfolioService;
 import com.springhi.portfolio.service.PortfolioSnapshotService;
+import com.springhi.portfolio.service.TwrService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -21,10 +25,14 @@ public class PortfolioController {
     private static final Logger log = LoggerFactory.getLogger(PortfolioController.class);
     private final PortfolioService portfolioService;
     private final PortfolioSnapshotService snapshotService;
+    private final TwrService twrService;
 
-    public PortfolioController(PortfolioService portfolioService, PortfolioSnapshotService snapshotService) {
+    public PortfolioController(PortfolioService portfolioService,
+                               PortfolioSnapshotService snapshotService,
+                               TwrService twrService) {
         this.portfolioService = portfolioService;
         this.snapshotService = snapshotService;
+        this.twrService = twrService;
     }
 
     @GetMapping
@@ -40,7 +48,7 @@ public class PortfolioController {
     }
 
     @GetMapping("/transactions")
-    public ResponseEntity<List<Transaction>> getTransactions(
+    public ResponseEntity<List<TransactionDto>> getTransactions(
             @RequestParam Long portfolioId,
             @AuthenticationPrincipal UserPrincipal principal) {
         if (principal == null) return ResponseEntity.status(403).build();
@@ -60,6 +68,9 @@ public class PortfolioController {
                 portfolioId, transaction.getType(), transaction.getSymbol(), transaction.getPrice());
         transaction.setUserId(principal.getId());
         transaction.setPortfolioId(portfolioId);
+        if ("DEPOSIT".equals(transaction.getType()) || "WITHDRAWAL".equals(transaction.getType())) {
+            try { snapshotService.takeSnapshotForPortfolio(portfolioId); } catch (Exception ignored) {}
+        }
         return ResponseEntity.ok(portfolioService.processTransaction(transaction));
     }
 
@@ -108,6 +119,25 @@ public class PortfolioController {
             @AuthenticationPrincipal UserPrincipal principal) {
         if (principal == null) return ResponseEntity.status(403).build();
         return ResponseEntity.ok(portfolioService.getOrCreateDefaultPortfolio(principal.getId()));
+    }
+
+    @GetMapping("/pnl")
+    public ResponseEntity<PnlSummaryDto> getPnlSummary(
+            @RequestParam Long portfolioId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) return ResponseEntity.status(403).build();
+        portfolioService.validatePortfolioOwnership(principal.getId(), portfolioId);
+        return ResponseEntity.ok(portfolioService.getPnlSummary(portfolioId));
+    }
+
+    @GetMapping("/performance/twr")
+    public ResponseEntity<TwrResponseDto> getTwr(
+            @RequestParam Long portfolioId,
+            @RequestParam(required = false) String range,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) return ResponseEntity.status(403).build();
+        portfolioService.validatePortfolioOwnership(principal.getId(), portfolioId);
+        return ResponseEntity.ok(twrService.computeTwr(portfolioId, range));
     }
 
     @GetMapping("/test")

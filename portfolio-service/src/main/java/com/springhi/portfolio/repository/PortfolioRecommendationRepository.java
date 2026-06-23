@@ -9,7 +9,9 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface PortfolioRecommendationRepository extends JpaRepository<PortfolioRecommendation, Long> {
@@ -20,6 +22,11 @@ public interface PortfolioRecommendationRepository extends JpaRepository<Portfol
     List<PortfolioRecommendation> findByPortfolioIdAndGeneratedAtBetweenOrderByActionDescIdAsc(
             Long portfolioId, LocalDateTime start, LocalDateTime end);
 
+    List<PortfolioRecommendation> findByTransactionIdIn(Collection<Long> transactionIds);
+
+    List<PortfolioRecommendation> findByPortfolioIdAndGeneratedAtOrderByActionDescIdAsc(
+            Long portfolioId, LocalDateTime generatedAt);
+
     @Modifying
     @Transactional
     @Query("DELETE FROM PortfolioRecommendation r WHERE r.userId = :userId")
@@ -29,4 +36,9 @@ public interface PortfolioRecommendationRepository extends JpaRepository<Portfol
     @Transactional
     @Query("DELETE FROM PortfolioRecommendation r WHERE r.portfolioId = :portfolioId")
     void deleteAllForPortfolio(@Param("portfolioId") Long portfolioId);
+
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM PortfolioRecommendation r WHERE r.portfolioId = :portfolioId AND r.status = 'PENDING'")
+    void deletePendingForPortfolio(@Param("portfolioId") Long portfolioId);
 }

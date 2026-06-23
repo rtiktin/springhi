@@ -72,7 +72,7 @@ public class PortfolioOptimizationService {
             List<SecurityRecommendation> recs = objectMapper.readValue(json,
                     new TypeReference<List<SecurityRecommendation>>() {});
 
-            List<RecommendationDto> saved = persistRecommendations(userId, portfolioId, recs, holdings, cashBalance, portfolioMarketValue);
+            List<RecommendationDto> saved = persistRecommendations(userId, portfolioId, recs, holdings, cashBalance, portfolioMarketValue, portfolioProfile);
             return new OptimizationResponse(saved, null);
         } catch (Exception e) {
             log.error("Optimization failed for portfolioId={}: {}", portfolioId, e.getMessage(), e);
@@ -85,8 +85,9 @@ public class PortfolioOptimizationService {
                                                             List<SecurityRecommendation> recs,
                                                             List<AssetWithPrice> holdings,
                                                             BigDecimal cashBalance,
-                                                            BigDecimal portfolioMarketValue) {
-        recommendationRepository.deleteAllForPortfolio(portfolioId);
+                                                            BigDecimal portfolioMarketValue,
+                                                            PortfolioProfileDto profile) {
+        recommendationRepository.deletePendingForPortfolio(portfolioId);
 
         Map<String, AssetWithPrice> holdingMap = holdings.stream()
                 .collect(Collectors.toMap(AssetWithPrice::getSymbol, h -> h));
@@ -107,6 +108,16 @@ public class PortfolioOptimizationService {
             entity.setWeight(BigDecimal.valueOf(rec.w()).setScale(4, RoundingMode.HALF_UP));
             entity.setRationale(rec.r());
             entity.setStatus("PENDING");
+            if (profile != null) {
+                entity.setSnapshotRiskLevel(profile.riskLevel());
+                entity.setSnapshotGoal(profile.goal());
+                entity.setSnapshotHorizonYears(profile.horizonYears());
+                entity.setSnapshotLiquidityNeeds(profile.liquidityNeeds());
+                entity.setSnapshotAdditionalComments(profile.additionalComments());
+                entity.setSnapshotCurrency(profile.currency());
+                entity.setSnapshotSectorConstraints(
+                        profile.sectorConstraints() != null ? String.join(",", profile.sectorConstraints()) : null);
+            }
 
             if ("SELL".equals(entity.getAction())) {
                 AssetWithPrice holding = holdingMap.get(rec.t());

@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
@@ -41,4 +42,22 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             FROM Transaction t WHERE t.portfolioId = :portfolioId
             """)
     BigDecimal computeCashBalanceByPortfolio(@Param("portfolioId") Long portfolioId);
+
+    @Query("""
+            SELECT t FROM Transaction t
+            WHERE t.portfolioId = :portfolioId
+            AND t.type IN ('DEPOSIT', 'WITHDRAWAL')
+            AND t.timestamp > :after AND t.timestamp <= :before
+            ORDER BY t.timestamp ASC
+            """)
+    List<Transaction> findCashFlowsBetween(
+            @Param("portfolioId") Long portfolioId,
+            @Param("after") LocalDateTime after,
+            @Param("before") LocalDateTime before);
+
+    @Query("SELECT COALESCE(SUM(t.quantity * t.price), 0) FROM Transaction t WHERE t.portfolioId = :portfolioId AND t.type = 'BUY'")
+    BigDecimal totalBuyCost(@Param("portfolioId") Long portfolioId);
+
+    @Query("SELECT COALESCE(SUM(t.quantity * t.price), 0) FROM Transaction t WHERE t.portfolioId = :portfolioId AND t.type = 'SELL'")
+    BigDecimal totalSellProceeds(@Param("portfolioId") Long portfolioId);
 }

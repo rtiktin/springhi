@@ -8,11 +8,12 @@ const LIQUIDITY = ['low', 'medium', 'high'];
 
 interface Props {
     portfolioId: number;
+    bannerMessage?: string;
 }
 
 const NA = '__NA__';
 
-const PortfolioProfileForm: React.FC<Props> = ({ portfolioId }) => {
+const PortfolioProfileForm: React.FC<Props> = ({ portfolioId, bannerMessage }) => {
     const [profile, setProfile] = useState<PortfolioProfile | null>(null);
     const [sectorInput, setSectorInput] = useState('');
     const [saving, setSaving] = useState(false);
@@ -56,6 +57,7 @@ const PortfolioProfileForm: React.FC<Props> = ({ portfolioId }) => {
             setSectorInput((updated.sectorConstraints ?? []).join(', '));
             setSaved(true);
             setTimeout(() => setSaved(false), 3000);
+
         } catch {
             setError('Failed to save portfolio profile.');
         } finally {
@@ -73,6 +75,11 @@ const PortfolioProfileForm: React.FC<Props> = ({ portfolioId }) => {
                 Set Risk Tolerance, Goal, Time Horizon, and Liquidity Needs to N/A only when Additional Notes fully describe the strategy.
             </p>
 
+            {bannerMessage && (
+                <div style={{ background: '#2d2a00', border: '1px solid #facc15', color: '#facc15', borderRadius: 8, padding: '0.75rem 1rem', marginBottom: '1rem', fontWeight: 600 }}>
+                    {bannerMessage}
+                </div>
+            )}
             {error && <div className="error-msg" style={{ marginBottom: '1rem' }}>{error}</div>}
             {saved && <div style={{ color: '#22c55e', marginBottom: '1rem', fontWeight: 600 }}>Profile saved.</div>}
 

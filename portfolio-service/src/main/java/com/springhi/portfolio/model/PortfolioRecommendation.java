@@ -50,6 +50,27 @@ public class PortfolioRecommendation {
     @Column(precision = 19, scale = 2)
     private BigDecimal estimatedValue;
 
+    @Column(length = 50)
+    private String snapshotRiskLevel;
+
+    @Column(length = 50)
+    private String snapshotGoal;
+
+    @Column
+    private Integer snapshotHorizonYears;
+
+    @Column(length = 50)
+    private String snapshotLiquidityNeeds;
+
+    @Column(length = 2000)
+    private String snapshotAdditionalComments;
+
+    @Column(length = 10)
+    private String snapshotCurrency;
+
+    @Column(length = 1000)
+    private String snapshotSectorConstraints;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -88,6 +109,20 @@ public class PortfolioRecommendation {
     public void setExecutedAt(LocalDateTime executedAt) { this.executedAt = executedAt; }
     public BigDecimal getEstimatedValue() { return estimatedValue; }
     public void setEstimatedValue(BigDecimal estimatedValue) { this.estimatedValue = estimatedValue; }
+    public String getSnapshotRiskLevel() { return snapshotRiskLevel; }
+    public void setSnapshotRiskLevel(String snapshotRiskLevel) { this.snapshotRiskLevel = snapshotRiskLevel; }
+    public String getSnapshotGoal() { return snapshotGoal; }
+    public void setSnapshotGoal(String snapshotGoal) { this.snapshotGoal = snapshotGoal; }
+    public Integer getSnapshotHorizonYears() { return snapshotHorizonYears; }
+    public void setSnapshotHorizonYears(Integer snapshotHorizonYears) { this.snapshotHorizonYears = snapshotHorizonYears; }
+    public String getSnapshotLiquidityNeeds() { return snapshotLiquidityNeeds; }
+    public void setSnapshotLiquidityNeeds(String snapshotLiquidityNeeds) { this.snapshotLiquidityNeeds = snapshotLiquidityNeeds; }
+    public String getSnapshotAdditionalComments() { return snapshotAdditionalComments; }
+    public void setSnapshotAdditionalComments(String snapshotAdditionalComments) { this.snapshotAdditionalComments = snapshotAdditionalComments; }
+    public String getSnapshotCurrency() { return snapshotCurrency; }
+    public void setSnapshotCurrency(String snapshotCurrency) { this.snapshotCurrency = snapshotCurrency; }
+    public String getSnapshotSectorConstraints() { return snapshotSectorConstraints; }
+    public void setSnapshotSectorConstraints(String snapshotSectorConstraints) { this.snapshotSectorConstraints = snapshotSectorConstraints; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

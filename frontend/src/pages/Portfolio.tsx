@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getLoggedInUsername } from '../utils/auth';
 import PortfolioDashboard from '../components/PortfolioDashboard';
 import TransactionHistory from '../components/TransactionHistory';
@@ -14,6 +14,7 @@ type Tab = 'holdings' | 'transactions' | 'optimize' | 'profile';
 
 const Portfolio: React.FC = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const username = getLoggedInUsername();
     const [activeTab, setActiveTab] = useState<Tab>('holdings');
     const [showTradeForm, setShowTradeForm] = useState(false);
@@ -29,6 +30,20 @@ const Portfolio: React.FC = () => {
     const [showRenameForm, setShowRenameForm] = useState(false);
     const [renameValue, setRenameValue] = useState('');
     const [portfolioError, setPortfolioError] = useState('');
+    const [profileBannerMsg, setProfileBannerMsg] = useState('');
+    const [reviewedPortfolioIds, setReviewedPortfolioIds] = useState<Set<number>>(() => {
+        try {
+            const stored = localStorage.getItem('reviewedPortfolioIds');
+            return stored ? new Set<number>(JSON.parse(stored)) : new Set<number>();
+        } catch {
+            return new Set<number>();
+        }
+    });
+
+    useEffect(() => {
+        const tab = searchParams.get('tab') as Tab | null;
+        if (tab) setActiveTab(tab);
+    }, [searchParams]);
 
     useEffect(() => {
         const savedId = localStorage.getItem('activePortfolioId');
@@ -57,6 +72,16 @@ const Portfolio: React.FC = () => {
         setRefreshKey(k => k + 1);
     };
 
+    const markPortfolioReviewed = (id: number) => {
+        setReviewedPortfolioIds(prev => {
+            const next = new Set(prev);
+            next.add(id);
+            localStorage.setItem('reviewedPortfolioIds', JSON.stringify([...next]));
+            return next;
+        });
+        setProfileBannerMsg('');
+    };
+
     const handleCreatePortfolio = async () => {
         const name = newPortfolioName.trim();
         if (!name) return;
@@ -70,6 +95,9 @@ const Portfolio: React.FC = () => {
             setShowNewPortfolioForm(false);
             setNewPortfolioName('');
             setNewPortfolioDesc('');
+            setActiveTab('profile');
+            setProfileBannerMsg('Please review your Portfolio Profile settings before using the AI Optimize function.');
+            markPortfolioReviewed(created.id);
         } catch {
             setPortfolioError('Failed to create portfolio.');
         }
@@ -220,19 +248,27 @@ const Portfolio: React.FC = () => {
                         <div className="tab-bar">
                             <button
                                 className={`tab-btn ${activeTab === 'holdings' ? 'tab-active' : ''}`}
-                                onClick={() => setActiveTab('holdings')}
+                                onClick={() => { setActiveTab('holdings'); setProfileBannerMsg(''); }}
                             >
                                 Holdings
                             </button>
                             <button
                                 className={`tab-btn ${activeTab === 'transactions' ? 'tab-active' : ''}`}
-                                onClick={() => setActiveTab('transactions')}
+                                onClick={() => { setActiveTab('transactions'); setProfileBannerMsg(''); }}
                             >
                                 Transactions
                             </button>
                             <button
                                 className={`tab-btn ${activeTab === 'optimize' ? 'tab-active' : ''}`}
-                                onClick={() => setActiveTab('optimize')}
+                                onClick={() => {
+                                    if (activePortfolioId && !reviewedPortfolioIds.has(activePortfolioId)) {
+                                        setActiveTab('profile');
+                                        setProfileBannerMsg('Please review your Portfolio Profile settings before using the AI Optimize function.');
+                                        markPortfolioReviewed(activePortfolioId);
+                                    } else {
+                                        setActiveTab('optimize');
+                                    }
+                                }}
                             >
                                 AI Optimize
                             </button>
@@ -251,10 +287,14 @@ const Portfolio: React.FC = () => {
                             <TransactionHistory key={`tx-${activePortfolioId}-${refreshKey}`} portfolioId={activePortfolioId} />
                         )}
                         {activeTab === 'optimize' && (
-                            <OptimizePanel key={`opt-${activePortfolioId}-${refreshKey}`} portfolioId={activePortfolioId} onTradeSuccess={handleTradeSuccess} />
+                            <OptimizePanel key={`opt-${activePortfolioId}`} portfolioId={activePortfolioId} onTradeSuccess={handleTradeSuccess} onNavigateToProfile={() => setActiveTab('profile')} />
                         )}
                         {activeTab === 'profile' && (
-                            <PortfolioProfileForm key={`prof-${activePortfolioId}`} portfolioId={activePortfolioId} />
+                            <PortfolioProfileForm
+                                key={`prof-${activePortfolioId}`}
+                                portfolioId={activePortfolioId}
+                                bannerMessage={profileBannerMsg}
+                            />
                         )}
                     </>
                 )}
