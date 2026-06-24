@@ -9,7 +9,7 @@ import { getOrCreateDefaultPortfolio } from '../api/portfolioApi';
 const empty: AccountProfile = {
     firstName: '', lastName: '', bio: '', phone: '',
     addressLine1: '', addressLine2: '', city: '', state: '',
-    postalCode: '', country: 'US', dateOfBirth: '',
+    postalCode: '', country: 'US', dateOfBirth: '', email: '',
 };
 
 type FieldErrors = Partial<Record<keyof AccountProfile, string>>;
@@ -20,6 +20,8 @@ const REQUIRED_LABELS: Record<string, string> = {
     city: 'City', state: 'State / Province', postalCode: 'Postal Code', country: 'Country',
 };
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function validateForm(form: AccountProfile): FieldErrors {
     const errs: FieldErrors = {};
 
@@ -27,6 +29,10 @@ function validateForm(form: AccountProfile): FieldErrors {
         if (!form[field]?.toString().trim()) {
             errs[field] = `${REQUIRED_LABELS[field]} is required.`;
         }
+    }
+
+    if (form.email && !EMAIL_REGEX.test(form.email.trim())) {
+        errs.email = 'Enter a valid email address.';
     }
 
     if (form.dateOfBirth) {
@@ -101,8 +107,13 @@ const AccountMaintenance: React.FC = () => {
             setForm(updated);
             setSaved(true);
             setTimeout(() => setSaved(false), 3000);
-        } catch {
-            setError('Failed to save account details.');
+        } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            if (msg) {
+                setError(msg);
+            } else {
+                setError('Failed to save account details.');
+            }
         } finally {
             setSaving(false);
         }
@@ -143,15 +154,22 @@ const AccountMaintenance: React.FC = () => {
                             <span className="acct-readonly-value">{form.username ?? '—'}</span>
                         </div>
                         <div className="acct-readonly-field">
-                            <span className="form-label">Email</span>
-                            <span className="acct-readonly-value">{form.email ?? '—'}</span>
-                        </div>
-                        <div className="acct-readonly-field">
                             <span className="form-label">Member Since</span>
                             <span className="acct-readonly-value">
                                 {form.createdAt ? new Date(form.createdAt).toLocaleDateString() : '—'}
                             </span>
                         </div>
+                    </div>
+                    <div className="profile-field" style={{ marginTop: '0.75rem', marginBottom: '0.75rem' }}>
+                        <label className="form-label">Email Address</label>
+                        <input
+                            type="email"
+                            className={`profile-input${fieldErrors.email ? ' input-error' : ''}`}
+                            value={form.email ?? ''}
+                            placeholder="your@email.com"
+                            onChange={e => set('email', e.target.value)}
+                        />
+                        {fieldErrors.email && <span className="field-error-msg">{fieldErrors.email}</span>}
                     </div>
 
                     <div className="profile-section-title" style={{ marginTop: '1.5rem' }}>Personal Details</div>

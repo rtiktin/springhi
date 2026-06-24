@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 
 const Login: React.FC = () => {
@@ -10,6 +10,8 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
+  const successMessage = (location.state as { message?: string })?.message;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -33,6 +35,7 @@ const Login: React.FC = () => {
         <h2>Welcome Back</h2>
         <p>Log in to manage your AI portfolio.</p>
 
+        {successMessage && <div className="success-msg" style={{ color: '#22c55e', marginBottom: '0.75rem', fontSize: '0.9rem' }}>{successMessage}</div>}
         {error && <div className="error-msg">{error}</div>}
 
         <form onSubmit={handleSubmit}>
@@ -51,6 +54,10 @@ const Login: React.FC = () => {
           </div>
           <button type="submit" className="btn-primary-full">Log In</button>
         </form>
+
+        <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'right' }}>
+          <Link to="/forgot-password" style={{ color: 'var(--text-gray)' }}>Forgot password?</Link>
+        </p>
 
         <p className="auth-footer">
           Don't have an account? <Link to="/signup">Sign up</Link>

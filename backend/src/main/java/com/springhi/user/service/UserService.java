@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class UserService {
@@ -31,6 +32,7 @@ public class UserService {
         return toResponse(user);
     }
 
+    @Transactional
     public ProfileResponse updateProfile(String username, ProfileRequest request) {
         log.debug("Updating profile for username={}", username);
         User user = repository.findByUsername(username)
@@ -38,6 +40,16 @@ public class UserService {
                     log.warn("User not found on update: {}", username);
                     return new UsernameNotFoundException("User not found: " + username);
                 });
+
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            String newEmail = request.getEmail().trim().toLowerCase();
+            if (!newEmail.equals(user.getEmail())) {
+                repository.findByEmail(newEmail).ifPresent(existing -> {
+                    throw new RuntimeException("Email address is already in use by another account.");
+                });
+                user.setEmail(newEmail);
+            }
+        }
 
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
