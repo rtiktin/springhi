@@ -9,6 +9,7 @@ const Login: React.FC = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const successMessage = (location.state as { message?: string })?.message;
@@ -19,12 +20,16 @@ const Login: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setLoading(true);
     try {
       const response = await axios.post('http://localhost:9000/api/v1/auth/signin', formData);
       localStorage.setItem('token', response.data.token);
       navigate('/portfolio');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -52,7 +57,9 @@ const Login: React.FC = () => {
               {showPassword ? 'Hide' : 'Show'}
             </button>
           </div>
-          <button type="submit" className="btn-primary-full">Log In</button>
+          <button type="submit" className="btn-primary-full" disabled={loading}>
+            {loading ? 'Logging in…' : 'Log In'}
+          </button>
         </form>
 
         <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'right' }}>

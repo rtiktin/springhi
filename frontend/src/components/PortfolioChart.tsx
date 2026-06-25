@@ -59,7 +59,6 @@ const PortfolioChart: React.FC<Props> = ({ snapshots }) => {
 
     return (
         <div className="chart-card">
-            <h3 className="chart-title">Portfolio Value — Performance History</h3>
             {snapshots.length === 0 ? (
                 <div className="chart-empty">
                     No history yet. Snapshots are taken automatically at 4:05pm ET on market days, or click "Snapshot Now" to record today's value.

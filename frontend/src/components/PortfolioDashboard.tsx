@@ -105,7 +105,7 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId }) => {
         <div className="portfolio-wrapper">
             <div className="portfolio-perf-section">
                 <div className="portfolio-perf-header">
-                    <span className="portfolio-perf-label">Performance History</span>
+                    <span className="portfolio-perf-label">Trade &amp; Cash Activity</span>
                     <button
                         className="btn-snapshot"
                         onClick={handleSnapshotNow}
