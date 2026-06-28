@@ -151,6 +151,7 @@ const Portfolio: React.FC = () => {
                 <nav className="portfolio-nav">
                     <Link to="/account" className="btn-logout">Account</Link>
                     <Link to="/profile" className="btn-logout">Investor Profile</Link>
+                    <Link to="/leaderboard" className="btn-logout">Leaderboard</Link>
                     <button className="btn-trade" onClick={() => setShowCashForm(true)}>
                         $ Cash
                     </button>
@@ -287,7 +288,7 @@ const Portfolio: React.FC = () => {
                             <TransactionHistory key={`tx-${activePortfolioId}-${refreshKey}`} portfolioId={activePortfolioId} />
                         )}
                         {activeTab === 'optimize' && (
-                            <OptimizePanel key={`opt-${activePortfolioId}`} portfolioId={activePortfolioId} onTradeSuccess={handleTradeSuccess} onNavigateToProfile={() => setActiveTab('profile')} />
+                            <OptimizePanel key={`opt-${activePortfolioId}`} portfolioId={activePortfolioId} onTradeSuccess={handleTradeSuccess} onNavigateToProfile={() => setActiveTab('profile')} cashRefreshSignal={refreshKey} />
                         )}
                         {activeTab === 'profile' && (
                             <PortfolioProfileForm

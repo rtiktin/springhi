@@ -71,6 +71,9 @@ public class PortfolioRecommendation {
     @Column(length = 1000)
     private String snapshotSectorConstraints;
 
+    @Column(length = 50)
+    private String aiProvider;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -123,6 +126,8 @@ public class PortfolioRecommendation {
     public void setSnapshotCurrency(String snapshotCurrency) { this.snapshotCurrency = snapshotCurrency; }
     public String getSnapshotSectorConstraints() { return snapshotSectorConstraints; }
     public void setSnapshotSectorConstraints(String snapshotSectorConstraints) { this.snapshotSectorConstraints = snapshotSectorConstraints; }
+    public String getAiProvider() { return aiProvider; }
+    public void setAiProvider(String aiProvider) { this.aiProvider = aiProvider; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

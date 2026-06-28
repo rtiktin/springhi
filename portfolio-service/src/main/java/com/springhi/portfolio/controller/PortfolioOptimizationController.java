@@ -44,11 +44,12 @@ public class PortfolioOptimizationController {
     @PostMapping("/optimize")
     public ResponseEntity<OptimizationResponse> optimize(
             @RequestParam Long portfolioId,
+            @RequestParam(defaultValue = "gemini") String provider,
             @AuthenticationPrincipal UserPrincipal principal) {
         if (principal == null) return ResponseEntity.status(403).build();
         portfolioService.validatePortfolioOwnership(principal.getId(), portfolioId);
-        log.info("Portfolio optimization requested for portfolioId={}, userId={}", portfolioId, principal.getId());
-        OptimizationResponse result = optimizationService.optimize(principal.getId(), portfolioId);
+        log.info("Portfolio optimization requested for portfolioId={}, userId={}, provider={}", portfolioId, principal.getId(), provider);
+        OptimizationResponse result = optimizationService.optimize(principal.getId(), portfolioId, provider);
         return ResponseEntity.ok(result);
     }
 

@@ -23,6 +23,7 @@ interface Props {
     portfolioId: number;
     onTradeSuccess?: () => void;
     onNavigateToProfile?: () => void;
+    cashRefreshSignal?: number;
 }
 
 function checkReadiness(
@@ -52,7 +53,15 @@ function checkReadiness(
 const fmt = (n: number | null) =>
     n != null ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
 
-const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigateToProfile }) => {
+type AiProvider = 'gemini' | 'claude' | 'chatgpt';
+
+const PROVIDER_LABELS: Record<AiProvider, string> = {
+    gemini: 'Gemini',
+    claude: 'Claude',
+    chatgpt: 'ChatGPT',
+};
+
+const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigateToProfile, cashRefreshSignal }) => {
     const [loading, setLoading] = useState(false);
     const [checking, setChecking] = useState(true);
     const [readinessIssues, setReadinessIssues] = useState<ReadinessIssue[]>([]);
@@ -61,15 +70,32 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
     const [ran, setRan] = useState(false);
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [cashBalance, setCashBalance] = useState<number>(0);
+    const [holdingsMarketValue, setHoldingsMarketValue] = useState<number>(0);
     const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
     const [executing, setExecuting] = useState(false);
     const [execMsg, setExecMsg] = useState<{ text: string; ok: boolean } | null>(null);
     const [showSkipConfirm, setShowSkipConfirm] = useState<'sellAll' | 'sellChecked' | null>(null);
     const [pendingBuyAction, setPendingBuyAction] = useState<'all' | 'checked' | null>(null);
+    const [aiProvider, setAiProvider] = useState<AiProvider | null>(null);
 
-    const loadCash = () => getCashBalance(portfolioId).then(c => { setCashBalance(c); return c; }).catch(() => 0);
+    const loadCash = () => getCashBalance(portfolioId).then(c => {
+        setCashBalance(c);
+        setError(prev => prev.includes('Insufficient funds') ? '' : prev);
+        return c;
+    }).catch(() => 0);
+
+    const loadHoldingsValue = () => getHoldings(portfolioId)
+        .then(h => { setHoldingsMarketValue(h.reduce((s, x) => s + (x.marketValue ?? 0), 0)); })
+        .catch(() => {});
 
     useEffect(() => {
+        if (cashRefreshSignal === undefined || cashRefreshSignal === 0) return;
+        loadCash();
+        loadHoldingsValue();
+    }, [cashRefreshSignal]);
+
+    useEffect(() => {
+        loadHoldingsValue();
         Promise.all([
             getProfile().catch(() => null),
             getAccountProfile().catch(() => null),
@@ -103,7 +129,12 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                 setLoading(false);
                 return;
             }
-            const result = await optimizePortfolio(portfolioId);
+            if (!aiProvider) {
+                setError('Please select an AI model before generating recommendations.');
+                setLoading(false);
+                return;
+            }
+            const result = await optimizePortfolio(portfolioId, aiProvider);
             if (result.error) {
                 setError(result.error);
                 setRecommendations([]);
@@ -111,7 +142,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                 setRecommendations(result.recommendations);
             }
             setRan(true);
-            await loadCash();
+            await Promise.all([loadCash(), loadHoldingsValue()]);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : 'Optimization request failed.');
             setRecommendations([]);
@@ -188,7 +219,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
         setExecMsg(null);
         setExecuting(true);
         const { succeeded, failed } = await executeSells(targets);
-        const newCash = await loadCash();
+        const [newCash] = await Promise.all([loadCash(), loadHoldingsValue()]);
         setExecuting(false);
         setExecMsg({
             ok: failed.length === 0,
@@ -281,7 +312,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                 <div>
                     <h2 className="optimize-title">AI Portfolio Optimizer</h2>
                     <p className="optimize-sub">
-                        Powered by Gemini Flash. Rebalances your portfolio based on your{' '}
+                        Rebalances your portfolio based on your{' '}
                         <button
                             className="optimize-link"
                             onClick={() => onNavigateToProfile?.()}
@@ -293,6 +324,22 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                             </span>
                         )}
                     </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.5rem' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-gray)' }}>AI Model:</span>
+                        {(['gemini', 'claude', 'chatgpt'] as AiProvider[]).map(p => (
+                            <label key={p} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                                <input
+                                    type="radio"
+                                    name="aiProvider"
+                                    value={p}
+                                    checked={aiProvider === p}
+                                    onChange={() => setAiProvider(p)}
+                                    disabled={loading}
+                                />
+                                {PROVIDER_LABELS[p]}
+                            </label>
+                        ))}
+                    </div>
                 </div>
                 <button
                     className="btn-optimize"
@@ -303,6 +350,23 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                     {loading ? 'Analyzing...' : 'Generate Recommendations'}
                 </button>
             </div>
+
+            {!checking && (
+                <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', margin: '1rem 0', padding: '0.75rem 1rem', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    <div>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-gray)', display: 'block' }}>Available Cash</span>
+                        <strong style={{ fontSize: '1rem' }}>{fmt(cashBalance)}</strong>
+                    </div>
+                    <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '1.5rem' }}>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-gray)', display: 'block' }}>Securities Value</span>
+                        <strong style={{ fontSize: '1rem' }}>{fmt(holdingsMarketValue)}</strong>
+                    </div>
+                    <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '1.5rem' }}>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-gray)', display: 'block' }}>Total Portfolio Value</span>
+                        <strong style={{ fontSize: '1rem' }}>{fmt(cashBalance + holdingsMarketValue)}</strong>
+                    </div>
+                </div>
+            )}
 
             {checking && <div className="portfolio-loading">Checking profile…</div>}
 
@@ -319,7 +383,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                 </div>
             )}
 
-            {loading && <div className="portfolio-loading">Consulting Gemini AI…</div>}
+            {loading && <div className="portfolio-loading">Consulting {aiProvider ? PROVIDER_LABELS[aiProvider] : 'AI'}…</div>}
             {error && !loading && <div className="error-msg">{error}</div>}
             {ran && !loading && !error && recommendations.length === 0 && (
                 <div className="optimize-empty">No recommendations returned.</div>
@@ -327,12 +391,6 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
 
             {recommendations.length > 0 && !loading && (
                 <div style={{ marginTop: '1.5rem' }}>
-                    <div className="optimize-buy-toolbar">
-                        <span className="optimize-cash-label">
-                            Available Cash: <strong>{fmt(cashBalance)}</strong>
-                        </span>
-                    </div>
-
                     {execMsg && (
                         <div className={`buy-all-status ${execMsg.ok ? 'buy-all-success' : 'buy-all-partial'}`} style={{ marginBottom: '1rem' }}>
                             {execMsg.text}

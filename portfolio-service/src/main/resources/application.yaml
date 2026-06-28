@@ -37,3 +37,18 @@ gemini:
   model: ${GEMINI_MODEL:gemini-3.1-flash-lite}
   api-key: ${GEMINI_API_KEY:}
 
+claude:
+  base-url: ${CLAUDE_BASE_URL:https://api.anthropic.com}
+  model: ${CLAUDE_MODEL:claude-sonnet-4-6}
+  api-key: ${CLAUDE_API_KEY:}
+  max-tokens: ${CLAUDE_MAX_TOKENS:2048}
+
+openai:
+  base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+  model: ${OPENAI_MODEL:gpt-5.5}
+  api-key: ${OPENAI_API_KEY:}
+  max-tokens: ${OPENAI_MAX_TOKENS:2048}
+
+backend:
+  url: ${BACKEND_URL:http://localhost:8080}
+

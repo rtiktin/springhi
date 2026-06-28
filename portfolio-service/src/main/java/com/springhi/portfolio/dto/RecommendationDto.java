@@ -16,7 +16,8 @@ public record RecommendationDto(
         String status,
         BigDecimal estimatedValue,
         Long transactionId,
-        LocalDateTime generatedAt
+        LocalDateTime generatedAt,
+        String aiProvider
 ) {
     public static RecommendationDto from(PortfolioRecommendation rec) {
         return new RecommendationDto(
@@ -30,7 +31,8 @@ public record RecommendationDto(
                 rec.getStatus(),
                 rec.getEstimatedValue(),
                 rec.getTransactionId(),
-                rec.getGeneratedAt()
+                rec.getGeneratedAt(),
+                rec.getAiProvider()
         );
     }
 }

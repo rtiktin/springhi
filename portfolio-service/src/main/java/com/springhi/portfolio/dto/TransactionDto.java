@@ -13,9 +13,10 @@ public record TransactionDto(
         BigDecimal price,
         LocalDateTime timestamp,
         Long recommendationId,
-        LocalDateTime aiRunGeneratedAt
+        LocalDateTime aiRunGeneratedAt,
+        String aiProvider
 ) {
-    public static TransactionDto of(Transaction t, Long recommendationId, LocalDateTime aiRunGeneratedAt) {
+    public static TransactionDto of(Transaction t, Long recommendationId, LocalDateTime aiRunGeneratedAt, String aiProvider) {
         return new TransactionDto(
                 t.getId(),
                 t.getSymbol(),
@@ -24,11 +25,22 @@ public record TransactionDto(
                 t.getPrice(),
                 t.getTimestamp(),
                 recommendationId,
-                aiRunGeneratedAt
+                aiRunGeneratedAt,
+                aiProvider
         );
     }
 
     public static TransactionDto of(Transaction t) {
-        return of(t, null, null);
+        return new TransactionDto(
+                t.getId(),
+                t.getSymbol(),
+                t.getType(),
+                t.getQuantity(),
+                t.getPrice(),
+                t.getTimestamp(),
+                null,
+                null,
+                null
+        );
     }
 }

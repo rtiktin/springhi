@@ -10,6 +10,10 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 @Service
 public class UserService {
 
@@ -19,6 +23,21 @@ public class UserService {
 
     public UserService(UserRepository repository) {
         this.repository = repository;
+    }
+
+    public Map<Long, String> getDisplayNames(List<Long> ids) {
+        return repository.findAllById(ids).stream()
+                .collect(Collectors.toMap(
+                        User::getId,
+                        u -> {
+                            String fn = u.getFirstName();
+                            String ln = u.getLastName();
+                            if (fn != null && !fn.isBlank()) {
+                                return ln != null && !ln.isBlank() ? fn + " " + ln : fn;
+                            }
+                            return u.getUsername();
+                        }
+                ));
     }
 
     public ProfileResponse getProfile(String username) {

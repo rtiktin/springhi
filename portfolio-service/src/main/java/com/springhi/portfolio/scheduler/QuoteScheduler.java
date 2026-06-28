@@ -5,6 +5,9 @@ import com.springhi.portfolio.service.MarketDataService;
 import com.springhi.portfolio.service.PortfolioSnapshotService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import java.util.List;
@@ -24,6 +27,13 @@ public class QuoteScheduler {
         this.assetRepository = assetRepository;
         this.marketDataService = marketDataService;
         this.snapshotService = snapshotService;
+    }
+
+    @Async
+    @EventListener(ApplicationReadyEvent.class)
+    public void refreshOnStartup() {
+        log.info("Startup quote refresh triggered");
+        refreshAllHeldSymbols();
     }
 
     @Scheduled(cron = "0 0 9,15 * * MON-FRI", zone = "America/New_York")

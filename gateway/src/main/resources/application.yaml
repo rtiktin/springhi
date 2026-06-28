@@ -35,3 +35,7 @@ spring:
           uri: ${PORTFOLIO_URL:http://localhost:8081}
           predicates:
             - Path=/api/v1/profile/**
+        - id: leaderboard-service
+          uri: ${PORTFOLIO_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/leaderboard/**

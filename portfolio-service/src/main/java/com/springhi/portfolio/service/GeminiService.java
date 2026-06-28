@@ -32,7 +32,8 @@ public class GeminiService {
         Map<String, Object> requestBody = Map.of(
                 "contents", List.of(
                         Map.of("parts", List.of(Map.of("text", prompt)))
-                )
+                ),
+                "generationConfig", Map.of("temperature", 0.0, "seed", 42)
         );
 
         log.info("Calling Gemini model={}", model);

@@ -169,9 +169,13 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId }) => {
                 <div className={`summary-card ${twrData && twrData.twrPercent >= 0 ? 'positive' : 'negative'}`}
                     style={{ minWidth: 200 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                        <span className="summary-label">TWR</span>
+                        <span
+                            className="summary-label"
+                            title="Time-Weighted Return: measures investment performance independent of cash deposits and withdrawals"
+                            style={{ cursor: 'help', borderBottom: '1px dotted var(--text-gray)' }}
+                        >TWR</span>
                         <div style={{ display: 'flex', gap: '3px' }}>
-                            {(['1M', '3M', '6M', 'YTD', '1Y', 'ALL'] as TwrRange[]).map(r => (
+                            {(['1W', '1M', '3M', '6M', 'YTD', '1Y', 'ALL'] as TwrRange[]).map(r => (
                                 <button
                                     key={r}
                                     onClick={() => setTwrRange(r)}

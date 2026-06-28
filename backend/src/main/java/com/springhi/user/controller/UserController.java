@@ -4,6 +4,7 @@ import com.springhi.user.dto.ProfileRequest;
 import com.springhi.user.dto.ProfileResponse;
 import com.springhi.user.service.UserService;
 import java.security.Principal;
+import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,14 @@ public class UserController {
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, String>> handleConflict(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", ex.getMessage()));
+    }
+
+    @GetMapping("/display-names")
+    public ResponseEntity<Map<Long, String>> getDisplayNames(
+            @RequestParam List<Long> ids,
+            Principal principal) {
+        if (principal == null) return ResponseEntity.status(401).build();
+        return ResponseEntity.ok(userService.getDisplayNames(ids));
     }
 
     @GetMapping("/profile")

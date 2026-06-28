@@ -191,7 +191,7 @@ public class PortfolioService {
                 .map(t -> {
                     PortfolioRecommendation rec = recByTxnId.get(t.getId());
                     return rec != null
-                            ? TransactionDto.of(t, rec.getId(), rec.getGeneratedAt())
+                            ? TransactionDto.of(t, rec.getId(), rec.getGeneratedAt(), rec.getAiProvider())
                             : TransactionDto.of(t);
                 })
                 .toList();

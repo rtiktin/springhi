@@ -139,7 +139,13 @@ const TransactionHistory: React.FC<Props> = ({ portfolioId }) => {
                                                 letterSpacing: '0.04em',
                                             }}
                                         >
-                                            AI
+                                            {(() => {
+                                                const p = t.aiProvider?.toLowerCase();
+                                                if (p === 'claude') return 'Claude';
+                                                if (p === 'chatgpt') return 'ChatGPT';
+                                                if (p === 'gemini') return 'Gemini';
+                                                return 'AI';
+                                            })()}
                                         </button>
                                     ) : null}
                                 </td>
@@ -164,6 +170,13 @@ const TransactionHistory: React.FC<Props> = ({ portfolioId }) => {
                         <p style={{ color: 'var(--text-gray)', fontSize: '0.85rem', marginBottom: '1rem' }}>
                             Generated{' '}
                             {new Date(aiRunModal.details.recommendations[0]?.generatedAt ?? '').toLocaleString()}
+                            {(() => {
+                                const provider = aiRunModal.details.recommendations[0]?.aiProvider;
+                                if (!provider) return null;
+                                const p = provider.toLowerCase();
+                                const label = p === 'claude' ? 'Claude' : p === 'chatgpt' ? 'ChatGPT' : 'Gemini';
+                                return <span style={{ marginLeft: '0.75rem', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.8rem', color: 'var(--accent)', fontWeight: 600 }}>via {label}</span>;
+                            })()}
                         </p>
 
                         <h3 style={{ color: 'var(--text-light)', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
@@ -199,7 +212,7 @@ const TransactionHistory: React.FC<Props> = ({ portfolioId }) => {
                                                 </td>
                                                 <td className="symbol-cell">{rec.t}</td>
                                                 <td style={{ fontSize: '0.82rem', color: 'var(--text-gray)' }}>{rec.n}</td>
-                                                <td>{(rec.w * 100).toFixed(1)}%</td>
+                                                <td>{rec.w.toFixed(1)}%</td>
                                                 <td>{fmt(rec.estimatedValue)}</td>
                                                 <td style={{
                                                     color: rec.status === 'EXECUTED' ? '#22c55e'

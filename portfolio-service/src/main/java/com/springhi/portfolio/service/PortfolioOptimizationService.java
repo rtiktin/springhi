@@ -30,14 +30,20 @@ public class PortfolioOptimizationService {
     private static final Logger log = LoggerFactory.getLogger(PortfolioOptimizationService.class);
 
     private final GeminiService geminiService;
+    private final ClaudeService claudeService;
+    private final ChatGptService chatGptService;
     private final PortfolioService portfolioService;
     private final PortfolioRecommendationRepository recommendationRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public PortfolioOptimizationService(GeminiService geminiService,
+                                        ClaudeService claudeService,
+                                        ChatGptService chatGptService,
                                         PortfolioService portfolioService,
                                         PortfolioRecommendationRepository recommendationRepository) {
         this.geminiService = geminiService;
+        this.claudeService = claudeService;
+        this.chatGptService = chatGptService;
         this.portfolioService = portfolioService;
         this.recommendationRepository = recommendationRepository;
     }
@@ -53,7 +59,7 @@ public class PortfolioOptimizationService {
     }
 
     @Transactional
-    public OptimizationResponse optimize(Long userId, Long portfolioId) {
+    public OptimizationResponse optimize(Long userId, Long portfolioId, String provider) {
         PortfolioProfileDto portfolioProfile = portfolioService.getOrCreatePortfolioProfile(portfolioId, userId);
         List<AssetWithPrice> holdings = portfolioService.getUserAssetsWithPrices(portfolioId);
         BigDecimal cashBalance = portfolioService.getCashBalance(portfolioId);
@@ -63,16 +69,23 @@ public class PortfolioOptimizationService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         String prompt = buildPrompt(portfolioProfile, holdings, cashBalance, portfolioMarketValue);
-        log.info("Sending rebalancing prompt to Gemini for portfolioId={}, holdings={}, cash={}",
-                portfolioId, holdings.size(), cashBalance);
+        log.info("Sending rebalancing prompt to {} for portfolioId={}, holdings={}, cash={}",
+                provider, portfolioId, holdings.size(), cashBalance);
 
         try {
-            String rawText = geminiService.generateContent(prompt);
+            String rawText;
+            if ("claude".equalsIgnoreCase(provider)) {
+                rawText = claudeService.generateContent(prompt);
+            } else if ("chatgpt".equalsIgnoreCase(provider)) {
+                rawText = chatGptService.generateContent(prompt);
+            } else {
+                rawText = geminiService.generateContent(prompt);
+            }
             String json = extractJson(rawText);
             List<SecurityRecommendation> recs = objectMapper.readValue(json,
                     new TypeReference<List<SecurityRecommendation>>() {});
 
-            List<RecommendationDto> saved = persistRecommendations(userId, portfolioId, recs, holdings, cashBalance, portfolioMarketValue, portfolioProfile);
+            List<RecommendationDto> saved = persistRecommendations(userId, portfolioId, recs, holdings, cashBalance, portfolioMarketValue, portfolioProfile, provider);
             return new OptimizationResponse(saved, null);
         } catch (Exception e) {
             log.error("Optimization failed for portfolioId={}: {}", portfolioId, e.getMessage(), e);
@@ -86,7 +99,8 @@ public class PortfolioOptimizationService {
                                                             List<AssetWithPrice> holdings,
                                                             BigDecimal cashBalance,
                                                             BigDecimal portfolioMarketValue,
-                                                            PortfolioProfileDto profile) {
+                                                            PortfolioProfileDto profile,
+                                                            String provider) {
         recommendationRepository.deletePendingForPortfolio(portfolioId);
 
         Map<String, AssetWithPrice> holdingMap = holdings.stream()
@@ -108,6 +122,7 @@ public class PortfolioOptimizationService {
             entity.setWeight(BigDecimal.valueOf(rec.w()).setScale(4, RoundingMode.HALF_UP));
             entity.setRationale(rec.r());
             entity.setStatus("PENDING");
+            entity.setAiProvider(provider);
             if (profile != null) {
                 entity.setSnapshotRiskLevel(profile.riskLevel());
                 entity.setSnapshotGoal(profile.goal());

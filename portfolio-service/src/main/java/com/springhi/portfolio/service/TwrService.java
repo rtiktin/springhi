@@ -88,6 +88,7 @@ public class TwrService {
         LocalDate today = LocalDate.now();
         if (range == null) return today.minusYears(10);
         return switch (range.toUpperCase()) {
+            case "1W"  -> today.minusWeeks(1);
             case "1M"  -> today.minusMonths(1);
             case "3M"  -> today.minusMonths(3);
             case "6M"  -> today.minusMonths(6);

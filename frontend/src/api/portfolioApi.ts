@@ -40,6 +40,7 @@ export interface Transaction {
     timestamp: string;
     recommendationId: number | null;
     aiRunGeneratedAt: string | null;
+    aiProvider: string | null;
 }
 
 export interface AiRunRec {
@@ -54,6 +55,7 @@ export interface AiRunRec {
     estimatedValue: number | null;
     transactionId: number | null;
     generatedAt: string;
+    aiProvider: string | null;
 }
 
 export interface AiRunDetails {
@@ -225,7 +227,7 @@ export interface TwrResult {
     subPeriods: TwrSubPeriod[];
 }
 
-export type TwrRange = '1M' | '3M' | '6M' | 'YTD' | '1Y' | 'ALL';
+export type TwrRange = '1W' | '1M' | '3M' | '6M' | 'YTD' | '1Y' | 'ALL';
 
 export const getTwr = async (portfolioId: number, range: TwrRange = 'ALL'): Promise<TwrResult> => {
     const response = await axios.get(`${BASE_URL}/performance/twr`, {
@@ -239,6 +241,24 @@ export const getAiRunDetails = async (portfolioId: number, generatedAt: string):
     const response = await axios.get(`${BASE_URL}/recommendations/run`, {
         headers: authHeader(),
         params: { portfolioId, generatedAt },
+    });
+    return response.data;
+};
+
+export interface LeaderboardEntry {
+    rank: number;
+    portfolioId: number;
+    portfolioName: string;
+    username: string | null;
+    twrPercent: number;
+    holdingCount: number;
+    maxHoldingPct: number;
+}
+
+export const getLeaderboard = async (range: string, scope: 'mine' | 'all' = 'all'): Promise<LeaderboardEntry[]> => {
+    const response = await axios.get(`${API_GATEWAY}/api/v1/leaderboard`, {
+        headers: authHeader(),
+        params: { range, scope },
     });
     return response.data;
 };

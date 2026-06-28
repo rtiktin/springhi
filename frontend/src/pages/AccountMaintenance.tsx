@@ -134,8 +134,9 @@ const AccountMaintenance: React.FC = () => {
                     {username && <span className="nav-welcome">Welcome back, {username}</span>}
                 </div>
                 <nav className="portfolio-nav">
-                    <Link to="/portfolio" className="btn-logout">Portfolio</Link>
+                    <Link to="/portfolio" className="btn-logout">Portfolios</Link>
                     <Link to="/profile" className="btn-logout">Investor Profile</Link>
+                    <Link to="/leaderboard" className="btn-logout">Leaderboard</Link>
                     <button className="btn-trade" onClick={() => setShowCashForm(true)}>$ Cash</button>
                     <button className="btn-logout" onClick={handleLogout}>Log Out</button>
                 </nav>
