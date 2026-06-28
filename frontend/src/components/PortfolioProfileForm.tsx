@@ -81,6 +81,7 @@ const PortfolioProfileForm: React.FC<Props> = ({ portfolioId, bannerMessage }) =
                 </div>
             )}
             {error && <div className="error-msg" style={{ marginBottom: '1rem' }}>{error}</div>}
+            {saving && <div style={{ color: '#818cf8', marginBottom: '1rem', fontWeight: 600 }}>Saving profile…</div>}
             {saved && <div style={{ color: '#22c55e', marginBottom: '1rem', fontWeight: 600 }}>Profile saved.</div>}
 
             <label className="form-label">Risk Tolerance</label>

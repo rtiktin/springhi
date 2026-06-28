@@ -262,6 +262,7 @@ const ProfileEdit: React.FC = () => {
                     </div>
 
                     {error && <div className="error-msg">{error}</div>}
+                    {saving && <div className="info-msg" style={{ color: '#818cf8', fontWeight: 600 }}>Saving profile…</div>}
                     {saved && <div className="success-msg">Profile saved successfully.</div>}
 
                     <div style={{ marginTop: '1.5rem' }}>

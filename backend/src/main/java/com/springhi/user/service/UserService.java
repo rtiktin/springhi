@@ -27,17 +27,7 @@ public class UserService {
 
     public Map<Long, String> getDisplayNames(List<Long> ids) {
         return repository.findAllById(ids).stream()
-                .collect(Collectors.toMap(
-                        User::getId,
-                        u -> {
-                            String fn = u.getFirstName();
-                            String ln = u.getLastName();
-                            if (fn != null && !fn.isBlank()) {
-                                return ln != null && !ln.isBlank() ? fn + " " + ln : fn;
-                            }
-                            return u.getUsername();
-                        }
-                ));
+                .collect(Collectors.toMap(User::getId, User::getUsername));
     }
 
     public ProfileResponse getProfile(String username) {

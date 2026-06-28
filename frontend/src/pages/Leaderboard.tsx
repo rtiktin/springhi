@@ -54,7 +54,7 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
             <thead>
                 <tr style={{ background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid var(--border)' }}>
                     <th style={thStyle}>Rank</th>
-                    {showUser && <th style={thStyle}>User</th>}
+                    {showUser && <th style={thStyle}>Username</th>}
                     <th style={thStyle}>Portfolio</th>
                     <th style={{ ...thStyle, textAlign: 'right' }}>TWR ({RANGE_LABELS[range]})</th>
                     <th style={{ ...thStyle, textAlign: 'right' }}>Holdings</th>

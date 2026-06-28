@@ -46,31 +46,18 @@ public class LeaderboardService {
             portfolios = portfolioRepository.findAll();
         }
 
-        List<LeaderboardEntryDto> entries = buildEntries(portfolios, range, null);
-
+        Map<Long, String> usernameMap = java.util.Collections.emptyMap();
         if (!"mine".equalsIgnoreCase(scope)) {
             List<Long> userIds = portfolios.stream()
-                    .map(Portfolio::getUserId)
-                    .distinct()
-                    .collect(Collectors.toList());
-            Map<Long, String> displayNames = userServiceClient.getDisplayNames(userIds, jwtToken);
-
-            entries = entries.stream()
-                    .map(e -> {
-                        Portfolio p = portfolios.stream()
-                                .filter(x -> x.getId().equals(e.portfolioId()))
-                                .findFirst().orElse(null);
-                        String name = p != null ? displayNames.getOrDefault(p.getUserId(), "User #" + p.getUserId()) : null;
-                        return new LeaderboardEntryDto(e.rank(), e.portfolioId(), e.portfolioName(),
-                                name, e.twrPercent(), e.holdingCount(), e.maxHoldingPct());
-                    })
-                    .collect(Collectors.toList());
+                    .map(Portfolio::getUserId).distinct().collect(Collectors.toList());
+            usernameMap = userServiceClient.getDisplayNames(userIds, jwtToken);
         }
 
-        return entries;
+        return buildEntries(portfolios, range, usernameMap, !"mine".equalsIgnoreCase(scope));
     }
 
-    private List<LeaderboardEntryDto> buildEntries(List<Portfolio> portfolios, String range, Map<Long, String> displayNames) {
+    private List<LeaderboardEntryDto> buildEntries(List<Portfolio> portfolios, String range,
+                                                   Map<Long, String> usernameMap, boolean includeUsername) {
         List<LeaderboardEntryDto> entries = new ArrayList<>();
 
         for (Portfolio portfolio : portfolios) {
@@ -96,11 +83,15 @@ public class LeaderboardService {
                 TwrResponseDto twr = twrService.computeTwr(portfolio.getId(), range);
                 if (twr.snapshotCount() < 2) continue;
 
+                String username = includeUsername
+                        ? usernameMap.getOrDefault(portfolio.getUserId(), "user-" + portfolio.getUserId())
+                        : null;
+
                 entries.add(new LeaderboardEntryDto(
                         0,
                         portfolio.getId(),
                         portfolio.getName(),
-                        displayNames != null ? displayNames.getOrDefault(portfolio.getUserId(), null) : null,
+                        username,
                         twr.twrPercent(),
                         holdings.size(),
                         Math.round(maxPct * 10.0) / 10.0
