@@ -1,17 +1,21 @@
 package com.springhi.user.service;
 
+import com.springhi.user.dto.AdminUserDto;
 import com.springhi.user.dto.ProfileRequest;
 import com.springhi.user.dto.ProfileResponse;
 import com.springhi.user.model.User;
 import com.springhi.user.repository.UserRepository;
+import com.springhi.user.security.JwtService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -20,9 +24,13 @@ public class UserService {
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     private final UserRepository repository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
-    public UserService(UserRepository repository) {
+    public UserService(UserRepository repository, PasswordEncoder passwordEncoder, JwtService jwtService) {
         this.repository = repository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
     }
 
     public Map<Long, String> getDisplayNames(List<Long> ids) {
@@ -75,6 +83,45 @@ public class UserService {
         repository.save(user);
         log.debug("Profile updated for username={}", username);
         return toResponse(user);
+    }
+
+    public List<AdminUserDto> getAllUsers() {
+        return repository.findAllByOrderByCreatedAtDesc().stream()
+                .map(AdminUserDto::from)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public AdminUserDto updateUserType(Long userId, int newType) {
+        Set<Integer> valid = Set.of(4, 6, 8, 10);
+        if (!valid.contains(newType)) {
+            throw new IllegalArgumentException("Invalid user type: " + newType);
+        }
+        User user = repository.findById(userId)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + userId));
+        user.setUserType(newType);
+        repository.save(user);
+        log.info("Admin updated userType for userId={} to {}", userId, newType);
+        return AdminUserDto.from(user);
+    }
+
+    @Transactional
+    public void changeUserPassword(Long userId, String newPassword) {
+        if (newPassword == null || newPassword.length() < 8) {
+            throw new IllegalArgumentException("Password must be at least 8 characters.");
+        }
+        User user = repository.findById(userId)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + userId));
+        user.setPassword(passwordEncoder.encode(newPassword));
+        repository.save(user);
+        log.info("Admin changed password for userId={}", userId);
+    }
+
+    public String generateImpersonationToken(Long userId) {
+        User user = repository.findById(userId)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + userId));
+        log.info("Admin generating impersonation token for userId={} username={}", userId, user.getUsername());
+        return jwtService.generateToken(user);
     }
 
     private ProfileResponse toResponse(User user) {

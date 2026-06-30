@@ -57,6 +57,12 @@ public class AuthService {
         if (repository.findByEmail(request.getEmail()).isPresent()) {
             throw new RuntimeException("Email already taken");
         }
+        if (repository.existsSuspendedByEmailOrName(
+                request.getEmail(),
+                request.getFirstName() != null ? request.getFirstName() : "",
+                request.getLastName() != null ? request.getLastName() : "")) {
+            throw new RuntimeException("Account registration is not permitted.");
+        }
 
         User user = new User();
         user.setUsername(request.getUsername());
@@ -79,6 +85,12 @@ public class AuthService {
         );
         User user = repository.findByUsername(request.getUsername())
                 .orElseThrow();
+        if (user.getUserType() == 4) {
+            throw new RuntimeException("Your account has been suspended. You cannot log in.");
+        }
+        if (user.getUserType() == 6) {
+            throw new RuntimeException("Your account has been closed. You cannot log in.");
+        }
         String jwtToken = jwtService.generateToken(user);
         return new AuthResponse(jwtToken);
     }

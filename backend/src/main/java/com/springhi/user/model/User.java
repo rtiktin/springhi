@@ -43,6 +43,9 @@ public class User implements UserDetails {
     private String country;
     private LocalDate dateOfBirth;
 
+    @Column(nullable = false)
+    private int userType = 8;
+
     @Column(updatable = false)
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -90,6 +93,8 @@ public class User implements UserDetails {
     public void setCountry(String country) { this.country = country; }
     public LocalDate getDateOfBirth() { return dateOfBirth; }
     public void setDateOfBirth(LocalDate dateOfBirth) { this.dateOfBirth = dateOfBirth; }
+    public int getUserType() { return userType; }
+    public void setUserType(int userType) { this.userType = userType; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 

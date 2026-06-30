@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getLoggedInUsername } from '../utils/auth';
+import { getLoggedInUsername, isAdmin } from '../utils/auth';
 import { getAccountProfile, updateAccountProfile } from '../api/accountApi';
 import type { AccountProfile } from '../api/accountApi';
 import CashForm from '../components/CashForm';
@@ -137,6 +137,7 @@ const AccountMaintenance: React.FC = () => {
                     <Link to="/portfolio" className="btn-logout">Portfolios</Link>
                     <Link to="/profile" className="btn-logout">Investor Profile</Link>
                     <Link to="/leaderboard" className="btn-logout">Leaderboard</Link>
+                    {isAdmin() && <Link to="/admin" className="btn-logout">Admin</Link>}
                     <button className="btn-trade" onClick={() => setShowCashForm(true)}>$ Cash</button>
                     <button className="btn-logout" onClick={handleLogout}>Log Out</button>
                 </nav>

@@ -39,3 +39,11 @@ spring:
           uri: ${PORTFOLIO_URL:http://localhost:8081}
           predicates:
             - Path=/api/v1/leaderboard/**
+        - id: admin-users
+          uri: ${BACKEND_URL:http://localhost:8080}
+          predicates:
+            - Path=/api/v1/admin/users/**
+        - id: admin-portfolios
+          uri: ${PORTFOLIO_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/admin/portfolios/**

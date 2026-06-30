@@ -9,6 +9,7 @@ import AccountMaintenance from './pages/AccountMaintenance';
 import About from './pages/About';
 import Leaderboard from './pages/Leaderboard';
 import ForgotPassword from './pages/ForgotPassword';
+import Admin from './pages/Admin';
 import { isLoggedIn } from './utils/auth';
 import './App.css';
 
@@ -30,6 +31,7 @@ function App() {
           <Route path="/about" element={<About />} />
           <Route path="/leaderboard" element={<RequireAuth><Leaderboard /></RequireAuth>} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/admin" element={<RequireAuth><Admin /></RequireAuth>} />
         </Routes>
       </div>
     </Router>

@@ -30,6 +30,15 @@ public class JwtService {
         });
     }
 
+    public Integer extractUserType(String token) {
+        return extractClaim(token, claims -> {
+            Object value = claims.get("userType");
+            if (value instanceof Integer i) return i;
+            if (value instanceof Number n) return n.intValue();
+            return 8;
+        });
+    }
+
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         final Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
