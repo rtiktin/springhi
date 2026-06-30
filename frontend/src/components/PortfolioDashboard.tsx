@@ -167,31 +167,29 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId }) => {
                     </span>
                 </div>
                 <div className={`summary-card ${twrData && twrData.twrPercent >= 0 ? 'positive' : 'negative'}`}
-                    style={{ minWidth: 200 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                        <span
-                            className="summary-label"
-                            title="Time-Weighted Return: measures investment performance independent of cash deposits and withdrawals"
-                            style={{ cursor: 'help', borderBottom: '1px dotted var(--text-gray)' }}
-                        >TWR</span>
-                        <div style={{ display: 'flex', gap: '3px' }}>
-                            {(['1W', '1M', '3M', '6M', 'YTD', '1Y', 'ALL'] as TwrRange[]).map(r => (
-                                <button
-                                    key={r}
-                                    onClick={() => setTwrRange(r)}
-                                    style={{
-                                        padding: '1px 5px',
-                                        fontSize: '0.68rem',
-                                        fontWeight: twrRange === r ? 700 : 400,
-                                        background: twrRange === r ? 'var(--accent)' : 'transparent',
-                                        color: twrRange === r ? '#fff' : 'var(--text-gray)',
-                                        border: '1px solid var(--border)',
-                                        borderRadius: 3,
-                                        cursor: 'pointer',
-                                    }}
-                                >{r}</button>
-                            ))}
-                        </div>
+                    style={{ minWidth: 'max-content' }}>
+                    <span
+                        className="summary-label"
+                        title="Time-Weighted Return: measures investment performance independent of cash deposits and withdrawals"
+                        style={{ cursor: 'help', borderBottom: '1px dotted var(--text-gray)', display: 'block', marginBottom: '0.35rem' }}
+                    >TWR</span>
+                    <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
+                        {(['1W', '1M', '3M', '6M', 'YTD', '1Y', 'ALL'] as TwrRange[]).map(r => (
+                            <button
+                                key={r}
+                                onClick={() => setTwrRange(r)}
+                                style={{
+                                    padding: '1px 5px',
+                                    fontSize: '0.68rem',
+                                    fontWeight: twrRange === r ? 700 : 400,
+                                    background: twrRange === r ? 'var(--accent)' : 'transparent',
+                                    color: twrRange === r ? '#fff' : 'var(--text-gray)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: 3,
+                                    cursor: 'pointer',
+                                }}
+                            >{r}</button>
+                        ))}
                     </div>
                     <span className="summary-value" style={{ fontSize: '1.2rem' }}>
                         {twrLoading ? '…' : twrData && twrData.snapshotCount >= 2

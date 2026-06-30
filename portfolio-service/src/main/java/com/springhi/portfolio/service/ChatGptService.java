@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.util.List;
 import java.util.Map;
@@ -34,7 +35,6 @@ public class ChatGptService {
         Map<String, Object> requestBody = Map.of(
                 "model", model,
                 "max_completion_tokens", maxTokens,
-                "temperature", 0.0,
                 "seed", 42,
                 "messages", List.of(
                         Map.of("role", "user", "content", prompt)
@@ -43,14 +43,20 @@ public class ChatGptService {
 
         log.info("Calling ChatGPT model={}", model);
 
-        Map<?, ?> response = webClient.post()
-                .uri("/v1/chat/completions")
-                .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + apiKey)
-                .bodyValue(requestBody)
-                .retrieve()
-                .bodyToMono(Map.class)
-                .block();
+        Map<?, ?> response;
+        try {
+            response = webClient.post()
+                    .uri("/v1/chat/completions")
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+        } catch (WebClientResponseException e) {
+            log.error("ChatGPT API error {}: {}", e.getStatusCode(), e.getResponseBodyAsString());
+            throw new RuntimeException("ChatGPT API error " + e.getStatusCode() + ": " + e.getResponseBodyAsString());
+        }
 
         if (response == null) {
             throw new RuntimeException("ChatGPT returned null response");
