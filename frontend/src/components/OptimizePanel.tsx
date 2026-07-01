@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { optimizePortfolio, getProfile } from '../api/profileApi';
 import type { Recommendation, UserProfile } from '../api/profileApi';
-import { getAccountProfile } from '../api/accountApi';
+import { getAccountProfile, sendEmailVerification, verifyEmail } from '../api/accountApi';
+import { isEmailVerified } from '../utils/auth';
 import { getQuote } from '../api/marketApi';
 import {
     submitTransaction,
@@ -78,6 +79,15 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
     const [pendingBuyAction, setPendingBuyAction] = useState<'all' | 'checked' | null>(null);
     const [aiProvider, setAiProvider] = useState<AiProvider | null>(null);
 
+    const [userEmail, setUserEmail] = useState<string>('');
+    const [showVerifyModal, setShowVerifyModal] = useState(false);
+    const [verifyEmail2, setVerifyEmail2] = useState<string>('');
+    const [verifyStep, setVerifyStep] = useState<'email' | 'code'>('email');
+    const [verifyCode, setVerifyCode] = useState('');
+    const [verifyLoading, setVerifyLoading] = useState(false);
+    const [verifyError, setVerifyError] = useState('');
+    const [pendingOptimize, setPendingOptimize] = useState(false);
+
     const loadCash = () => getCashBalance(portfolioId).then(c => {
         setCashBalance(c);
         setError(prev => prev.includes('Insufficient funds') ? '' : prev);
@@ -104,6 +114,10 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
         ]).then(([prof, account, , recs]) => {
             setProfile(prof);
             setReadinessIssues(checkReadiness(prof, account));
+            if (account?.email) {
+                setUserEmail(account.email);
+                setVerifyEmail2(account.email);
+            }
             if (recs && recs.length > 0) {
                 setRecommendations(recs);
                 setRan(true);
@@ -111,7 +125,66 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
         }).finally(() => setChecking(false));
     }, []);
 
-    const handleOptimize = async () => {
+    const openVerifyModal = () => {
+        setVerifyStep('email');
+        setVerifyCode('');
+        setVerifyError('');
+        setShowVerifyModal(true);
+    };
+
+    const handleSendVerificationCode = async () => {
+        setVerifyLoading(true);
+        setVerifyError('');
+        try {
+            const resp = await sendEmailVerification(verifyEmail2 !== userEmail ? verifyEmail2 : undefined);
+            if (resp.token) {
+                localStorage.setItem('token', resp.token);
+                setUserEmail(verifyEmail2);
+            }
+            setVerifyStep('code');
+        } catch (e: unknown) {
+            const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            setVerifyError(msg ?? 'Failed to send verification code.');
+        } finally {
+            setVerifyLoading(false);
+        }
+    };
+
+    const handleVerifyCode = async () => {
+        if (!verifyCode.trim()) { setVerifyError('Please enter the verification code.'); return; }
+        setVerifyLoading(true);
+        setVerifyError('');
+        try {
+            const resp = await verifyEmail(verifyCode.trim());
+            if (resp.token) {
+                localStorage.setItem('token', resp.token);
+            }
+            setShowVerifyModal(false);
+            setPendingOptimize(true);
+        } catch (e: unknown) {
+            const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            setVerifyError(msg ?? 'Invalid or expired code.');
+        } finally {
+            setVerifyLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (pendingOptimize) {
+            setPendingOptimize(false);
+            runOptimize();
+        }
+    }, [pendingOptimize]);
+
+    const handleOptimize = () => {
+        if (!isEmailVerified()) {
+            openVerifyModal();
+            return;
+        }
+        runOptimize();
+    };
+
+    const runOptimize = async () => {
         setLoading(true);
         setError('');
         setRan(false);
@@ -283,6 +356,66 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
 
     return (
         <div className="optimize-panel">
+            {showVerifyModal && (
+                <div className="modal-overlay" onClick={() => { if (!verifyLoading) setShowVerifyModal(false); }}>
+                    <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
+                        <div className="modal-header">
+                            <h2>Verify Your Email</h2>
+                            <button className="modal-close" onClick={() => setShowVerifyModal(false)} disabled={verifyLoading}>✕</button>
+                        </div>
+                        <div style={{ padding: '1.25rem 1.5rem' }}>
+                            {verifyStep === 'email' ? (
+                                <>
+                                    <p style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-gray)' }}>
+                                        To run AI optimization for the first time, we need to verify your email address. You can update it below before sending the code.
+                                    </p>
+                                    <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>Email Address</label>
+                                    <input
+                                        type="email"
+                                        value={verifyEmail2}
+                                        onChange={e => setVerifyEmail2(e.target.value)}
+                                        style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', fontSize: '0.95rem', boxSizing: 'border-box' }}
+                                        disabled={verifyLoading}
+                                        autoFocus
+                                    />
+                                    {verifyError && <p style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '0.5rem' }}>{verifyError}</p>}
+                                    <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', justifyContent: 'flex-end' }}>
+                                        <button onClick={() => setShowVerifyModal(false)} disabled={verifyLoading} style={{ padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', cursor: 'pointer', fontSize: '0.9rem' }}>Cancel</button>
+                                        <button className="btn-trade" onClick={handleSendVerificationCode} disabled={verifyLoading || !verifyEmail2.trim()}>
+                                            {verifyLoading ? 'Sending…' : 'Send Code'}
+                                        </button>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <p style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-gray)' }}>
+                                        A 6-digit verification code was sent to <strong>{verifyEmail2}</strong>. Enter it below.
+                                    </p>
+                                    <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>Verification Code</label>
+                                    <input
+                                        type="text"
+                                        value={verifyCode}
+                                        onChange={e => setVerifyCode(e.target.value)}
+                                        placeholder="000000"
+                                        maxLength={6}
+                                        style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', fontSize: '1.1rem', letterSpacing: '0.2em', textAlign: 'center', boxSizing: 'border-box' }}
+                                        disabled={verifyLoading}
+                                        autoFocus
+                                    />
+                                    {verifyError && <p style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '0.5rem' }}>{verifyError}</p>}
+                                    <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                        <button onClick={() => setVerifyStep('email')} disabled={verifyLoading} style={{ padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', cursor: 'pointer', fontSize: '0.9rem' }}>← Change Email</button>
+                                        <button className="btn-trade" onClick={handleVerifyCode} disabled={verifyLoading || verifyCode.length < 6}>
+                                            {verifyLoading ? 'Verifying…' : 'Verify & Continue'}
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {showSkipConfirm && (
                 <div className="modal-overlay" onClick={() => setShowSkipConfirm(null)}>
                     <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>

@@ -95,6 +95,65 @@ public class AuthService {
         return new AuthResponse(jwtToken);
     }
 
+    public AuthResponse sendEmailVerification(String username, String newEmail) {
+        User user = repository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found."));
+
+        String targetEmail = (newEmail != null && !newEmail.isBlank()) ? newEmail.trim().toLowerCase() : user.getEmail();
+
+        if (!targetEmail.equals(user.getEmail())) {
+            if (repository.findByEmail(targetEmail).isPresent()) {
+                throw new RuntimeException("That email address is already in use by another account.");
+            }
+            user.setEmail(targetEmail);
+            repository.save(user);
+        }
+
+        resetTokenRepository.deleteAllByEmail(targetEmail);
+        String code = String.format("%06d", RANDOM.nextInt(1_000_000));
+        PasswordResetToken token = new PasswordResetToken();
+        token.setEmail(targetEmail);
+        token.setCode(code);
+        token.setExpiresAt(LocalDateTime.now().plusMinutes(resetCodeExpiryMinutes));
+        resetTokenRepository.save(token);
+
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(mailFrom);
+        message.setTo(targetEmail);
+        message.setSubject("SpringHi.ai — Email Verification Code");
+        message.setText(
+                "Your email verification code is: " + code + "\n\n" +
+                "This code expires in " + resetCodeExpiryMinutes + " minutes.\n\n" +
+                "If you did not request this, please ignore this email."
+        );
+        mailSender.send(message);
+
+        return new AuthResponse(jwtService.generateToken(user));
+    }
+
+    public AuthResponse verifyEmail(String username, String code) {
+        User user = repository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found."));
+
+        PasswordResetToken token = resetTokenRepository
+                .findTopByEmailAndUsedFalseOrderByCreatedAtDesc(user.getEmail())
+                .orElseThrow(() -> new RuntimeException("No active verification code found. Please request a new one."));
+
+        if (LocalDateTime.now().isAfter(token.getExpiresAt())) {
+            throw new RuntimeException("Verification code has expired. Please request a new one.");
+        }
+        if (!token.getCode().equals(code.trim())) {
+            throw new RuntimeException("Invalid verification code.");
+        }
+
+        user.setEmailVerified(true);
+        repository.save(user);
+        token.setUsed(true);
+        resetTokenRepository.save(token);
+
+        return new AuthResponse(jwtService.generateToken(user));
+    }
+
     public void forgotPassword(String email) {
         boolean userExists = repository.findByEmail(email).isPresent();
         if (!userExists) {

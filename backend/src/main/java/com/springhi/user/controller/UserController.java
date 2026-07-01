@@ -1,7 +1,9 @@
 package com.springhi.user.controller;
 
+import com.springhi.user.dto.AuthResponse;
 import com.springhi.user.dto.ProfileRequest;
 import com.springhi.user.dto.ProfileResponse;
+import com.springhi.user.service.AuthService;
 import com.springhi.user.service.UserService;
 import java.security.Principal;
 import java.util.List;
@@ -19,9 +21,11 @@ public class UserController {
     private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
     private final UserService userService;
+    private final AuthService authService;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, AuthService authService) {
         this.userService = userService;
+        this.authService = authService;
     }
 
     @ExceptionHandler(RuntimeException.class)
@@ -75,6 +79,37 @@ public class UserController {
         } catch (Exception e) {
             log.error("PUT /profile failed for username={}: {}", principal.getName(), e.getMessage(), e);
             throw e;
+        }
+    }
+
+    @PostMapping("/email/send-verification")
+    public ResponseEntity<?> sendEmailVerification(
+            Principal principal,
+            @RequestBody Map<String, String> body) {
+        if (principal == null) return ResponseEntity.status(401).build();
+        String newEmail = body.getOrDefault("email", "").trim();
+        try {
+            AuthResponse resp = authService.sendEmailVerification(principal.getName(), newEmail.isEmpty() ? null : newEmail);
+            return ResponseEntity.ok(resp);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/email/verify")
+    public ResponseEntity<?> verifyEmail(
+            Principal principal,
+            @RequestBody Map<String, String> body) {
+        if (principal == null) return ResponseEntity.status(401).build();
+        String code = body.getOrDefault("code", "").trim();
+        if (code.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Verification code is required."));
+        }
+        try {
+            AuthResponse resp = authService.verifyEmail(principal.getName(), code);
+            return ResponseEntity.ok(resp);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
 }

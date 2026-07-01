@@ -24,6 +24,17 @@ export function isAdmin(): boolean {
     return getUserType() === 10;
 }
 
+export function isEmailVerified(): boolean {
+    const token = localStorage.getItem('token');
+    if (!token) return false;
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.emailVerified === true;
+    } catch {
+        return false;
+    }
+}
+
 export function isImpersonating(): boolean {
     return !!localStorage.getItem('adminToken');
 }

@@ -35,3 +35,13 @@ export const updateAccountProfile = async (profile: AccountProfile): Promise<Acc
     const response = await axios.put(`${BASE_URL}/profile`, profile, { headers: authHeader() });
     return response.data;
 };
+
+export const sendEmailVerification = async (email?: string): Promise<{ token: string }> => {
+    const response = await axios.post(`${BASE_URL}/email/send-verification`, { email: email ?? '' }, { headers: authHeader() });
+    return response.data;
+};
+
+export const verifyEmail = async (code: string): Promise<{ token: string }> => {
+    const response = await axios.post(`${BASE_URL}/email/verify`, { code }, { headers: authHeader() });
+    return response.data;
+};

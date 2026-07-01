@@ -8,18 +8,21 @@ public class UserPrincipal implements UserDetails {
     private final Long id;
     private final String username;
     private final int userType;
+    private final boolean emailVerified;
     private final Collection<? extends GrantedAuthority> authorities;
 
-    public UserPrincipal(Long id, String username, int userType, Collection<? extends GrantedAuthority> authorities) {
+    public UserPrincipal(Long id, String username, int userType, boolean emailVerified, Collection<? extends GrantedAuthority> authorities) {
         this.id = id;
         this.username = username;
         this.userType = userType;
+        this.emailVerified = emailVerified;
         this.authorities = authorities;
     }
 
     public Long getId() { return id; }
     public int getUserType() { return userType; }
     public boolean isAdmin() { return userType == 10; }
+    public boolean isEmailVerified() { return emailVerified; }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() { return authorities; }

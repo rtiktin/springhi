@@ -80,6 +80,12 @@ const Admin: React.FC = () => {
     const [pwSaving, setPwSaving] = useState(false);
     const [pwSuccess, setPwSuccess] = useState('');
 
+    const [emailModal, setEmailModal] = useState<PasswordModal | null>(null);
+    const [newEmail, setNewEmail] = useState('');
+    const [emailError, setEmailError] = useState('');
+    const [emailSaving, setEmailSaving] = useState(false);
+    const [emailSuccess, setEmailSuccess] = useState('');
+
     useEffect(() => {
         if (!isAdmin()) {
             navigate('/portfolio');
@@ -141,6 +147,28 @@ const Admin: React.FC = () => {
             })
             .catch(err => setPwError(err?.response?.data?.message ?? 'Failed to update password.'))
             .finally(() => setPwSaving(false));
+    };
+
+    const handleChangeEmail = () => {
+        if (!emailModal) return;
+        if (!newEmail.trim()) {
+            setEmailError('Email address is required.');
+            return;
+        }
+        setEmailSaving(true);
+        setEmailError('');
+        axios.put(`${API_GATEWAY}/api/v1/admin/users/${emailModal.userId}/email`, { email: newEmail.trim() }, { headers: authHeader() })
+            .then(res => {
+                setUsers(prev => prev.map(u => u.id === emailModal.userId ? { ...u, email: res.data.email } : u));
+                setEmailSuccess(`Email updated for ${emailModal.username}.`);
+                setNewEmail('');
+                setTimeout(() => {
+                    setEmailModal(null);
+                    setEmailSuccess('');
+                }, 1500);
+            })
+            .catch(err => setEmailError(err?.response?.data?.message ?? 'Failed to update email.'))
+            .finally(() => setEmailSaving(false));
     };
 
     const handleImpersonate = (user: AdminUser) => {
@@ -264,6 +292,21 @@ const Admin: React.FC = () => {
                                                     </td>
                                                     <td style={{ ...tdStyle, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                                         <button
+                                                            onClick={() => { setEmailModal({ userId: u.id, username: u.username }); setNewEmail(u.email); setEmailError(''); setEmailSuccess(''); }}
+                                                            style={{
+                                                                background: '#374151',
+                                                                color: '#fff',
+                                                                border: 'none',
+                                                                borderRadius: 6,
+                                                                padding: '0.3rem 0.65rem',
+                                                                fontSize: '0.82rem',
+                                                                cursor: 'pointer',
+                                                                whiteSpace: 'nowrap',
+                                                            }}
+                                                        >
+                                                            Change Email
+                                                        </button>
+                                                        <button
                                                             onClick={() => { setPwModal({ userId: u.id, username: u.username }); setNewPassword(''); setPwError(''); setPwSuccess(''); }}
                                                             style={{
                                                                 background: '#374151',
@@ -348,6 +391,48 @@ const Admin: React.FC = () => {
                     )}
                 </div>
             </main>
+
+            {emailModal && (
+                <div className="modal-overlay" onClick={() => setEmailModal(null)}>
+                    <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 420, width: '95%' }}>
+                        <div className="modal-header">
+                            <h2 className="modal-title">Change Email</h2>
+                            <button className="modal-close" onClick={() => setEmailModal(null)}>✕</button>
+                        </div>
+                        <div style={{ padding: '1.25rem' }}>
+                            <p style={{ marginBottom: '1rem', color: 'var(--text-gray)' }}>
+                                Update email address for <strong style={{ color: 'var(--text-primary)' }}>{emailModal.username}</strong>.
+                            </p>
+                            {emailSuccess && (
+                                <div style={{ background: '#d1fae5', color: '#065f46', borderRadius: 6, padding: '0.6rem 0.75rem', marginBottom: '0.75rem', fontSize: '0.9rem' }}>
+                                    {emailSuccess}
+                                </div>
+                            )}
+                            {emailError && (
+                                <div style={{ background: '#fee2e2', color: '#b91c1c', borderRadius: 6, padding: '0.6rem 0.75rem', marginBottom: '0.75rem', fontSize: '0.9rem' }}>
+                                    {emailError}
+                                </div>
+                            )}
+                            <label className="form-label">New Email Address</label>
+                            <input
+                                type="email"
+                                className="profile-input"
+                                value={newEmail}
+                                onChange={e => { setNewEmail(e.target.value); setEmailError(''); }}
+                                placeholder="user@example.com"
+                                style={{ marginBottom: '1rem', width: '100%' }}
+                                autoFocus
+                            />
+                            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                                <button className="btn-logout" onClick={() => setEmailModal(null)}>Cancel</button>
+                                <button className="btn-trade" onClick={handleChangeEmail} disabled={emailSaving}>
+                                    {emailSaving ? 'Saving…' : 'Update Email'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {pwModal && (
                 <div className="modal-overlay" onClick={() => setPwModal(null)}>

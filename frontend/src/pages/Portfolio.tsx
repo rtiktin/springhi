@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getLoggedInUsername, isAdmin } from '../utils/auth';
+import ImpersonationBanner from '../components/ImpersonationBanner';
 import PortfolioDashboard from '../components/PortfolioDashboard';
 import TransactionHistory from '../components/TransactionHistory';
 import TradeForm from '../components/TradeForm';
@@ -143,6 +144,7 @@ const Portfolio: React.FC = () => {
 
     return (
         <div className="portfolio-page">
+            <ImpersonationBanner />
             <header className="navbar">
                 <div className="navbar-brand">
                     <Link to="/" className="logo">SpringHi.ai</Link>

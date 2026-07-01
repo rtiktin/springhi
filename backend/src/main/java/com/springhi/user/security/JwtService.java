@@ -37,6 +37,7 @@ public class JwtService {
         if (userDetails instanceof User u) {
             claims.put("userId", u.getId());
             claims.put("userType", u.getUserType());
+            claims.put("emailVerified", u.isEmailVerified());
         }
         return generateToken(claims, userDetails);
     }

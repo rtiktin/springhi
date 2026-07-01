@@ -42,11 +42,14 @@ public class PortfolioOptimizationController {
     }
 
     @PostMapping("/optimize")
-    public ResponseEntity<OptimizationResponse> optimize(
+    public ResponseEntity<?> optimize(
             @RequestParam Long portfolioId,
             @RequestParam(defaultValue = "gemini") String provider,
             @AuthenticationPrincipal UserPrincipal principal) {
         if (principal == null) return ResponseEntity.status(403).build();
+        if (!principal.isEmailVerified()) {
+            return ResponseEntity.status(403).body(Map.of("error", "EMAIL_NOT_VERIFIED", "message", "Please verify your email address before running optimization."));
+        }
         portfolioService.validatePortfolioOwnership(principal.getId(), portfolioId);
         log.info("Portfolio optimization requested for portfolioId={}, userId={}, provider={}", portfolioId, principal.getId(), provider);
         OptimizationResponse result = optimizationService.optimize(principal.getId(), portfolioId, provider);

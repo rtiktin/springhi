@@ -8,6 +8,7 @@ import {
 } from '../api/portfolioApi';
 import type { LeaderboardEntry, AssetWithPrice, Transaction, AiRunDetails } from '../api/portfolioApi';
 import { getLoggedInUsername } from '../utils/auth';
+import ImpersonationBanner from '../components/ImpersonationBanner';
 
 const isLoggedIn = () => !!localStorage.getItem('token');
 
@@ -438,6 +439,7 @@ const Leaderboard: React.FC = () => {
 
     return (
         <div className="home-container">
+            <ImpersonationBanner />
             <header className="navbar">
                 <div className="navbar-brand">
                     <Link to="/portfolio" className="logo">SpringHi.ai</Link>

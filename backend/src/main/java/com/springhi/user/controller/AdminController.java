@@ -77,6 +77,26 @@ public class AdminController {
         }
     }
 
+    @PutMapping("/users/{id}/email")
+    public ResponseEntity<?> changeUserEmail(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null || !isAdmin(userDetails)) {
+            return ResponseEntity.status(403).build();
+        }
+        String newEmail = body.get("email");
+        if (newEmail == null || newEmail.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "email is required"));
+        }
+        try {
+            AdminUserDto updated = userService.changeUserEmail(id, newEmail);
+            return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
     @PostMapping("/users/{id}/impersonate")
     public ResponseEntity<?> impersonateUser(
             @PathVariable Long id,

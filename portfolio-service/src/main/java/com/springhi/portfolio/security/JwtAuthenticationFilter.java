@@ -46,14 +46,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             username = jwtService.extractUsername(jwt);
             Long userId = jwtService.extractUserId(jwt);
             Integer userType = jwtService.extractUserType(jwt);
-            log.info("JWT parsed — username: {}, userId: {}, userType: {}", username, userId, userType);
+            Boolean emailVerified = jwtService.extractEmailVerified(jwt);
+            log.info("JWT parsed — username: {}, userId: {}, userType: {}, emailVerified: {}", username, userId, userType, emailVerified);
             if (username != null && userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 if (jwtService.isTokenValid(jwt)) {
                     int resolvedType = userType != null ? userType : 8;
+                    boolean resolvedEmailVerified = Boolean.TRUE.equals(emailVerified);
                     List<SimpleGrantedAuthority> authorities = resolvedType == 10
                             ? List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_ADMIN"))
                             : List.of(new SimpleGrantedAuthority("ROLE_USER"));
-                    UserPrincipal userPrincipal = new UserPrincipal(userId, username, resolvedType, authorities);
+                    UserPrincipal userPrincipal = new UserPrincipal(userId, username, resolvedType, resolvedEmailVerified, authorities);
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userPrincipal,
                             null,

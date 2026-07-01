@@ -117,6 +117,25 @@ public class UserService {
         log.info("Admin changed password for userId={}", userId);
     }
 
+    @Transactional
+    public AdminUserDto changeUserEmail(Long userId, String newEmail) {
+        if (newEmail == null || newEmail.isBlank()) {
+            throw new IllegalArgumentException("Email address is required.");
+        }
+        String normalized = newEmail.trim().toLowerCase();
+        User user = repository.findById(userId)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + userId));
+        if (!normalized.equals(user.getEmail())) {
+            repository.findByEmail(normalized).ifPresent(existing -> {
+                throw new IllegalArgumentException("That email address is already in use by another account.");
+            });
+            user.setEmail(normalized);
+            repository.save(user);
+            log.info("Admin changed email for userId={} to {}", userId, normalized);
+        }
+        return AdminUserDto.from(user);
+    }
+
     public String generateImpersonationToken(Long userId) {
         User user = repository.findById(userId)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + userId));

@@ -39,6 +39,14 @@ public class JwtService {
         });
     }
 
+    public Boolean extractEmailVerified(String token) {
+        return extractClaim(token, claims -> {
+            Object value = claims.get("emailVerified");
+            if (value instanceof Boolean b) return b;
+            return false;
+        });
+    }
+
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         final Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
