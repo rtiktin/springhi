@@ -44,7 +44,7 @@ const Login: React.FC = () => {
         {error && <div className="error-msg">{error}</div>}
 
         <form onSubmit={handleSubmit}>
-          <input type="text" name="username" placeholder="Username" onChange={handleChange} required />
+          <input type="text" name="username" placeholder="Username or Email" onChange={handleChange} required />
           <div className="password-input-wrap">
             <input
               type={showPassword ? 'text' : 'password'}

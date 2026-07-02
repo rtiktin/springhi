@@ -84,6 +84,7 @@ public class AuthService {
                 )
         );
         User user = repository.findByUsername(request.getUsername())
+                .or(() -> repository.findByEmail(request.getUsername()))
                 .orElseThrow();
         if (user.getUserType() == 4) {
             throw new RuntimeException("Your account has been suspended. You cannot log in.");
