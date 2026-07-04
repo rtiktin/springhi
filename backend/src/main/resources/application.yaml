@@ -41,3 +41,6 @@ application:
   mail:
     from: ${MAIL_FROM:noreply@springhi.ai}
     reset-code-expiry-minutes: 15
+  telnyx:
+    api-key: ${TELNYX_API_KEY:}
+    from-number: ${TELNYX_FROM_NUMBER:+15162000271}

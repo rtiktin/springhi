@@ -9,11 +9,12 @@ const LIQUIDITY = ['low', 'medium', 'high'];
 interface Props {
     portfolioId: number;
     bannerMessage?: string;
+    onSaveSuccess?: () => void;
 }
 
 const NA = '__NA__';
 
-const PortfolioProfileForm: React.FC<Props> = ({ portfolioId, bannerMessage }) => {
+const PortfolioProfileForm: React.FC<Props> = ({ portfolioId, bannerMessage, onSaveSuccess }) => {
     const [profile, setProfile] = useState<PortfolioProfile | null>(null);
     const [sectorInput, setSectorInput] = useState('');
     const [saving, setSaving] = useState(false);
@@ -57,6 +58,7 @@ const PortfolioProfileForm: React.FC<Props> = ({ portfolioId, bannerMessage }) =
             setSectorInput((updated.sectorConstraints ?? []).join(', '));
             setSaved(true);
             setTimeout(() => setSaved(false), 3000);
+            onSaveSuccess?.();
 
         } catch {
             setError('Failed to save portfolio profile.');

@@ -45,3 +45,13 @@ export const verifyEmail = async (code: string): Promise<{ token: string }> => {
     const response = await axios.post(`${BASE_URL}/email/verify`, { code }, { headers: authHeader() });
     return response.data;
 };
+
+export const sendPhoneVerification = async (): Promise<{ token: string }> => {
+    const response = await axios.post(`${BASE_URL}/phone/send-verification`, {}, { headers: authHeader() });
+    return response.data;
+};
+
+export const verifyPhone = async (code: string): Promise<{ token: string }> => {
+    const response = await axios.post(`${BASE_URL}/phone/verify`, { code }, { headers: authHeader() });
+    return response.data;
+};

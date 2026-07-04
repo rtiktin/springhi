@@ -5,8 +5,11 @@ import com.springhi.user.dto.AuthResponse;
 import com.springhi.user.dto.SignupRequest;
 import com.springhi.user.model.PasswordResetToken;
 import com.springhi.user.model.User;
+import com.springhi.user.model.UserEmailHistory;
 import com.springhi.user.repository.PasswordResetTokenRepository;
+import com.springhi.user.repository.UserEmailHistoryRepository;
 import com.springhi.user.repository.UserRepository;
+import org.springframework.transaction.annotation.Transactional;
 import com.springhi.user.security.JwtService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
@@ -26,7 +29,9 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final PasswordResetTokenRepository resetTokenRepository;
+    private final UserEmailHistoryRepository emailHistoryRepository;
     private final JavaMailSender mailSender;
+    private final TelnyxService telnyxService;
 
     @Value("${application.mail.from}")
     private String mailFrom;
@@ -41,13 +46,17 @@ public class AuthService {
                        JwtService jwtService,
                        AuthenticationManager authenticationManager,
                        PasswordResetTokenRepository resetTokenRepository,
-                       JavaMailSender mailSender) {
+                       UserEmailHistoryRepository emailHistoryRepository,
+                       JavaMailSender mailSender,
+                       TelnyxService telnyxService) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
         this.resetTokenRepository = resetTokenRepository;
+        this.emailHistoryRepository = emailHistoryRepository;
         this.mailSender = mailSender;
+        this.telnyxService = telnyxService;
     }
 
     public AuthResponse signup(SignupRequest request) {
@@ -102,10 +111,12 @@ public class AuthService {
 
         String targetEmail = (newEmail != null && !newEmail.isBlank()) ? newEmail.trim().toLowerCase() : user.getEmail();
 
+        String previousEmail = null;
         if (!targetEmail.equals(user.getEmail())) {
             if (repository.findByEmail(targetEmail).isPresent()) {
                 throw new RuntimeException("That email address is already in use by another account.");
             }
+            previousEmail = user.getEmail();
             user.setEmail(targetEmail);
             repository.save(user);
         }
@@ -115,6 +126,9 @@ public class AuthService {
         PasswordResetToken token = new PasswordResetToken();
         token.setEmail(targetEmail);
         token.setCode(code);
+        if (previousEmail != null) {
+            token.setPreviousEmail(previousEmail);
+        }
         token.setExpiresAt(LocalDateTime.now().plusMinutes(resetCodeExpiryMinutes));
         resetTokenRepository.save(token);
 
@@ -145,6 +159,14 @@ public class AuthService {
         }
         if (!token.getCode().equals(code.trim())) {
             throw new RuntimeException("Invalid verification code.");
+        }
+
+        if (token.getPreviousEmail() != null) {
+            UserEmailHistory history = new UserEmailHistory();
+            history.setUserId(user.getId());
+            history.setEmail(token.getPreviousEmail());
+            history.setReplacedAt(LocalDateTime.now());
+            emailHistoryRepository.save(history);
         }
 
         user.setEmailVerified(true);
@@ -178,6 +200,57 @@ public class AuthService {
                 "If you did not request a password reset, please ignore this email."
         );
         mailSender.send(message);
+    }
+
+    @Transactional
+    public AuthResponse sendPhoneVerification(String username) {
+        User user = repository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found."));
+        String phone = user.getPhone();
+        if (phone == null || phone.isBlank()) {
+            throw new RuntimeException("No cell phone number on file. Please add one in Account Maintenance.");
+        }
+        String normalizedPhone = phone.trim().replaceAll("[\\s\\-\\(\\)]", "");
+        if (!normalizedPhone.startsWith("+")) {
+            normalizedPhone = "+1" + normalizedPhone;
+        }
+        resetTokenRepository.deleteAllByEmail(normalizedPhone);
+        String code = String.format("%06d", RANDOM.nextInt(1_000_000));
+        PasswordResetToken token = new PasswordResetToken();
+        token.setEmail(normalizedPhone);
+        token.setCode(code);
+        token.setExpiresAt(LocalDateTime.now().plusMinutes(resetCodeExpiryMinutes));
+        resetTokenRepository.save(token);
+        telnyxService.sendSms(normalizedPhone, "Your SpringHi.ai verification code is: " + code);
+        return new AuthResponse(jwtService.generateToken(user));
+    }
+
+    @Transactional
+    public AuthResponse verifyPhone(String username, String code) {
+        User user = repository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found."));
+        String phone = user.getPhone();
+        if (phone == null || phone.isBlank()) {
+            throw new RuntimeException("No cell phone number on file.");
+        }
+        String normalizedPhone = phone.trim().replaceAll("[\\s\\-\\(\\)]", "");
+        if (!normalizedPhone.startsWith("+")) {
+            normalizedPhone = "+1" + normalizedPhone;
+        }
+        PasswordResetToken token = resetTokenRepository
+                .findTopByEmailAndUsedFalseOrderByCreatedAtDesc(normalizedPhone)
+                .orElseThrow(() -> new RuntimeException("No active verification code found. Please request a new one."));
+        if (LocalDateTime.now().isAfter(token.getExpiresAt())) {
+            throw new RuntimeException("Verification code has expired. Please request a new one.");
+        }
+        if (!token.getCode().equals(code.trim())) {
+            throw new RuntimeException("Invalid verification code.");
+        }
+        user.setPhoneVerified(true);
+        repository.save(user);
+        token.setUsed(true);
+        resetTokenRepository.save(token);
+        return new AuthResponse(jwtService.generateToken(user));
     }
 
     public void resetPassword(String email, String code, String newPassword) {

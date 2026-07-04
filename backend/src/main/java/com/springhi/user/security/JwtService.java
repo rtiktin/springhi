@@ -38,6 +38,7 @@ public class JwtService {
             claims.put("userId", u.getId());
             claims.put("userType", u.getUserType());
             claims.put("emailVerified", u.isEmailVerified());
+            claims.put("phoneVerified", u.isPhoneVerified());
         }
         return generateToken(claims, userDetails);
     }

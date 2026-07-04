@@ -49,6 +49,9 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private boolean emailVerified = false;
 
+    @Column(nullable = false)
+    private boolean phoneVerified = false;
+
     @Column(updatable = false)
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -100,6 +103,8 @@ public class User implements UserDetails {
     public void setUserType(int userType) { this.userType = userType; }
     public boolean isEmailVerified() { return emailVerified; }
     public void setEmailVerified(boolean emailVerified) { this.emailVerified = emailVerified; }
+    public boolean isPhoneVerified() { return phoneVerified; }
+    public void setPhoneVerified(boolean phoneVerified) { this.phoneVerified = phoneVerified; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 

@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { optimizePortfolio, getProfile } from '../api/profileApi';
 import type { Recommendation, UserProfile } from '../api/profileApi';
-import { getAccountProfile, sendEmailVerification, verifyEmail } from '../api/accountApi';
-import { isEmailVerified } from '../utils/auth';
+import { getAccountProfile, sendEmailVerification, verifyEmail, sendPhoneVerification, verifyPhone } from '../api/accountApi';
+import { isEmailVerified, isPhoneVerified } from '../utils/auth';
 import { getQuote } from '../api/marketApi';
 import {
     submitTransaction,
@@ -29,7 +29,7 @@ interface Props {
 
 function checkReadiness(
     profile: Awaited<ReturnType<typeof getProfile>>,
-    account: Awaited<ReturnType<typeof getAccountProfile>> | null,
+    _account: Awaited<ReturnType<typeof getAccountProfile>> | null,
 ): ReadinessIssue[] {
     const issues: ReadinessIssue[] = [];
     if (!profile || !profile.horizonYears) {
@@ -37,15 +37,6 @@ function checkReadiness(
             message: 'Complete your Investor Profile (time horizon is required).',
             link: '/profile',
             label: 'Investor Profile',
-        });
-    }
-    const acctRequired = ['firstName', 'lastName', 'addressLine1', 'city', 'state', 'postalCode', 'country'] as const;
-    const acctMissing = account == null || acctRequired.some(f => !account[f]?.trim());
-    if (acctMissing) {
-        issues.push({
-            message: 'Complete your Account Maintenance page (name and address are required).',
-            link: '/account',
-            label: 'Account Maintenance',
         });
     }
     return issues;
@@ -80,12 +71,14 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
     const [aiProvider, setAiProvider] = useState<AiProvider | null>(null);
 
     const [userEmail, setUserEmail] = useState<string>('');
+    const [userPhone, setUserPhone] = useState<string>('');
     const [showVerifyModal, setShowVerifyModal] = useState(false);
     const [verifyEmail2, setVerifyEmail2] = useState<string>('');
-    const [verifyStep, setVerifyStep] = useState<'email' | 'code'>('email');
+    const [verifyStep, setVerifyStep] = useState<'email' | 'code' | 'phone-send' | 'phone-code'>('email');
     const [verifyCode, setVerifyCode] = useState('');
     const [verifyLoading, setVerifyLoading] = useState(false);
     const [verifyError, setVerifyError] = useState('');
+    const [verifyPhoneCode, setVerifyPhoneCode] = useState('');
     const [pendingOptimize, setPendingOptimize] = useState(false);
 
     const loadCash = () => getCashBalance(portfolioId).then(c => {
@@ -100,7 +93,13 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
 
     useEffect(() => {
         if (cashRefreshSignal === undefined || cashRefreshSignal === 0) return;
-        loadCash();
+        loadCash().then(newCash => {
+            setRecommendations(prev => prev.map(r =>
+                r.action === 'BUY' && r.status === 'PENDING'
+                    ? { ...r, estimatedValue: newCash * r.w / 100 }
+                    : r
+            ));
+        });
         loadHoldingsValue();
     }, [cashRefreshSignal]);
 
@@ -117,6 +116,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
             if (account?.email) {
                 setUserEmail(account.email);
                 setVerifyEmail2(account.email);
+                setUserPhone(account.phone ?? '');
             }
             if (recs && recs.length > 0) {
                 setRecommendations(recs);
@@ -125,9 +125,10 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
         }).finally(() => setChecking(false));
     }, []);
 
-    const openVerifyModal = () => {
-        setVerifyStep('email');
+    const openVerifyModal = (startStep: 'email' | 'phone-send' = 'email') => {
+        setVerifyStep(startStep);
         setVerifyCode('');
+        setVerifyPhoneCode('');
         setVerifyError('');
         setShowVerifyModal(true);
     };
@@ -159,6 +160,43 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
             if (resp.token) {
                 localStorage.setItem('token', resp.token);
             }
+            if (!isPhoneVerified() && userPhone) {
+                setVerifyPhoneCode('');
+                setVerifyStep('phone-send');
+            } else {
+                setShowVerifyModal(false);
+                setPendingOptimize(true);
+            }
+        } catch (e: unknown) {
+            const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            setVerifyError(msg ?? 'Invalid or expired code.');
+        } finally {
+            setVerifyLoading(false);
+        }
+    };
+
+    const handleSendPhoneCode = async () => {
+        setVerifyLoading(true);
+        setVerifyError('');
+        try {
+            const resp = await sendPhoneVerification();
+            if (resp.token) localStorage.setItem('token', resp.token);
+            setVerifyStep('phone-code');
+        } catch (e: unknown) {
+            const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            setVerifyError(msg ?? 'Failed to send SMS code. Please try again.');
+        } finally {
+            setVerifyLoading(false);
+        }
+    };
+
+    const handleVerifyPhoneCode = async () => {
+        if (!verifyPhoneCode.trim()) { setVerifyError('Please enter the verification code.'); return; }
+        setVerifyLoading(true);
+        setVerifyError('');
+        try {
+            const resp = await verifyPhone(verifyPhoneCode.trim());
+            if (resp.token) localStorage.setItem('token', resp.token);
             setShowVerifyModal(false);
             setPendingOptimize(true);
         } catch (e: unknown) {
@@ -178,7 +216,11 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
 
     const handleOptimize = () => {
         if (!isEmailVerified()) {
-            openVerifyModal();
+            openVerifyModal('email');
+            return;
+        }
+        if (!isPhoneVerified() && userPhone) {
+            openVerifyModal('phone-send');
             return;
         }
         runOptimize();
@@ -360,11 +402,11 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                 <div className="modal-overlay" onClick={() => { if (!verifyLoading) setShowVerifyModal(false); }}>
                     <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
                         <div className="modal-header">
-                            <h2>Verify Your Email</h2>
+                            <h2>{verifyStep === 'phone-send' || verifyStep === 'phone-code' ? 'Verify Cell Phone' : 'Verify Your Email'}</h2>
                             <button className="modal-close" onClick={() => setShowVerifyModal(false)} disabled={verifyLoading}>✕</button>
                         </div>
                         <div style={{ padding: '1.25rem 1.5rem' }}>
-                            {verifyStep === 'email' ? (
+                            {verifyStep === 'email' && (
                                 <>
                                     <p style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-gray)' }}>
                                         To run AI optimization for the first time, we need to verify your email address. You can update it below before sending the code.
@@ -386,7 +428,8 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                                         </button>
                                     </div>
                                 </>
-                            ) : (
+                            )}
+                            {verifyStep === 'code' && (
                                 <>
                                     <p style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-gray)' }}>
                                         A 6-digit verification code was sent to <strong>{verifyEmail2}</strong>. Enter it below.
@@ -406,6 +449,52 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                                     <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                                         <button onClick={() => setVerifyStep('email')} disabled={verifyLoading} style={{ padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', cursor: 'pointer', fontSize: '0.9rem' }}>← Change Email</button>
                                         <button className="btn-trade" onClick={handleVerifyCode} disabled={verifyLoading || verifyCode.length < 6}>
+                                            {verifyLoading ? 'Verifying…' : 'Verify & Continue'}
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                            {verifyStep === 'phone-send' && (
+                                <>
+                                    <p style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-gray)' }}>
+                                        Your email is verified. Now verify your cell phone number to continue.
+                                    </p>
+                                    <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>Cell Phone Number</label>
+                                    <input
+                                        type="text"
+                                        value={userPhone}
+                                        readOnly
+                                        style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', fontSize: '0.95rem', boxSizing: 'border-box', opacity: 0.7 }}
+                                    />
+                                    {verifyError && <p style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '0.5rem' }}>{verifyError}</p>}
+                                    <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', justifyContent: 'flex-end' }}>
+                                        <button onClick={() => setShowVerifyModal(false)} disabled={verifyLoading} style={{ padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', cursor: 'pointer', fontSize: '0.9rem' }}>Cancel</button>
+                                        <button className="btn-trade" onClick={handleSendPhoneCode} disabled={verifyLoading}>
+                                            {verifyLoading ? 'Sending…' : 'Send SMS Code'}
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                            {verifyStep === 'phone-code' && (
+                                <>
+                                    <p style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-gray)' }}>
+                                        A 6-digit code was sent to your cell phone. Enter it below.
+                                    </p>
+                                    <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>Verification Code</label>
+                                    <input
+                                        type="text"
+                                        value={verifyPhoneCode}
+                                        onChange={e => setVerifyPhoneCode(e.target.value)}
+                                        placeholder="000000"
+                                        maxLength={6}
+                                        style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', fontSize: '1.1rem', letterSpacing: '0.2em', textAlign: 'center', boxSizing: 'border-box' }}
+                                        disabled={verifyLoading}
+                                        autoFocus
+                                    />
+                                    {verifyError && <p style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '0.5rem' }}>{verifyError}</p>}
+                                    <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                        <button onClick={() => setVerifyStep('phone-send')} disabled={verifyLoading} style={{ padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', cursor: 'pointer', fontSize: '0.9rem' }}>← Resend</button>
+                                        <button className="btn-trade" onClick={handleVerifyPhoneCode} disabled={verifyLoading || verifyPhoneCode.length < 6}>
                                             {verifyLoading ? 'Verifying…' : 'Verify & Continue'}
                                         </button>
                                     </div>

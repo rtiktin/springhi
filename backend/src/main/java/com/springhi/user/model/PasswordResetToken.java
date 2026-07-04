@@ -26,6 +26,8 @@ public class PasswordResetToken {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    private String previousEmail;
+
     public PasswordResetToken() {}
 
     public Long getId() { return id; }
@@ -38,4 +40,6 @@ public class PasswordResetToken {
     public boolean isUsed() { return used; }
     public void setUsed(boolean used) { this.used = used; }
     public LocalDateTime getCreatedAt() { return createdAt; }
+    public String getPreviousEmail() { return previousEmail; }
+    public void setPreviousEmail(String previousEmail) { this.previousEmail = previousEmail; }
 }

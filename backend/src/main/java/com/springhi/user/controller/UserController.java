@@ -112,4 +112,32 @@ public class UserController {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
+
+    @PostMapping("/phone/send-verification")
+    public ResponseEntity<?> sendPhoneVerification(Principal principal) {
+        if (principal == null) return ResponseEntity.status(401).build();
+        try {
+            AuthResponse resp = authService.sendPhoneVerification(principal.getName());
+            return ResponseEntity.ok(resp);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/phone/verify")
+    public ResponseEntity<?> verifyPhone(
+            Principal principal,
+            @RequestBody Map<String, String> body) {
+        if (principal == null) return ResponseEntity.status(401).build();
+        String code = body.getOrDefault("code", "").trim();
+        if (code.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Verification code is required."));
+        }
+        try {
+            AuthResponse resp = authService.verifyPhone(principal.getName(), code);
+            return ResponseEntity.ok(resp);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
 }

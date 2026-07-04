@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getLoggedInUsername, isAdmin } from '../utils/auth';
+import { getLoggedInUsername, isAdmin, isEmailVerified } from '../utils/auth';
 import ImpersonationBanner from '../components/ImpersonationBanner';
-import { getAccountProfile, updateAccountProfile } from '../api/accountApi';
+import { getAccountProfile, updateAccountProfile, sendEmailVerification, verifyEmail } from '../api/accountApi';
 import type { AccountProfile } from '../api/accountApi';
 import CashForm from '../components/CashForm';
 import { getOrCreateDefaultPortfolio } from '../api/portfolioApi';
@@ -69,6 +69,13 @@ const AccountMaintenance: React.FC = () => {
     const [showCashForm, setShowCashForm] = useState(false);
     const [defaultPortfolioId, setDefaultPortfolioId] = useState<number | null>(null);
 
+    type UpdateEmailStep = 'enter-email' | 'enter-code';
+    const [updateEmailStep, setUpdateEmailStep] = useState<UpdateEmailStep | null>(null);
+    const [updateNewEmail, setUpdateNewEmail] = useState('');
+    const [updateEmailCode, setUpdateEmailCode] = useState('');
+    const [updateEmailSending, setUpdateEmailSending] = useState(false);
+    const [updateEmailError, setUpdateEmailError] = useState('');
+
     useEffect(() => {
         getOrCreateDefaultPortfolio().then(p => setDefaultPortfolioId(p.id)).catch(() => {});
         getAccountProfile()
@@ -120,6 +127,43 @@ const AccountMaintenance: React.FC = () => {
         }
     };
 
+    const handleSendUpdateCode = async () => {
+        const email = updateNewEmail.trim();
+        if (!email || !EMAIL_REGEX.test(email)) {
+            setUpdateEmailError('Enter a valid email address.');
+            return;
+        }
+        setUpdateEmailError('');
+        setUpdateEmailSending(true);
+        try {
+            const resp = await sendEmailVerification(email);
+            if (resp.token) localStorage.setItem('token', resp.token);
+            setUpdateEmailStep('enter-code');
+        } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            setUpdateEmailError(msg || 'Failed to send verification code. Please try again.');
+        } finally {
+            setUpdateEmailSending(false);
+        }
+    };
+
+    const handleVerifyUpdateCode = async () => {
+        if (!updateEmailCode.trim()) { setUpdateEmailError('Please enter the verification code.'); return; }
+        setUpdateEmailError('');
+        setUpdateEmailSending(true);
+        try {
+            const resp = await verifyEmail(updateEmailCode.trim());
+            if (resp.token) localStorage.setItem('token', resp.token);
+            setForm(prev => ({ ...prev, email: updateNewEmail.trim() }));
+            setUpdateEmailStep(null);
+        } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            setUpdateEmailError(msg || 'Invalid or expired code. Please try again.');
+        } finally {
+            setUpdateEmailSending(false);
+        }
+    };
+
     const handleLogout = () => {
         localStorage.removeItem('token');
         navigate('/login');
@@ -166,14 +210,23 @@ const AccountMaintenance: React.FC = () => {
                     </div>
                     <div className="profile-field" style={{ marginTop: '0.75rem', marginBottom: '0.75rem' }}>
                         <label className="form-label">Email Address</label>
-                        <input
-                            type="email"
-                            className={`profile-input${fieldErrors.email ? ' input-error' : ''}`}
-                            value={form.email ?? ''}
-                            placeholder="your@email.com"
-                            onChange={e => set('email', e.target.value)}
-                        />
-                        {fieldErrors.email && <span className="field-error-msg">{fieldErrors.email}</span>}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <span className="acct-readonly-value">{form.email ?? '—'}</span>
+                            {isEmailVerified() && (
+                                <button
+                                    className="btn-primary"
+                                    style={{ fontSize: '0.82rem', padding: '0.35rem 0.9rem' }}
+                                    onClick={() => {
+                                        setUpdateNewEmail('');
+                                        setUpdateEmailCode('');
+                                        setUpdateEmailError('');
+                                        setUpdateEmailStep('enter-email');
+                                    }}
+                                >
+                                    Update Email Address
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     <div className="profile-section-title" style={{ marginTop: '1.5rem' }}>Personal Details</div>
@@ -196,7 +249,7 @@ const AccountMaintenance: React.FC = () => {
                             {fieldErrors.dateOfBirth && <span className="field-error-msg">{fieldErrors.dateOfBirth}</span>}
                         </div>
                         <div className="profile-field">
-                            <label className="form-label">Phone</label>
+                            <label className="form-label">Cell Phone Number</label>
                             <input className="profile-input" value={form.phone ?? ''} placeholder="+1 555-000-0000" onChange={e => set('phone', e.target.value)} />
                         </div>
                     </div>
@@ -258,6 +311,69 @@ const AccountMaintenance: React.FC = () => {
             </main>
             {showCashForm && defaultPortfolioId != null && (
                 <CashForm portfolioId={defaultPortfolioId} onClose={() => setShowCashForm(false)} onSuccess={() => {}} />
+            )}
+
+            {updateEmailStep !== null && (
+                <div className="modal-overlay" onClick={() => setUpdateEmailStep(null)}>
+                    <div className="modal-card" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2>{updateEmailStep === 'enter-email' ? 'Update Email Address' : 'Enter Verification Code'}</h2>
+                            <button className="modal-close" onClick={() => setUpdateEmailStep(null)}>✕</button>
+                        </div>
+
+                        {updateEmailStep === 'enter-email' && (
+                            <>
+                                <p style={{ color: 'var(--text-gray)', marginBottom: '1rem' }}>
+                                    Enter your new email address. A verification code will be sent to it.
+                                </p>
+                                <label className="form-label">New Email Address</label>
+                                <input
+                                    type="email"
+                                    value={updateNewEmail}
+                                    onChange={e => setUpdateNewEmail(e.target.value)}
+                                    placeholder="new@email.com"
+                                    autoFocus
+                                    style={{ marginBottom: '1rem' }}
+                                />
+                                {updateEmailError && <div className="error-msg" style={{ marginBottom: '1rem' }}>{updateEmailError}</div>}
+                                <button className="btn-primary-full" onClick={handleSendUpdateCode} disabled={updateEmailSending}>
+                                    {updateEmailSending ? 'Sending…' : 'Send Verification Code'}
+                                </button>
+                            </>
+                        )}
+
+                        {updateEmailStep === 'enter-code' && (
+                            <>
+                                <p style={{ color: 'var(--text-gray)', marginBottom: '1rem' }}>
+                                    A verification code was sent to <strong>{updateNewEmail}</strong>. Enter it below.
+                                </p>
+                                <label className="form-label">Verification Code</label>
+                                <input
+                                    type="text"
+                                    value={updateEmailCode}
+                                    onChange={e => setUpdateEmailCode(e.target.value)}
+                                    placeholder="6-digit code"
+                                    autoFocus
+                                    style={{ marginBottom: '1rem' }}
+                                />
+                                {updateEmailError && <div className="error-msg" style={{ marginBottom: '1rem' }}>{updateEmailError}</div>}
+                                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                    <button className="btn-primary-full" onClick={handleVerifyUpdateCode} disabled={updateEmailSending}>
+                                        {updateEmailSending ? 'Verifying…' : 'Verify & Save'}
+                                    </button>
+                                    <button
+                                        className="btn-primary-full"
+                                        style={{ background: 'var(--card-bg)', border: '1px solid var(--border)' }}
+                                        onClick={() => setUpdateEmailStep('enter-email')}
+                                        disabled={updateEmailSending}
+                                    >
+                                        Back
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
             )}
         </div>
     );
