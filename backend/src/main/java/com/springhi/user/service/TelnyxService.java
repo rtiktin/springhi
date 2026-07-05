@@ -1,5 +1,7 @@
 package com.springhi.user.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -10,6 +12,8 @@ import java.net.http.HttpResponse;
 
 @Service
 public class TelnyxService {
+
+    private static final Logger log = LoggerFactory.getLogger(TelnyxService.class);
 
     @Value("${application.telnyx.api-key:}")
     private String apiKey;
@@ -25,6 +29,7 @@ public class TelnyxService {
         if (!normalizedTo.startsWith("+")) {
             normalizedTo = "+1" + normalizedTo;
         }
+        log.info("Telnyx sendSms: from={} to={}", fromNumber, normalizedTo);
         String body = String.format(
                 "{\"from\":\"%s\",\"to\":\"%s\",\"text\":\"%s\"}",
                 fromNumber, normalizedTo, text.replace("\"", "\\\""));
@@ -37,8 +42,9 @@ public class TelnyxService {
                     .build();
             HttpResponse<String> response = HttpClient.newHttpClient()
                     .send(request, HttpResponse.BodyHandlers.ofString());
+            log.info("Telnyx response: status={} body={}", response.statusCode(), response.body());
             if (response.statusCode() != 200 && response.statusCode() != 201) {
-                throw new RuntimeException("Failed to send SMS (HTTP " + response.statusCode() + ").");
+                throw new RuntimeException("SMS send failed (HTTP " + response.statusCode() + "): " + response.body());
             }
         } catch (RuntimeException e) {
             throw e;

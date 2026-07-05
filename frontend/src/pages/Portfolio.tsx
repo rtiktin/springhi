@@ -171,7 +171,101 @@ const Portfolio: React.FC = () => {
         setWizardError('');
         setWizardSaving(true);
         try {
-            const created = await createPortfolio(name, wizardDesc.trim() || undefined);
+            const acct = await getAccountProfile().catch(() => null);
+            if (!isEmailVerified()) {
+                setWizardEmailSent(false);
+                setWizardEmailCode('');
+                setWizardEmail(acct?.email ?? '');
+                setWizardPhone(acct?.phone ?? '');
+                setWizardStep('ai-verify-email');
+            } else if (!isPhoneVerified()) {
+                setWizardPhone(acct?.phone ?? '');
+                setWizardPhoneSent(false);
+                setWizardPhoneCode('');
+                setWizardStep('ai-verify-phone');
+            } else {
+                setWizardStep('ai-model');
+            }
+        } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            setWizardError(msg || 'Failed to save. Please try again.');
+        } finally {
+            setWizardSaving(false);
+        }
+    };
+
+    const handleWizardSendEmailCode = async () => {
+        setWizardEmailSending(true);
+        setWizardError('');
+        try {
+            const resp = await sendEmailVerification(wizardEmail.trim() || undefined);
+            if (resp.token) localStorage.setItem('token', resp.token);
+            setWizardEmailSent(true);
+        } catch {
+            setWizardError('Failed to send verification code. Please try again.');
+        } finally {
+            setWizardEmailSending(false);
+        }
+    };
+
+    const handleWizardVerifyEmail = async () => {
+        if (!wizardEmailCode.trim()) { setWizardError('Please enter the verification code.'); return; }
+        setWizardError('');
+        setWizardSaving(true);
+        try {
+            const resp = await verifyEmail(wizardEmailCode.trim());
+            if (resp.token) localStorage.setItem('token', resp.token);
+            if (!isPhoneVerified()) {
+                setWizardPhoneSent(false);
+                setWizardPhoneCode('');
+                setWizardStep('ai-verify-phone');
+            } else {
+                setWizardStep('ai-model');
+            }
+        } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            setWizardError(msg || 'Invalid or expired code. Please try again.');
+        } finally {
+            setWizardSaving(false);
+        }
+    };
+
+    const handleWizardSendPhoneCode = async () => {
+        setWizardPhoneSending(true);
+        setWizardError('');
+        try {
+            const resp = await sendPhoneVerification(wizardPhone.trim() || undefined);
+            if (resp.token) localStorage.setItem('token', resp.token);
+            setWizardPhoneSent(true);
+        } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            setWizardError(msg || 'Failed to send SMS code. Please try again.');
+        } finally {
+            setWizardPhoneSending(false);
+        }
+    };
+
+    const handleWizardVerifyPhone = async () => {
+        if (!wizardPhoneCode.trim()) { setWizardError('Please enter the verification code.'); return; }
+        setWizardError('');
+        setWizardSaving(true);
+        try {
+            const resp = await verifyPhone(wizardPhoneCode.trim());
+            if (resp.token) localStorage.setItem('token', resp.token);
+            setWizardStep('ai-model');
+        } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            setWizardError(msg || 'Invalid or expired code. Please try again.');
+        } finally {
+            setWizardSaving(false);
+        }
+    };
+
+    const handleWizardGoToCash = async () => {
+        setWizardError('');
+        setWizardSaving(true);
+        try {
+            const created = await createPortfolio(wizardName.trim(), wizardDesc.trim() || undefined);
             setWizardCreatedId(created.id);
             const sectors = wizardProfile.sectorInput.split(',').map(s => s.trim()).filter(Boolean);
             await savePortfolioProfile(created.id, {
@@ -210,103 +304,16 @@ const Portfolio: React.FC = () => {
             setActivePortfolioId(created.id);
             localStorage.setItem('activePortfolioId', String(created.id));
             markPortfolioReviewed(created.id);
-            const acct = await getAccountProfile().catch(() => null);
-            if (!isEmailVerified()) {
-                setWizardEmailSent(false);
-                setWizardEmailCode('');
-                setWizardEmail(acct?.email ?? '');
-                setWizardPhone(acct?.phone ?? '');
-                setWizardStep('ai-verify-email');
-            } else if (!isPhoneVerified() && acct?.phone) {
-                setWizardPhone(acct.phone);
-                setWizardPhoneSent(false);
-                setWizardPhoneCode('');
-                setWizardStep('ai-verify-phone');
-            } else {
-                setWizardStep('ai-model');
-            }
+            const bal = await getCashBalance(created.id).catch(() => null);
+            setWizardCashBalance(bal);
+            setWizardCashAmount('');
+            setWizardStep('ai-cash');
         } catch (err: unknown) {
             const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-            setWizardError(msg || 'Failed to save. Please try again.');
+            setWizardError(msg || 'Failed to create portfolio. Please try again.');
         } finally {
             setWizardSaving(false);
         }
-    };
-
-    const handleWizardSendEmailCode = async () => {
-        setWizardEmailSending(true);
-        setWizardError('');
-        try {
-            const resp = await sendEmailVerification(wizardEmail.trim() || undefined);
-            if (resp.token) localStorage.setItem('token', resp.token);
-            setWizardEmailSent(true);
-        } catch {
-            setWizardError('Failed to send verification code. Please try again.');
-        } finally {
-            setWizardEmailSending(false);
-        }
-    };
-
-    const handleWizardVerifyEmail = async () => {
-        if (!wizardEmailCode.trim()) { setWizardError('Please enter the verification code.'); return; }
-        setWizardError('');
-        setWizardSaving(true);
-        try {
-            const resp = await verifyEmail(wizardEmailCode.trim());
-            if (resp.token) localStorage.setItem('token', resp.token);
-            if (!isPhoneVerified() && wizardPhone) {
-                setWizardPhoneSent(false);
-                setWizardPhoneCode('');
-                setWizardStep('ai-verify-phone');
-            } else {
-                setWizardStep('ai-model');
-            }
-        } catch (err: unknown) {
-            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-            setWizardError(msg || 'Invalid or expired code. Please try again.');
-        } finally {
-            setWizardSaving(false);
-        }
-    };
-
-    const handleWizardSendPhoneCode = async () => {
-        setWizardPhoneSending(true);
-        setWizardError('');
-        try {
-            const resp = await sendPhoneVerification();
-            if (resp.token) localStorage.setItem('token', resp.token);
-            setWizardPhoneSent(true);
-        } catch (err: unknown) {
-            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-            setWizardError(msg || 'Failed to send SMS code. Please try again.');
-        } finally {
-            setWizardPhoneSending(false);
-        }
-    };
-
-    const handleWizardVerifyPhone = async () => {
-        if (!wizardPhoneCode.trim()) { setWizardError('Please enter the verification code.'); return; }
-        setWizardError('');
-        setWizardSaving(true);
-        try {
-            const resp = await verifyPhone(wizardPhoneCode.trim());
-            if (resp.token) localStorage.setItem('token', resp.token);
-            setWizardStep('ai-model');
-        } catch (err: unknown) {
-            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-            setWizardError(msg || 'Invalid or expired code. Please try again.');
-        } finally {
-            setWizardSaving(false);
-        }
-    };
-
-    const handleWizardGoToCash = async () => {
-        if (!wizardCreatedId) return;
-        setWizardError('');
-        const bal = await getCashBalance(wizardCreatedId).catch(() => null);
-        setWizardCashBalance(bal);
-        setWizardCashAmount('');
-        setWizardStep('ai-cash');
     };
 
     const handleWizardDeposit = async () => {
@@ -522,7 +529,7 @@ const Portfolio: React.FC = () => {
                         </div>
 
                         {activeTab === 'holdings' && (
-                            <PortfolioDashboard key={`holdings-${activePortfolioId}-${refreshKey}`} portfolioId={activePortfolioId} />
+                            <PortfolioDashboard key={`holdings-${activePortfolioId}-${refreshKey}`} portfolioId={activePortfolioId} onTradeSuccess={handleTradeSuccess} />
                         )}
                         {activeTab === 'transactions' && (
                             <TransactionHistory key={`tx-${activePortfolioId}-${refreshKey}`} portfolioId={activePortfolioId} />
@@ -622,10 +629,16 @@ const Portfolio: React.FC = () => {
                             <h2>Portfolio Investment Profile</h2>
                             <button className="modal-close" onClick={closeWizard}>✕</button>
                         </div>
-                        <p style={{ color: 'var(--text-gray)', fontSize: '0.88rem', marginBottom: '1.25rem' }}>
+                        <p style={{ color: 'var(--text-gray)', fontSize: '0.88rem', marginBottom: '1rem' }}>
                             Tell us about this portfolio so the AI can build your initial holdings.
                             Fields marked with <span style={{ color: '#f87171' }}>*</span> are required unless you fill in Additional Notes instead.
                         </p>
+
+                        {wizardError && <div className="error-msg" style={{ marginBottom: '1rem' }}>{wizardError}</div>}
+
+                        <button className="btn-primary-full" onClick={handleWizardSaveProfile} disabled={wizardSaving} style={{ marginBottom: '1.5rem' }}>
+                            {wizardSaving ? 'Saving…' : 'Save & Continue'}
+                        </button>
 
                         <label className="form-label">Portfolio Name <span style={{ color: '#f87171' }}>*</span></label>
                         <input
@@ -716,11 +729,6 @@ const Portfolio: React.FC = () => {
                             style={{ resize: 'vertical', width: '100%', boxSizing: 'border-box', marginBottom: '1.25rem' }}
                         />
 
-                        {wizardError && <div className="error-msg" style={{ marginBottom: '1rem' }}>{wizardError}</div>}
-
-                        <button className="btn-primary-full" onClick={handleWizardSaveProfile} disabled={wizardSaving}>
-                            {wizardSaving ? 'Saving…' : 'Save & Continue'}
-                        </button>
                     </div>
                 </div>
             )}
@@ -796,12 +804,17 @@ const Portfolio: React.FC = () => {
                         {!wizardPhoneSent ? (
                             <>
                                 <label className="form-label">Cell Phone Number</label>
-                                <input
-                                    type="text"
-                                    value={wizardPhone}
-                                    readOnly
-                                    style={{ marginBottom: '1rem', opacity: 0.7 }}
-                                />
+                                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                    <span style={{ padding: '0.55rem 0.6rem', background: 'var(--bg-sidebar)', border: '1px solid var(--border)', borderRight: 'none', borderRadius: '6px 0 0 6px', color: 'var(--text-gray)', fontSize: '0.95rem', whiteSpace: 'nowrap' }}>+1</span>
+                                    <input
+                                        type="text"
+                                        value={wizardPhone}
+                                        onChange={e => setWizardPhone(e.target.value)}
+                                        placeholder="555-000-0000"
+                                        style={{ borderRadius: '0 6px 6px 0', flex: 1 }}
+                                        autoFocus
+                                    />
+                                </div>
                                 <p style={{ color: 'var(--text-gray)', fontSize: '0.85rem', marginBottom: '1rem' }}>
                                     A verification code will be sent to this number via SMS.
                                 </p>
@@ -865,8 +878,9 @@ const Portfolio: React.FC = () => {
                                 </span>
                             </label>
                         ))}
-                        <button className="btn-primary-full" style={{ marginTop: '1rem' }} onClick={handleWizardGoToCash}>
-                            Next
+                        {wizardError && <div className="error-msg" style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>{wizardError}</div>}
+                        <button className="btn-primary-full" style={{ marginTop: '0.75rem' }} onClick={handleWizardGoToCash} disabled={wizardSaving}>
+                            {wizardSaving ? 'Creating Portfolio…' : 'Next'}
                         </button>
                     </div>
                 </div>

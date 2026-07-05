@@ -46,8 +46,8 @@ export const verifyEmail = async (code: string): Promise<{ token: string }> => {
     return response.data;
 };
 
-export const sendPhoneVerification = async (): Promise<{ token: string }> => {
-    const response = await axios.post(`${BASE_URL}/phone/send-verification`, {}, { headers: authHeader() });
+export const sendPhoneVerification = async (phone?: string): Promise<{ token: string }> => {
+    const response = await axios.post(`${BASE_URL}/phone/send-verification`, { phone: phone ?? '' }, { headers: authHeader() });
     return response.data;
 };
 

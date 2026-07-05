@@ -8,11 +8,12 @@ interface Props {
     onClose: () => void;
     onSuccess: () => void;
     defaultSymbol?: string;
+    defaultTradeType?: 'BUY' | 'SELL';
 }
 
-const TradeForm: React.FC<Props> = ({ portfolioId, onClose, onSuccess, defaultSymbol = '' }) => {
+const TradeForm: React.FC<Props> = ({ portfolioId, onClose, onSuccess, defaultSymbol = '', defaultTradeType = 'BUY' }) => {
     const [symbol, setSymbol] = useState(defaultSymbol.toUpperCase());
-    const [tradeType, setTradeType] = useState<'BUY' | 'SELL'>('BUY');
+    const [tradeType, setTradeType] = useState<'BUY' | 'SELL'>(defaultTradeType);
     const [quantity, setQuantity] = useState('');
     const [price, setPrice] = useState('');
     const [quoteLoading, setQuoteLoading] = useState(false);

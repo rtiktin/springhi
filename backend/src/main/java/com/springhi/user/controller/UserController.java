@@ -114,10 +114,13 @@ public class UserController {
     }
 
     @PostMapping("/phone/send-verification")
-    public ResponseEntity<?> sendPhoneVerification(Principal principal) {
+    public ResponseEntity<?> sendPhoneVerification(
+            Principal principal,
+            @RequestBody(required = false) Map<String, String> body) {
         if (principal == null) return ResponseEntity.status(401).build();
+        String phone = body != null ? body.getOrDefault("phone", "").trim() : "";
         try {
-            AuthResponse resp = authService.sendPhoneVerification(principal.getName());
+            AuthResponse resp = authService.sendPhoneVerification(principal.getName(), phone.isEmpty() ? null : phone);
             return ResponseEntity.ok(resp);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));

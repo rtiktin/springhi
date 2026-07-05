@@ -114,28 +114,30 @@ public class PortfolioOptimizationController {
         List<PortfolioRecommendation> runRecs = recommendationRepository
                 .findByPortfolioIdAndGeneratedAtOrderByActionDescIdAsc(portfolioId, ts);
         List<RecommendationDto> recs = runRecs.stream().map(RecommendationDto::from).toList();
+        PortfolioProfileDto currentProfile = profileRepository.findByPortfolioId(portfolioId)
+                .map(PortfolioProfileDto::from).orElse(null);
         PortfolioProfileDto profileDto = runRecs.stream()
                 .filter(r -> r.getSnapshotRiskLevel() != null || r.getSnapshotGoal() != null
-                        || r.getSnapshotHorizonYears() != null || r.getSnapshotAdditionalComments() != null)
+                        || r.getSnapshotHorizonYears() != null || r.getSnapshotAdditionalComments() != null
+                        || r.getSnapshotLiquidityNeeds() != null || r.getSnapshotSectorConstraints() != null)
                 .findFirst()
                 .map(r -> {
                     java.util.List<String> sectors = (r.getSnapshotSectorConstraints() != null
                             && !r.getSnapshotSectorConstraints().isBlank())
                             ? java.util.Arrays.stream(r.getSnapshotSectorConstraints().split(","))
                                     .map(String::trim).filter(s -> !s.isBlank()).toList()
-                            : java.util.List.of();
+                            : (currentProfile != null ? currentProfile.sectorConstraints() : java.util.List.of());
                     return new PortfolioProfileDto(
                             portfolioId,
-                            r.getSnapshotRiskLevel(),
-                            r.getSnapshotGoal(),
-                            r.getSnapshotHorizonYears(),
-                            r.getSnapshotLiquidityNeeds(),
-                            r.getSnapshotAdditionalComments(),
+                            r.getSnapshotRiskLevel() != null ? r.getSnapshotRiskLevel() : (currentProfile != null ? currentProfile.riskLevel() : null),
+                            r.getSnapshotGoal() != null ? r.getSnapshotGoal() : (currentProfile != null ? currentProfile.goal() : null),
+                            r.getSnapshotHorizonYears() != null ? r.getSnapshotHorizonYears() : (currentProfile != null ? currentProfile.horizonYears() : null),
+                            r.getSnapshotLiquidityNeeds() != null ? r.getSnapshotLiquidityNeeds() : (currentProfile != null ? currentProfile.liquidityNeeds() : null),
+                            r.getSnapshotAdditionalComments() != null ? r.getSnapshotAdditionalComments() : (currentProfile != null ? currentProfile.additionalComments() : null),
                             r.getSnapshotCurrency() != null ? r.getSnapshotCurrency() : "USD",
                             sectors);
                 })
-                .orElseGet(() -> profileRepository.findByPortfolioId(portfolioId)
-                        .map(PortfolioProfileDto::from).orElse(null));
+                .orElse(currentProfile);
         return ResponseEntity.ok(new AiRunDetailsDto(recs, profileDto));
     }
 }

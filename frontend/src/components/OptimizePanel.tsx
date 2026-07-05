@@ -12,7 +12,9 @@ import {
     getTodayRecommendations,
     markRecommendationExecuted,
     markRecommendationSkipped,
+    getPortfolioProfile,
 } from '../api/portfolioApi';
+import type { PortfolioProfile } from '../api/portfolioApi';
 
 interface ReadinessIssue {
     message: string;
@@ -70,6 +72,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
     const [pendingBuyAction, setPendingBuyAction] = useState<'all' | 'checked' | null>(null);
     const [aiProvider, setAiProvider] = useState<AiProvider | null>(null);
 
+    const [portfolioProfile, setPortfolioProfile] = useState<PortfolioProfile | null>(null);
     const [userEmail, setUserEmail] = useState<string>('');
     const [userPhone, setUserPhone] = useState<string>('');
     const [showVerifyModal, setShowVerifyModal] = useState(false);
@@ -110,8 +113,10 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
             getAccountProfile().catch(() => null),
             loadCash(),
             getTodayRecommendations(portfolioId).catch(() => []),
-        ]).then(([prof, account, , recs]) => {
+            getPortfolioProfile(portfolioId).catch(() => null),
+        ]).then(([prof, account, , recs, portProf]) => {
             setProfile(prof);
+            setPortfolioProfile(portProf);
             setReadinessIssues(checkReadiness(prof, account));
             if (account?.email) {
                 setUserEmail(account.email);
@@ -160,7 +165,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
             if (resp.token) {
                 localStorage.setItem('token', resp.token);
             }
-            if (!isPhoneVerified() && userPhone) {
+            if (!isPhoneVerified()) {
                 setVerifyPhoneCode('');
                 setVerifyStep('phone-send');
             } else {
@@ -179,7 +184,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
         setVerifyLoading(true);
         setVerifyError('');
         try {
-            const resp = await sendPhoneVerification();
+            const resp = await sendPhoneVerification(userPhone.trim() || undefined);
             if (resp.token) localStorage.setItem('token', resp.token);
             setVerifyStep('phone-code');
         } catch (e: unknown) {
@@ -219,7 +224,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
             openVerifyModal('email');
             return;
         }
-        if (!isPhoneVerified() && userPhone) {
+        if (!isPhoneVerified()) {
             openVerifyModal('phone-send');
             return;
         }
@@ -257,7 +262,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                 setRecommendations(result.recommendations);
             }
             setRan(true);
-            await Promise.all([loadCash(), loadHoldingsValue()]);
+            await Promise.all([loadCash(), loadHoldingsValue(), getPortfolioProfile(portfolioId).then(setPortfolioProfile).catch(() => {})]);
         } catch (e: unknown) {
             setError(e instanceof Error ? e.message : 'Optimization request failed.');
             setRecommendations([]);
@@ -460,12 +465,18 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                                         Your email is verified. Now verify your cell phone number to continue.
                                     </p>
                                     <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>Cell Phone Number</label>
-                                    <input
-                                        type="text"
-                                        value={userPhone}
-                                        readOnly
-                                        style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', fontSize: '0.95rem', boxSizing: 'border-box', opacity: 0.7 }}
-                                    />
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                        <span style={{ padding: '0.6rem 0.6rem', background: 'var(--bg-sidebar)', border: '1px solid var(--border)', borderRight: 'none', borderRadius: '6px 0 0 6px', color: 'var(--text-gray)', fontSize: '0.95rem', whiteSpace: 'nowrap' }}>+1</span>
+                                        <input
+                                            type="text"
+                                            value={userPhone}
+                                            onChange={e => setUserPhone(e.target.value)}
+                                            placeholder="555-000-0000"
+                                            style={{ flex: 1, padding: '0.6rem 0.75rem', borderRadius: '0 6px 6px 0', border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', fontSize: '0.95rem', boxSizing: 'border-box' }}
+                                            disabled={verifyLoading}
+                                            autoFocus
+                                        />
+                                    </div>
                                     {verifyError && <p style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '0.5rem' }}>{verifyError}</p>}
                                     <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', justifyContent: 'flex-end' }}>
                                         <button onClick={() => setShowVerifyModal(false)} disabled={verifyLoading} style={{ padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text)', cursor: 'pointer', fontSize: '0.9rem' }}>Cancel</button>
@@ -609,6 +620,32 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
             {error && !loading && <div className="error-msg">{error}</div>}
             {ran && !loading && !error && recommendations.length === 0 && (
                 <div className="optimize-empty">No recommendations returned.</div>
+            )}
+
+            {ran && !loading && recommendations.length > 0 && portfolioProfile && (
+                <>
+                    <h3 style={{ color: 'var(--text-light)', marginBottom: '0.75rem', fontSize: '0.95rem', marginTop: '1rem' }}>
+                        Portfolio Profile used for this optimization
+                    </h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 1.5rem', background: 'var(--bg-card)', borderRadius: 8, padding: '1rem', fontSize: '0.88rem', marginBottom: '1rem' }}>
+                        <div><span style={{ color: 'var(--text-gray)' }}>Risk Tolerance: </span>
+                            <strong>{portfolioProfile.riskLevel?.replace('_', ' ') ?? 'N/A'}</strong></div>
+                        <div><span style={{ color: 'var(--text-gray)' }}>Primary Goal: </span>
+                            <strong>{portfolioProfile.goal ?? 'N/A'}</strong></div>
+                        <div><span style={{ color: 'var(--text-gray)' }}>Time Horizon: </span>
+                            <strong>{portfolioProfile.horizonYears != null ? `${portfolioProfile.horizonYears} years` : 'N/A'}</strong></div>
+                        <div><span style={{ color: 'var(--text-gray)' }}>Liquidity Needs: </span>
+                            <strong>{portfolioProfile.liquidityNeeds ?? 'N/A'}</strong></div>
+                        <div><span style={{ color: 'var(--text-gray)' }}>Currency: </span>
+                            <strong>{portfolioProfile.currency}</strong></div>
+                        <div><span style={{ color: 'var(--text-gray)' }}>Preferred Sectors: </span>
+                            <strong>{portfolioProfile.sectorConstraints?.length ? portfolioProfile.sectorConstraints.join(', ') : 'None'}</strong></div>
+                        <div style={{ gridColumn: '1 / -1' }}>
+                            <span style={{ color: 'var(--text-gray)' }}>Additional Notes: </span>
+                            <span>{portfolioProfile.additionalComments ?? 'None'}</span>
+                        </div>
+                    </div>
+                </>
             )}
 
             {recommendations.length > 0 && !loading && (

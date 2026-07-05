@@ -203,16 +203,20 @@ public class AuthService {
     }
 
     @Transactional
-    public AuthResponse sendPhoneVerification(String username) {
+    public AuthResponse sendPhoneVerification(String username, String newPhone) {
         User user = repository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found."));
-        String phone = user.getPhone();
+        String phone = (newPhone != null && !newPhone.isBlank()) ? newPhone.trim() : user.getPhone();
         if (phone == null || phone.isBlank()) {
-            throw new RuntimeException("No cell phone number on file. Please add one in Account Maintenance.");
+            throw new RuntimeException("Please enter a cell phone number.");
         }
-        String normalizedPhone = phone.trim().replaceAll("[\\s\\-\\(\\)]", "");
+        String normalizedPhone = phone.replaceAll("[\\s\\-\\(\\)]", "");
         if (!normalizedPhone.startsWith("+")) {
             normalizedPhone = "+1" + normalizedPhone;
+        }
+        if (!normalizedPhone.equals(user.getPhone())) {
+            user.setPhone(normalizedPhone);
+            repository.save(user);
         }
         resetTokenRepository.deleteAllByEmail(normalizedPhone);
         String code = String.format("%06d", RANDOM.nextInt(1_000_000));

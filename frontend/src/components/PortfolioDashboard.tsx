@@ -5,16 +5,19 @@ import { getQuoteHistory } from '../api/marketApi';
 import type { QuoteResponse } from '../api/marketApi';
 import StockChart from './StockChart';
 import PortfolioChart from './PortfolioChart';
+import TradeForm from './TradeForm';
 
 const fmt = (val: number | null, decimals = 2, prefix = '') =>
     val != null ? `${prefix}${val.toFixed(decimals)}` : '—';
 
 interface Props {
     portfolioId: number;
+    onTradeSuccess?: () => void;
 }
 
-const PortfolioDashboard: React.FC<Props> = ({ portfolioId }) => {
+const PortfolioDashboard: React.FC<Props> = ({ portfolioId, onTradeSuccess }) => {
     const [holdings, setHoldings] = useState<AssetWithPrice[]>([]);
+    const [tradeModal, setTradeModal] = useState<{ symbol: string; type: 'BUY' | 'SELL' } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [selectedHolding, setSelectedHolding] = useState<AssetWithPrice | null>(null);
@@ -222,6 +225,7 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId }) => {
                             <th>Cost Basis</th>
                             <th>Gain / Loss</th>
                             <th>G/L %</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -244,6 +248,16 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId }) => {
                                 <td className={h.gainLossPercent != null && h.gainLossPercent >= 0 ? 'positive' : 'negative'}>
                                     {h.gainLossPercent != null ? `${h.gainLossPercent >= 0 ? '+' : ''}${fmt(h.gainLossPercent)}%` : '—'}
                                 </td>
+                                <td onClick={e => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
+                                    <button
+                                        onClick={() => setTradeModal({ symbol: h.symbol, type: 'BUY' })}
+                                        style={{ marginRight: '0.35rem', padding: '0.2rem 0.55rem', fontSize: '0.78rem', fontWeight: 700, background: '#22c55e', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                    >Buy</button>
+                                    <button
+                                        onClick={() => setTradeModal({ symbol: h.symbol, type: 'SELL' })}
+                                        style={{ padding: '0.2rem 0.55rem', fontSize: '0.78rem', fontWeight: 700, background: '#ef4444', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                                    >Sell</button>
+                                </td>
                             </tr>
                         ))}
                     </tbody>
@@ -262,6 +276,23 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId }) => {
                         />
                     )}
                 </div>
+            )}
+
+            {tradeModal && (
+                <TradeForm
+                    portfolioId={portfolioId}
+                    defaultSymbol={tradeModal.symbol}
+                    defaultTradeType={tradeModal.type}
+                    onClose={() => setTradeModal(null)}
+                    onSuccess={() => {
+                        setTradeModal(null);
+                        getHoldings(portfolioId).then(data => {
+                            setHoldings(data);
+                        }).catch(() => {});
+                        getCashBalance(portfolioId).then(setCashBalance).catch(() => {});
+                        onTradeSuccess?.();
+                    }}
+                />
             )}
         </div>
     );
