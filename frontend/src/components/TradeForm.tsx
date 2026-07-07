@@ -9,12 +9,15 @@ interface Props {
     onSuccess: () => void;
     defaultSymbol?: string;
     defaultTradeType?: 'BUY' | 'SELL';
+    lockSymbol?: boolean;
 }
 
-const TradeForm: React.FC<Props> = ({ portfolioId, onClose, onSuccess, defaultSymbol = '', defaultTradeType = 'BUY' }) => {
+const TradeForm: React.FC<Props> = ({ portfolioId, onClose, onSuccess, defaultSymbol = '', defaultTradeType = 'BUY', lockSymbol = false }) => {
     const [symbol, setSymbol] = useState(defaultSymbol.toUpperCase());
     const [tradeType, setTradeType] = useState<'BUY' | 'SELL'>(defaultTradeType);
+    const [inputMode, setInputMode] = useState<'shares' | 'dollars'>('shares');
     const [quantity, setQuantity] = useState('');
+    const [dollarAmount, setDollarAmount] = useState('');
     const [price, setPrice] = useState('');
     const [quoteLoading, setQuoteLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -24,6 +27,17 @@ const TradeForm: React.FC<Props> = ({ portfolioId, onClose, onSuccess, defaultSy
     useEffect(() => {
         getCashBalance(portfolioId).then(setCashBalance).catch(() => {});
     }, [portfolioId]);
+
+    useEffect(() => {
+        if (lockSymbol && defaultSymbol) {
+            setQuoteLoading(true);
+            setError('');
+            getQuote(defaultSymbol.toUpperCase())
+                .then(quote => setPrice(quote.price.toString()))
+                .catch(() => setError('Could not fetch quote for this symbol.'))
+                .finally(() => setQuoteLoading(false));
+        }
+    }, []);
 
     const fmtCash = (n: number) =>
         `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -49,11 +63,19 @@ const TradeForm: React.FC<Props> = ({ portfolioId, onClose, onSuccess, defaultSy
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        const qty = parseFloat(quantity);
         const prc = parseFloat(price);
         if (!symbol.trim()) { setError('Symbol is required.'); return; }
-        if (isNaN(qty) || qty <= 0) { setError('Quantity must be a positive number.'); return; }
         if (isNaN(prc) || prc <= 0) { setError('Price must be a positive number.'); return; }
+
+        let qty: number;
+        if (inputMode === 'dollars') {
+            const dollars = parseFloat(dollarAmount);
+            if (isNaN(dollars) || dollars <= 0) { setError('Dollar amount must be a positive number.'); return; }
+            qty = dollars / prc;
+        } else {
+            qty = parseFloat(quantity);
+            if (isNaN(qty) || qty <= 0) { setError('Quantity must be a positive number.'); return; }
+        }
 
         if (tradeType === 'BUY') {
             const totalCost = qty * prc;
@@ -125,42 +147,92 @@ const TradeForm: React.FC<Props> = ({ portfolioId, onClose, onSuccess, defaultSy
                     </div>
 
                     <label className="form-label">Symbol</label>
-                    <div className="symbol-row">
+                    {lockSymbol ? (
                         <input
                             type="text"
-                            placeholder="e.g. AAPL"
                             value={symbol}
-                            onChange={e => setSymbol(e.target.value.toUpperCase())}
-                            onBlur={handleSymbolBlur}
+                            readOnly
+                            style={{ background: 'var(--bg-card)', opacity: 0.7, cursor: 'default', marginBottom: '1rem' }}
                         />
-                        <button type="button" className="btn-lookup" onClick={lookupQuote} disabled={quoteLoading}>
-                            {quoteLoading ? '…' : 'Get Price'}
-                        </button>
+                    ) : (
+                        <div className="symbol-row">
+                            <input
+                                type="text"
+                                placeholder="e.g. AAPL"
+                                value={symbol}
+                                onChange={e => setSymbol(e.target.value.toUpperCase())}
+                                onBlur={handleSymbolBlur}
+                            />
+                            <button type="button" className="btn-lookup" onClick={lookupQuote} disabled={quoteLoading}>
+                                {quoteLoading ? '…' : 'Get Price'}
+                            </button>
+                        </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                        <button
+                            type="button"
+                            onClick={() => setInputMode('shares')}
+                            style={{
+                                flex: 1, padding: '0.35rem 0', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', borderRadius: 4,
+                                background: inputMode === 'shares' ? 'var(--accent)' : 'var(--bg-card)',
+                                color: inputMode === 'shares' ? '#fff' : 'var(--text-gray)',
+                                border: '1px solid var(--border)',
+                            }}
+                        ># of Shares</button>
+                        <button
+                            type="button"
+                            onClick={() => setInputMode('dollars')}
+                            style={{
+                                flex: 1, padding: '0.35rem 0', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', borderRadius: 4,
+                                background: inputMode === 'dollars' ? 'var(--accent)' : 'var(--bg-card)',
+                                color: inputMode === 'dollars' ? '#fff' : 'var(--text-gray)',
+                                border: '1px solid var(--border)',
+                            }}
+                        >$ Amount</button>
                     </div>
 
-                    <label className="form-label">Quantity</label>
-                    <input
-                        type="number"
-                        placeholder="0"
-                        min="0"
-                        step="any"
-                        value={quantity}
-                        onChange={e => setQuantity(e.target.value)}
-                    />
+                    {inputMode === 'shares' ? (
+                        <>
+                            <label className="form-label">Quantity</label>
+                            <input
+                                type="number"
+                                placeholder="0"
+                                min="0"
+                                step="any"
+                                value={quantity}
+                                onChange={e => setQuantity(e.target.value)}
+                                autoFocus={lockSymbol}
+                            />
+                        </>
+                    ) : (
+                        <>
+                            <label className="form-label">Dollar Amount ($)</label>
+                            <input
+                                type="number"
+                                placeholder="0.00"
+                                min="0"
+                                step="any"
+                                value={dollarAmount}
+                                onChange={e => setDollarAmount(e.target.value)}
+                                autoFocus={lockSymbol}
+                            />
+                        </>
+                    )}
 
                     <label className="form-label">Price per Share ($)</label>
                     <input
-                        type="number"
-                        placeholder="0.00"
-                        min="0"
-                        step="any"
-                        value={price}
-                        onChange={e => setPrice(e.target.value)}
+                        type="text"
+                        value={quoteLoading ? 'Fetching…' : price}
+                        readOnly
+                        style={{ background: 'var(--bg-card)', opacity: 0.7, cursor: 'default', marginBottom: '1rem' }}
                     />
 
-                    {quantity && price && (
+                    {price && (inputMode === 'shares' ? quantity : dollarAmount) && (
                         <div className="trade-total">
-                            Total: ${(parseFloat(quantity || '0') * parseFloat(price || '0')).toFixed(2)}
+                            {inputMode === 'shares'
+                                ? `Total: $${(parseFloat(quantity || '0') * parseFloat(price || '0')).toFixed(2)}`
+                                : `Shares: ${(parseFloat(dollarAmount || '0') / parseFloat(price || '1')).toFixed(6)}`}
                         </div>
                     )}
 

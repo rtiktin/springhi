@@ -28,6 +28,8 @@ public class PasswordResetToken {
 
     private String previousEmail;
 
+    private String previousPhone;
+
     public PasswordResetToken() {}
 
     public Long getId() { return id; }
@@ -42,4 +44,6 @@ public class PasswordResetToken {
     public LocalDateTime getCreatedAt() { return createdAt; }
     public String getPreviousEmail() { return previousEmail; }
     public void setPreviousEmail(String previousEmail) { this.previousEmail = previousEmail; }
+    public String getPreviousPhone() { return previousPhone; }
+    public void setPreviousPhone(String previousPhone) { this.previousPhone = previousPhone; }
 }

@@ -283,6 +283,7 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId, onTradeSuccess }) =>
                     portfolioId={portfolioId}
                     defaultSymbol={tradeModal.symbol}
                     defaultTradeType={tradeModal.type}
+                    lockSymbol
                     onClose={() => setTradeModal(null)}
                     onSuccess={() => {
                         setTradeModal(null);

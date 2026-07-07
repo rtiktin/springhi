@@ -3,9 +3,11 @@ package com.springhi.portfolio.model;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "portfolio_snapshots", schema = "springhi")
+@Table(name = "portfolio_snapshots", schema = "springhi",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"portfolio_id", "snapshot_date"}))
 public class PortfolioSnapshot {
 
     @Id
@@ -30,6 +32,9 @@ public class PortfolioSnapshot {
     @Column(name = "invested_value", precision = 19, scale = 4)
     private BigDecimal investedValue;
 
+    @Column(name = "snapshot_at")
+    private LocalDateTime snapshotAt;
+
     public PortfolioSnapshot() {}
 
     public Long getId() { return id; }
@@ -46,4 +51,6 @@ public class PortfolioSnapshot {
     public void setCashValue(BigDecimal cashValue) { this.cashValue = cashValue; }
     public BigDecimal getInvestedValue() { return investedValue; }
     public void setInvestedValue(BigDecimal investedValue) { this.investedValue = investedValue; }
+    public LocalDateTime getSnapshotAt() { return snapshotAt; }
+    public void setSnapshotAt(LocalDateTime snapshotAt) { this.snapshotAt = snapshotAt; }
 }

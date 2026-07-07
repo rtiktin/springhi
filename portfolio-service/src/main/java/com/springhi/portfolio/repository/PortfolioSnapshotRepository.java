@@ -14,7 +14,7 @@ public interface PortfolioSnapshotRepository extends JpaRepository<PortfolioSnap
     Optional<PortfolioSnapshot> findByUserIdAndSnapshotDate(Long userId, LocalDate snapshotDate);
 
     List<PortfolioSnapshot> findByPortfolioIdOrderBySnapshotDateAsc(Long portfolioId);
-    Optional<PortfolioSnapshot> findByPortfolioIdAndSnapshotDate(Long portfolioId, LocalDate snapshotDate);
+    Optional<PortfolioSnapshot> findFirstByPortfolioIdAndSnapshotDate(Long portfolioId, LocalDate snapshotDate);
     List<PortfolioSnapshot> findByPortfolioIdAndSnapshotDateGreaterThanEqualOrderBySnapshotDateAsc(
             Long portfolioId, LocalDate startDate);
 }

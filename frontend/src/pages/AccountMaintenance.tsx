@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getLoggedInUsername, isAdmin, isEmailVerified } from '../utils/auth';
+import { getLoggedInUsername, isAdmin, isEmailVerified, isPhoneVerified } from '../utils/auth';
 import ImpersonationBanner from '../components/ImpersonationBanner';
-import { getAccountProfile, updateAccountProfile, sendEmailVerification, verifyEmail } from '../api/accountApi';
+import { getAccountProfile, updateAccountProfile, sendEmailVerification, verifyEmail, sendPhoneVerification, verifyPhone } from '../api/accountApi';
 import type { AccountProfile } from '../api/accountApi';
 import CashForm from '../components/CashForm';
 import { getOrCreateDefaultPortfolio } from '../api/portfolioApi';
@@ -75,6 +75,13 @@ const AccountMaintenance: React.FC = () => {
     const [updateEmailCode, setUpdateEmailCode] = useState('');
     const [updateEmailSending, setUpdateEmailSending] = useState(false);
     const [updateEmailError, setUpdateEmailError] = useState('');
+
+    type UpdatePhoneStep = 'enter-phone' | 'enter-code';
+    const [updatePhoneStep, setUpdatePhoneStep] = useState<UpdatePhoneStep | null>(null);
+    const [updateNewPhone, setUpdateNewPhone] = useState('');
+    const [updatePhoneCode, setUpdatePhoneCode] = useState('');
+    const [updatePhoneSending, setUpdatePhoneSending] = useState(false);
+    const [updatePhoneError, setUpdatePhoneError] = useState('');
 
     useEffect(() => {
         getOrCreateDefaultPortfolio().then(p => setDefaultPortfolioId(p.id)).catch(() => {});
@@ -164,6 +171,41 @@ const AccountMaintenance: React.FC = () => {
         }
     };
 
+    const handleSendUpdatePhoneCode = async () => {
+        const phone = updateNewPhone.trim();
+        if (!phone) { setUpdatePhoneError('Please enter a cell phone number.'); return; }
+        setUpdatePhoneError('');
+        setUpdatePhoneSending(true);
+        try {
+            const resp = await sendPhoneVerification(phone);
+            if (resp.token) localStorage.setItem('token', resp.token);
+            setUpdatePhoneStep('enter-code');
+        } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            setUpdatePhoneError(msg || 'Failed to send SMS code. Please try again.');
+        } finally {
+            setUpdatePhoneSending(false);
+        }
+    };
+
+    const handleVerifyUpdatePhoneCode = async () => {
+        if (!updatePhoneCode.trim()) { setUpdatePhoneError('Please enter the verification code.'); return; }
+        setUpdatePhoneError('');
+        setUpdatePhoneSending(true);
+        try {
+            const resp = await verifyPhone(updatePhoneCode.trim());
+            if (resp.token) localStorage.setItem('token', resp.token);
+            const normalized = updateNewPhone.trim().replace(/[\s\-\(\)]/g, '');
+            setForm(prev => ({ ...prev, phone: normalized.startsWith('+') ? normalized : '+1' + normalized }));
+            setUpdatePhoneStep(null);
+        } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            setUpdatePhoneError(msg || 'Invalid or expired code. Please try again.');
+        } finally {
+            setUpdatePhoneSending(false);
+        }
+    };
+
     const handleLogout = () => {
         localStorage.removeItem('token');
         navigate('/login');
@@ -250,7 +292,23 @@ const AccountMaintenance: React.FC = () => {
                         </div>
                         <div className="profile-field">
                             <label className="form-label">Cell Phone Number</label>
-                            <input className="profile-input" value={form.phone ?? ''} placeholder="+1 555-000-0000" onChange={e => set('phone', e.target.value)} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <span className="acct-readonly-value">{form.phone ?? '—'}</span>
+                                {isPhoneVerified() && (
+                                    <button
+                                        className="btn-primary"
+                                        style={{ fontSize: '0.82rem', padding: '0.35rem 0.9rem' }}
+                                        onClick={() => {
+                                            setUpdateNewPhone('');
+                                            setUpdatePhoneCode('');
+                                            setUpdatePhoneError('');
+                                            setUpdatePhoneStep('enter-phone');
+                                        }}
+                                    >
+                                        Update Cell Phone Number
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                     <div className="profile-field" style={{ marginBottom: '0.75rem' }}>
@@ -311,6 +369,72 @@ const AccountMaintenance: React.FC = () => {
             </main>
             {showCashForm && defaultPortfolioId != null && (
                 <CashForm portfolioId={defaultPortfolioId} onClose={() => setShowCashForm(false)} onSuccess={() => {}} />
+            )}
+
+            {updatePhoneStep !== null && (
+                <div className="modal-overlay" onClick={() => setUpdatePhoneStep(null)}>
+                    <div className="modal-card" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2>{updatePhoneStep === 'enter-phone' ? 'Update Cell Phone Number' : 'Enter Verification Code'}</h2>
+                            <button className="modal-close" onClick={() => setUpdatePhoneStep(null)}>✕</button>
+                        </div>
+
+                        {updatePhoneStep === 'enter-phone' && (
+                            <>
+                                <p style={{ color: 'var(--text-gray)', marginBottom: '1rem' }}>
+                                    Enter your new cell phone number. A verification code will be sent to it via SMS.
+                                </p>
+                                <label className="form-label">New Cell Phone Number</label>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                                    <span style={{ padding: '0.5rem 0.75rem', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-gray)', fontWeight: 600 }}>+1</span>
+                                    <input
+                                        type="tel"
+                                        value={updateNewPhone}
+                                        onChange={e => setUpdateNewPhone(e.target.value)}
+                                        placeholder="555-000-0000"
+                                        autoFocus
+                                        style={{ flex: 1, margin: 0 }}
+                                    />
+                                </div>
+                                {updatePhoneError && <div className="error-msg" style={{ marginBottom: '1rem' }}>{updatePhoneError}</div>}
+                                <button className="btn-primary-full" onClick={handleSendUpdatePhoneCode} disabled={updatePhoneSending}>
+                                    {updatePhoneSending ? 'Sending…' : 'Send Verification Code'}
+                                </button>
+                            </>
+                        )}
+
+                        {updatePhoneStep === 'enter-code' && (
+                            <>
+                                <p style={{ color: 'var(--text-gray)', marginBottom: '1rem' }}>
+                                    A verification code was sent via SMS to <strong>{updateNewPhone}</strong>. Enter it below.
+                                </p>
+                                <label className="form-label">Verification Code</label>
+                                <input
+                                    type="text"
+                                    value={updatePhoneCode}
+                                    onChange={e => setUpdatePhoneCode(e.target.value)}
+                                    placeholder="6-digit code"
+                                    autoFocus
+                                    style={{ marginBottom: '1rem' }}
+                                />
+                                {updatePhoneError && <div className="error-msg" style={{ marginBottom: '1rem' }}>{updatePhoneError}</div>}
+                                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                    <button className="btn-primary-full" onClick={handleVerifyUpdatePhoneCode} disabled={updatePhoneSending}>
+                                        {updatePhoneSending ? 'Verifying…' : 'Verify & Save'}
+                                    </button>
+                                    <button
+                                        className="btn-primary-full"
+                                        style={{ background: 'var(--card-bg)', border: '1px solid var(--border)' }}
+                                        onClick={() => setUpdatePhoneStep('enter-phone')}
+                                        disabled={updatePhoneSending}
+                                    >
+                                        Back
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
             )}
 
             {updateEmailStep !== null && (

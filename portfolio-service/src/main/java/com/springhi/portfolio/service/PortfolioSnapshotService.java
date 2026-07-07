@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -48,7 +49,26 @@ public class PortfolioSnapshotService {
             try {
                 takeSnapshotForPortfolio(portfolioId);
             } catch (Exception e) {
-                log.error("Failed to take snapshot for portfolioId={}: {}", portfolioId, e.getMessage());
+                log.error("Failed to take snapshot for portfolioId={}: {}", portfolioId, e.getMessage(), e);
+            }
+        }
+    }
+
+    public void takeSnapshotsIfNotTakenToday() {
+        List<Long> portfolioIds = assetRepository.findDistinctPortfolioIds();
+        if (portfolioIds.isEmpty()) return;
+        LocalDate today = LocalDate.now();
+        for (Long portfolioId : portfolioIds) {
+            boolean alreadySnapshotted = snapshotRepository
+                    .findFirstByPortfolioIdAndSnapshotDate(portfolioId, today)
+                    .isPresent();
+            if (!alreadySnapshotted) {
+                try {
+                    takeSnapshotForPortfolio(portfolioId);
+                    log.info("Pre-refresh snapshot taken for portfolioId={}", portfolioId);
+                } catch (Exception e) {
+                    log.error("Failed pre-refresh snapshot for portfolioId={}: {}", portfolioId, e.getMessage(), e);
+                }
             }
         }
     }
@@ -74,7 +94,7 @@ public class PortfolioSnapshotService {
         LocalDate today = LocalDate.now();
 
         PortfolioSnapshot snapshot = snapshotRepository
-                .findByPortfolioIdAndSnapshotDate(portfolioId, today)
+                .findFirstByPortfolioIdAndSnapshotDate(portfolioId, today)
                 .orElse(new PortfolioSnapshot());
 
         snapshot.setPortfolioId(portfolioId);
@@ -83,6 +103,7 @@ public class PortfolioSnapshotService {
         snapshot.setInvestedValue(investedValue);
         snapshot.setCashValue(cashValue);
         snapshot.setTotalValue(totalValue);
+        snapshot.setSnapshotAt(LocalDateTime.now());
 
         PortfolioSnapshot saved = snapshotRepository.save(snapshot);
         log.info("Snapshot saved for portfolioId={}: total={}", portfolioId, totalValue);

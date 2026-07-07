@@ -36,13 +36,15 @@ public class QuoteScheduler {
         refreshAllHeldSymbols();
     }
 
-    @Scheduled(cron = "0 0 9,15 * * MON-FRI", zone = "America/New_York")
+    @Scheduled(cron = "0 0 10,15 * * MON-FRI", zone = "America/New_York")
     public void refreshAllHeldSymbols() {
         List<String> symbols = assetRepository.findDistinctSymbols();
         if (symbols.isEmpty()) {
             log.info("No held symbols to refresh");
             return;
         }
+        log.info("Checking for missing snapshots before price refresh");
+        snapshotService.takeSnapshotsIfNotTakenToday();
         log.info("Scheduled quote refresh starting for {} symbol(s): {}", symbols.size(), symbols);
         for (String symbol : symbols) {
             try {

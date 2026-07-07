@@ -6,8 +6,10 @@ import com.springhi.user.dto.SignupRequest;
 import com.springhi.user.model.PasswordResetToken;
 import com.springhi.user.model.User;
 import com.springhi.user.model.UserEmailHistory;
+import com.springhi.user.model.UserPhoneHistory;
 import com.springhi.user.repository.PasswordResetTokenRepository;
 import com.springhi.user.repository.UserEmailHistoryRepository;
+import com.springhi.user.repository.UserPhoneHistoryRepository;
 import com.springhi.user.repository.UserRepository;
 import org.springframework.transaction.annotation.Transactional;
 import com.springhi.user.security.JwtService;
@@ -30,6 +32,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final PasswordResetTokenRepository resetTokenRepository;
     private final UserEmailHistoryRepository emailHistoryRepository;
+    private final UserPhoneHistoryRepository phoneHistoryRepository;
     private final JavaMailSender mailSender;
     private final TelnyxService telnyxService;
 
@@ -47,6 +50,7 @@ public class AuthService {
                        AuthenticationManager authenticationManager,
                        PasswordResetTokenRepository resetTokenRepository,
                        UserEmailHistoryRepository emailHistoryRepository,
+                       UserPhoneHistoryRepository phoneHistoryRepository,
                        JavaMailSender mailSender,
                        TelnyxService telnyxService) {
         this.repository = repository;
@@ -55,6 +59,7 @@ public class AuthService {
         this.authenticationManager = authenticationManager;
         this.resetTokenRepository = resetTokenRepository;
         this.emailHistoryRepository = emailHistoryRepository;
+        this.phoneHistoryRepository = phoneHistoryRepository;
         this.mailSender = mailSender;
         this.telnyxService = telnyxService;
     }
@@ -214,8 +219,11 @@ public class AuthService {
         if (!normalizedPhone.startsWith("+")) {
             normalizedPhone = "+1" + normalizedPhone;
         }
+        String previousPhone = null;
         if (!normalizedPhone.equals(user.getPhone())) {
+            previousPhone = user.getPhone();
             user.setPhone(normalizedPhone);
+            user.setPhoneVerified(false);
             repository.save(user);
         }
         resetTokenRepository.deleteAllByEmail(normalizedPhone);
@@ -223,6 +231,9 @@ public class AuthService {
         PasswordResetToken token = new PasswordResetToken();
         token.setEmail(normalizedPhone);
         token.setCode(code);
+        if (previousPhone != null) {
+            token.setPreviousPhone(previousPhone);
+        }
         token.setExpiresAt(LocalDateTime.now().plusMinutes(resetCodeExpiryMinutes));
         resetTokenRepository.save(token);
         telnyxService.sendSms(normalizedPhone, "Your SpringHi.ai verification code is: " + code);
@@ -249,6 +260,13 @@ public class AuthService {
         }
         if (!token.getCode().equals(code.trim())) {
             throw new RuntimeException("Invalid verification code.");
+        }
+        if (token.getPreviousPhone() != null) {
+            UserPhoneHistory history = new UserPhoneHistory();
+            history.setUserId(user.getId());
+            history.setPhone(token.getPreviousPhone());
+            history.setReplacedAt(LocalDateTime.now());
+            phoneHistoryRepository.save(history);
         }
         user.setPhoneVerified(true);
         repository.save(user);
