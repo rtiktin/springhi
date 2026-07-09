@@ -85,6 +85,8 @@ public class PortfolioOptimizationService {
             List<SecurityRecommendation> recs = objectMapper.readValue(json,
                     new TypeReference<List<SecurityRecommendation>>() {});
 
+            recs = normalizeBuyWeights(recs);
+
             List<RecommendationDto> saved = persistRecommendations(userId, portfolioId, recs, holdings, cashBalance, portfolioMarketValue, portfolioProfile, provider);
             return new OptimizationResponse(saved, null);
         } catch (Exception e) {
@@ -223,6 +225,23 @@ public class PortfolioOptimizationService {
         sb.append("6. If the portfolio already well matches the client profile, recommend only incremental changes.\n");
 
         return sb.toString();
+    }
+
+    private List<SecurityRecommendation> normalizeBuyWeights(List<SecurityRecommendation> recs) {
+        double buyTotal = recs.stream()
+                .filter(r -> !"SELL".equalsIgnoreCase(r.action()))
+                .mapToDouble(SecurityRecommendation::w)
+                .sum();
+        if (buyTotal <= 0 || Math.abs(buyTotal - 100.0) < 0.01) {
+            return recs;
+        }
+        log.warn("AI BUY weights sum to {}%, normalizing to 100%", String.format("%.2f", buyTotal));
+        double factor = 100.0 / buyTotal;
+        return recs.stream().map(r -> {
+            if ("SELL".equalsIgnoreCase(r.action())) return r;
+            double normalized = Math.round(r.w() * factor * 100.0) / 100.0;
+            return new SecurityRecommendation(r.t(), r.n(), r.s(), normalized, r.r(), r.action());
+        }).collect(Collectors.toList());
     }
 
     private String extractJson(String text) {

@@ -243,6 +243,41 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                             })()}
                         </p>
 
+                        {profile && (
+                            <>
+                                <h3 style={{ color: 'var(--text-light)', marginBottom: '0.75rem', fontSize: '0.95rem' }}>
+                                    Portfolio Profile used for this optimization
+                                </h3>
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr 1fr',
+                                    gap: '0.5rem 1.5rem',
+                                    background: 'var(--bg-card)',
+                                    borderRadius: 8,
+                                    padding: '1rem',
+                                    fontSize: '0.88rem',
+                                    marginBottom: '1.5rem',
+                                }}>
+                                    <div><span style={{ color: 'var(--text-gray)' }}>Risk Tolerance: </span>
+                                        <strong>{profile.riskLevel?.replace('_', ' ') ?? 'N/A'}</strong></div>
+                                    <div><span style={{ color: 'var(--text-gray)' }}>Primary Goal: </span>
+                                        <strong>{profile.goal ?? 'N/A'}</strong></div>
+                                    <div><span style={{ color: 'var(--text-gray)' }}>Time Horizon: </span>
+                                        <strong>{profile.horizonYears != null ? `${profile.horizonYears} years` : 'N/A'}</strong></div>
+                                    <div><span style={{ color: 'var(--text-gray)' }}>Liquidity Needs: </span>
+                                        <strong>{profile.liquidityNeeds ?? 'N/A'}</strong></div>
+                                    <div><span style={{ color: 'var(--text-gray)' }}>Currency: </span>
+                                        <strong>{profile.currency}</strong></div>
+                                    <div><span style={{ color: 'var(--text-gray)' }}>Preferred Sectors: </span>
+                                        <strong>{profile.sectorConstraints?.length ? profile.sectorConstraints.join(', ') : 'None'}</strong></div>
+                                    <div style={{ gridColumn: '1 / -1' }}>
+                                        <span style={{ color: 'var(--text-gray)' }}>Additional Notes: </span>
+                                        <span>{profile.additionalComments ?? 'None'}</span>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
                         <h3 style={{ color: 'var(--text-light)', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
                             Trades in this run
                         </h3>
@@ -297,39 +332,6 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                             </table>
                         </div>
 
-                        {profile && (
-                            <>
-                                <h3 style={{ color: 'var(--text-light)', marginBottom: '0.75rem', fontSize: '0.95rem' }}>
-                                    Portfolio Profile used for this optimization
-                                </h3>
-                                <div style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: '1fr 1fr',
-                                    gap: '0.5rem 1.5rem',
-                                    background: 'var(--bg-card)',
-                                    borderRadius: 8,
-                                    padding: '1rem',
-                                    fontSize: '0.88rem',
-                                }}>
-                                    <div><span style={{ color: 'var(--text-gray)' }}>Risk Tolerance: </span>
-                                        <strong>{profile.riskLevel?.replace('_', ' ') ?? 'N/A'}</strong></div>
-                                    <div><span style={{ color: 'var(--text-gray)' }}>Primary Goal: </span>
-                                        <strong>{profile.goal ?? 'N/A'}</strong></div>
-                                    <div><span style={{ color: 'var(--text-gray)' }}>Time Horizon: </span>
-                                        <strong>{profile.horizonYears != null ? `${profile.horizonYears} years` : 'N/A'}</strong></div>
-                                    <div><span style={{ color: 'var(--text-gray)' }}>Liquidity Needs: </span>
-                                        <strong>{profile.liquidityNeeds ?? 'N/A'}</strong></div>
-                                    <div><span style={{ color: 'var(--text-gray)' }}>Currency: </span>
-                                        <strong>{profile.currency}</strong></div>
-                                    <div><span style={{ color: 'var(--text-gray)' }}>Preferred Sectors: </span>
-                                        <strong>{profile.sectorConstraints?.length ? profile.sectorConstraints.join(', ') : 'None'}</strong></div>
-                                    <div style={{ gridColumn: '1 / -1' }}>
-                                        <span style={{ color: 'var(--text-gray)' }}>Additional Notes: </span>
-                                        <span>{profile.additionalComments ?? 'None'}</span>
-                                    </div>
-                                </div>
-                            </>
-                        )}
                     </div>
                 </div>
             )}
