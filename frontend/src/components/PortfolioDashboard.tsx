@@ -106,26 +106,6 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId, onTradeSuccess }) =>
 
     return (
         <div className="portfolio-wrapper">
-            <div className="portfolio-perf-section">
-                <div className="portfolio-perf-header">
-                    <span className="portfolio-perf-label">Trade &amp; Cash Activity</span>
-                    <button
-                        className="btn-snapshot"
-                        onClick={handleSnapshotNow}
-                        disabled={snapshotting}
-                        title="Record today's portfolio value"
-                    >
-                        {snapshotting ? 'Saving…' : 'Snapshot Now'}
-                    </button>
-                </div>
-                {snapshots.length >= 5 && <PortfolioChart snapshots={snapshots} />}
-                {snapshots.length < 5 && snapshots.length > 0 && (
-                    <p style={{ color: 'var(--text-gray)', fontSize: '0.9em', margin: '0.5rem 0' }}>
-                        Portfolio chart will appear after {5 - snapshots.length} more snapshot{5 - snapshots.length !== 1 ? 's' : ''} ({snapshots.length}/5 collected).
-                    </p>
-                )}
-            </div>
-
             <div className="portfolio-summary">
                 <div className="summary-card">
                     <span className="summary-label">Market Value</span>
@@ -153,7 +133,7 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId, onTradeSuccess }) =>
                     <span className="summary-label">Total G/L (All-Time)</span>
                     <span className="summary-value" title="Unrealized + realized gain/loss">
                         {pnl != null
-                            ? `${pnl.totalPnl >= 0 ? '+' : ''}$${pnl.totalPnl.toFixed(2)}`
+                            ? `${pnl.totalPnl >= 0 ? '+' : ''}$${pnl.totalPnl.toFixed(2)}${pnl.totalBuyCost > 0 ? ` (${pnl.totalPnl >= 0 ? '+' : ''}${((pnl.totalPnl / pnl.totalBuyCost) * 100).toFixed(2)}%)` : ''}`
                             : '—'}
                     </span>
                 </div>

@@ -5,8 +5,10 @@ import {
     getLeaderboardPortfolioHoldings,
     getLeaderboardPortfolioTransactions,
     getLeaderboardAiRunDetails,
+    getLeaderboardPortfolioCash,
+    getLeaderboardPortfolioPnl,
 } from '../api/portfolioApi';
-import type { LeaderboardEntry, AssetWithPrice, Transaction, AiRunDetails } from '../api/portfolioApi';
+import type { LeaderboardEntry, AssetWithPrice, Transaction, AiRunDetails, PnlSummary } from '../api/portfolioApi';
 import { getLoggedInUsername } from '../utils/auth';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 
@@ -66,6 +68,8 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
     const [tab, setTab] = useState<DetailTab>('holdings');
     const [holdings, setHoldings] = useState<AssetWithPrice[]>([]);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [cashBalance, setCashBalance] = useState<number | null>(null);
+    const [pnl, setPnl] = useState<PnlSummary | null>(null);
     const [loading, setLoading] = useState(true);
 
     const [aiRunModal, setAiRunModal] = useState<{ details: AiRunDetails; highlightTxnId: number } | null>(null);
@@ -77,9 +81,13 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
         Promise.all([
             getLeaderboardPortfolioHoldings(entry.portfolioId),
             getLeaderboardPortfolioTransactions(entry.portfolioId),
-        ]).then(([h, t]) => {
+            getLeaderboardPortfolioCash(entry.portfolioId).catch(() => null),
+            getLeaderboardPortfolioPnl(entry.portfolioId).catch(() => null),
+        ]).then(([h, t, cash, pnlData]) => {
             setHoldings(h);
             setTransactions(t.slice().reverse());
+            setCashBalance(cash);
+            setPnl(pnlData);
         }).finally(() => setLoading(false));
     }, [entry.portfolioId]);
 
@@ -128,6 +136,58 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                 {aiRunError && (
                     <div className="error-msg" style={{ marginBottom: '0.5rem' }}>{aiRunError}</div>
                 )}
+
+                {!loading && tab === 'holdings' && (() => {
+                    const totalMV = holdings.reduce((s, h) => s + (h.marketValue ?? 0), 0);
+                    const totalCB = holdings.reduce((s, h) => s + (h.costBasis ?? 0), 0);
+                    const totalGL = totalMV - totalCB;
+                    const totalGLPct = totalCB !== 0 ? (totalGL / totalCB) * 100 : 0;
+                    const totalPortfolio = totalMV + (cashBalance ?? 0);
+                    return (
+                        <div className="portfolio-summary" style={{ flexWrap: 'wrap', marginBottom: '1rem', gap: '0.5rem' }}>
+                            <div className="summary-card">
+                                <span className="summary-label">Market Value</span>
+                                <span className="summary-value">{fmt(totalMV)}</span>
+                            </div>
+                            <div className="summary-card">
+                                <span className="summary-label">Cost Basis</span>
+                                <span className="summary-value">{fmt(totalCB)}</span>
+                            </div>
+                            <div className={`summary-card ${totalGL >= 0 ? 'positive' : 'negative'}`}>
+                                <span className="summary-label">Unrealized G/L</span>
+                                <span className="summary-value">
+                                    {totalGL >= 0 ? '+' : ''}{fmt(totalGL)} ({totalGLPct >= 0 ? '+' : ''}{totalGLPct.toFixed(2)}%)
+                                </span>
+                            </div>
+                            {pnl != null && (
+                                <div className={`summary-card ${pnl.realizedPnl >= 0 ? 'positive' : 'negative'}`}>
+                                    <span className="summary-label">Realized G/L</span>
+                                    <span className="summary-value">
+                                        {pnl.realizedPnl >= 0 ? '+' : ''}{fmt(pnl.realizedPnl)}
+                                    </span>
+                                </div>
+                            )}
+                            {pnl != null && (
+                                <div className={`summary-card ${pnl.totalPnl >= 0 ? 'positive' : 'negative'}`}>
+                                    <span className="summary-label">Total G/L</span>
+                                    <span className="summary-value">
+                                        {pnl.totalPnl >= 0 ? '+' : ''}{fmt(pnl.totalPnl)}
+                                    </span>
+                                </div>
+                            )}
+                            {cashBalance != null && (
+                                <div className="summary-card">
+                                    <span className="summary-label">Cash Balance</span>
+                                    <span className="summary-value">{fmt(cashBalance)}</span>
+                                </div>
+                            )}
+                            <div className="summary-card">
+                                <span className="summary-label">Total Portfolio</span>
+                                <span className="summary-value">{fmt(totalPortfolio)}</span>
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 {loading ? (
                     <div style={{ textAlign: 'center', color: 'var(--text-gray)', padding: '2rem' }}>Loading…</div>

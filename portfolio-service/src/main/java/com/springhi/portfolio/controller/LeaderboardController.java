@@ -3,6 +3,7 @@ package com.springhi.portfolio.controller;
 import com.springhi.portfolio.dto.AiRunDetailsDto;
 import com.springhi.portfolio.dto.AssetWithPrice;
 import com.springhi.portfolio.dto.LeaderboardEntryDto;
+import com.springhi.portfolio.dto.PnlSummaryDto;
 import com.springhi.portfolio.dto.PortfolioProfileDto;
 import com.springhi.portfolio.dto.RecommendationDto;
 import com.springhi.portfolio.dto.TransactionDto;
@@ -16,9 +17,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/leaderboard")
@@ -63,6 +66,22 @@ public class LeaderboardController {
             @AuthenticationPrincipal UserPrincipal principal) {
         if (principal == null) return ResponseEntity.status(403).build();
         return ResponseEntity.ok(portfolioService.getUserTransactions(portfolioId));
+    }
+
+    @GetMapping("/portfolio/{portfolioId}/cash")
+    public ResponseEntity<Map<String, BigDecimal>> getPortfolioCash(
+            @PathVariable Long portfolioId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) return ResponseEntity.status(403).build();
+        return ResponseEntity.ok(Map.of("balance", portfolioService.getCashBalance(portfolioId)));
+    }
+
+    @GetMapping("/portfolio/{portfolioId}/pnl")
+    public ResponseEntity<PnlSummaryDto> getPortfolioPnl(
+            @PathVariable Long portfolioId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) return ResponseEntity.status(403).build();
+        return ResponseEntity.ok(portfolioService.getPnlSummary(portfolioId));
     }
 
     @GetMapping("/portfolio/{portfolioId}/recommendations/run")

@@ -284,3 +284,17 @@ export const getLeaderboardPortfolioTransactions = async (portfolioId: number): 
     });
     return response.data;
 };
+
+export const getLeaderboardPortfolioCash = async (portfolioId: number): Promise<number> => {
+    const response = await axios.get(`${API_GATEWAY}/api/v1/leaderboard/portfolio/${portfolioId}/cash`, {
+        headers: authHeader(),
+    });
+    return Number(response.data.balance);
+};
+
+export const getLeaderboardPortfolioPnl = async (portfolioId: number): Promise<PnlSummary> => {
+    const response = await axios.get(`${API_GATEWAY}/api/v1/leaderboard/portfolio/${portfolioId}/pnl`, {
+        headers: authHeader(),
+    });
+    return response.data;
+};
