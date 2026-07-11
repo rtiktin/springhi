@@ -110,6 +110,20 @@ public class PortfolioSnapshotService {
         return saved;
     }
 
+    public BigDecimal computeLiveValue(Long portfolioId) {
+        List<Asset> assets = assetRepository.findByPortfolioId(portfolioId);
+        BigDecimal investedValue = assets.stream()
+                .map(asset -> {
+                    BigDecimal price = marketDataService.getLatestCachedQuote(asset.getSymbol())
+                            .map(q -> q.getPrice())
+                            .orElse(asset.getAveragePrice());
+                    return asset.getQuantity().multiply(price);
+                })
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal cashValue = portfolioService.getCashBalance(portfolioId);
+        return investedValue.add(cashValue);
+    }
+
     public List<PortfolioSnapshot> getSnapshotsForPortfolio(Long portfolioId) {
         return snapshotRepository.findByPortfolioIdOrderBySnapshotDateAsc(portfolioId);
     }

@@ -13,7 +13,6 @@ import {
     markRecommendationExecuted,
     markRecommendationSkipped,
     getPortfolioProfile,
-    takePortfolioSnapshot,
 } from '../api/portfolioApi';
 import type { PortfolioProfile } from '../api/portfolioApi';
 
@@ -285,7 +284,6 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
 
     const executeSells = async (targets: Recommendation[]) => {
         if (targets.length === 0) return { succeeded: 0, failed: [] as string[] };
-        try { await takePortfolioSnapshot(portfolioId); } catch { /* non-fatal */ }
         setExecuting(true);
         const failed: string[] = [];
         let succeeded = 0;
@@ -317,7 +315,6 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
 
     const executeBuys = async (targets: Recommendation[], cash: number) => {
         if (targets.length === 0 || cash <= 0) return { succeeded: 0, failed: [] as string[] };
-        try { await takePortfolioSnapshot(portfolioId); } catch { /* non-fatal */ }
         const failed: string[] = [];
 
         const results = await Promise.allSettled(targets.map(async rec => {

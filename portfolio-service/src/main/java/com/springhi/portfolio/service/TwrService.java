@@ -20,11 +20,14 @@ public class TwrService {
 
     private final PortfolioSnapshotRepository snapshotRepository;
     private final TransactionRepository transactionRepository;
+    private final PortfolioSnapshotService snapshotService;
 
     public TwrService(PortfolioSnapshotRepository snapshotRepository,
-                      TransactionRepository transactionRepository) {
+                      TransactionRepository transactionRepository,
+                      PortfolioSnapshotService snapshotService) {
         this.snapshotRepository = snapshotRepository;
         this.transactionRepository = transactionRepository;
+        this.snapshotService = snapshotService;
     }
 
     public TwrResponseDto computeTwr(Long portfolioId, String range) {
@@ -77,11 +80,46 @@ public class TwrService {
             ));
         }
 
+        PortfolioSnapshot lastSnapshot = snapshots.get(snapshots.size() - 1);
+        BigDecimal liveValue = snapshotService.computeLiveValue(portfolioId);
+        LocalDate today = LocalDate.now();
+
+        if (liveValue != null && !today.equals(lastSnapshot.getSnapshotDate())) {
+            BigDecimal beginValue = lastSnapshot.getTotalValue();
+            LocalDateTime afterTs = lastSnapshot.getSnapshotDate().atTime(LocalTime.MAX);
+            LocalDateTime beforeTs = today.atTime(LocalTime.MAX);
+            List<Transaction> cashFlows = transactionRepository.findCashFlowsBetween(portfolioId, afterTs, beforeTs);
+
+            BigDecimal netCashFlow = cashFlows.stream()
+                    .map(t -> {
+                        BigDecimal amount = t.getQuantity().multiply(t.getPrice());
+                        return "DEPOSIT".equals(t.getType()) ? amount : amount.negate();
+                    })
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            double begin = beginValue.doubleValue();
+            double end = liveValue.doubleValue();
+            double cf = netCashFlow.doubleValue();
+            double denominator = begin + 0.5 * cf;
+            double periodReturn = denominator != 0.0 ? (end - begin - cf) / denominator : 0.0;
+
+            chainedReturn *= (1.0 + periodReturn);
+
+            subPeriods.add(new TwrSubPeriodDto(
+                    lastSnapshot.getSnapshotDate(),
+                    today,
+                    beginValue,
+                    liveValue,
+                    netCashFlow,
+                    periodReturn * 100.0
+            ));
+        }
+
         double twrPercent = (chainedReturn - 1.0) * 100.0;
         LocalDate effectiveStart = snapshots.get(0).getSnapshotDate();
-        LocalDate effectiveEnd = snapshots.get(snapshots.size() - 1).getSnapshotDate();
+        LocalDate effectiveEnd = subPeriods.isEmpty() ? lastSnapshot.getSnapshotDate() : today;
 
-        return new TwrResponseDto(twrPercent, effectiveStart, effectiveEnd, snapshots.size(), subPeriods);
+        return new TwrResponseDto(twrPercent, effectiveStart, effectiveEnd, snapshots.size() + (subPeriods.size() > snapshots.size() - 1 ? 1 : 0), subPeriods);
     }
 
     private LocalDate resolveStartDate(String range) {

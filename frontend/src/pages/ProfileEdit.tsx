@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getProfile, saveProfile } from '../api/profileApi';
 import type { UserProfile } from '../api/profileApi';
-import { getCashBalance, getOrCreateDefaultPortfolio } from '../api/portfolioApi';
+import { getOrCreateDefaultPortfolio } from '../api/portfolioApi';
 import CashForm from '../components/CashForm';
 import { getLoggedInUsername } from '../utils/auth';
 
@@ -47,11 +47,8 @@ const ProfileEdit: React.FC = () => {
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [error, setError] = useState('');
-    const [cashBalance, setCashBalance] = useState<number | null>(null);
     const [showCashForm, setShowCashForm] = useState(false);
     const [defaultPortfolioId, setDefaultPortfolioId] = useState<number | null>(null);
-
-    const loadCash = (portfolioId: number) => getCashBalance(portfolioId).then(setCashBalance).catch(() => {});
 
     useEffect(() => {
         getProfile()
@@ -63,10 +60,7 @@ const ProfileEdit: React.FC = () => {
             })
             .catch(() => {});
         getOrCreateDefaultPortfolio()
-            .then(p => {
-                setDefaultPortfolioId(p.id);
-                loadCash(p.id);
-            })
+            .then(p => setDefaultPortfolioId(p.id))
             .catch(() => {});
     }, []);
 
@@ -116,7 +110,7 @@ const ProfileEdit: React.FC = () => {
                 <CashForm
                     portfolioId={defaultPortfolioId}
                     onClose={() => setShowCashForm(false)}
-                    onSuccess={() => { loadCash(defaultPortfolioId); setShowCashForm(false); }}
+                    onSuccess={() => setShowCashForm(false)}
                 />
             )}
             <header className="navbar">
@@ -204,37 +198,6 @@ const ProfileEdit: React.FC = () => {
                                 {KNOWLEDGE.map(k => (
                                     <option key={k} value={k}>{k}</option>
                                 ))}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div className="profile-section-title" style={{ marginTop: '1.5rem' }}>Finances</div>
-
-                    <div className="profile-row">
-                        <div className="profile-field">
-                            <label className="form-label">Available Cash</label>
-                            <input
-                                type="text"
-                                className="profile-input"
-                                value={cashBalance != null ? `$${cashBalance.toFixed(2)}` : 'Loading…'}
-                                readOnly
-                                style={{ background: 'var(--bg-card, #f5f5f5)', cursor: 'not-allowed', color: 'var(--text-gray, #666)' }}
-                            />
-                            <span className="field-hint" style={{ fontSize: '0.75rem', color: 'var(--text-gray, #888)', marginTop: '0.25rem', display: 'block' }}>
-                                Computed from transactions. Use the <button type="button" className="link-btn" onClick={() => setShowCashForm(true)}>$ Cash</button> button to deposit or withdraw.
-                            </span>
-                        </div>
-                        <div className="profile-field">
-                            <label className="form-label">Currency</label>
-                            <select
-                                className="profile-select"
-                                value={profile.currency}
-                                onChange={e => handleChange('currency', e.target.value)}
-                            >
-                                <option value="USD">USD</option>
-                                <option value="EUR">EUR</option>
-                                <option value="GBP">GBP</option>
-                                <option value="CAD">CAD</option>
                             </select>
                         </div>
                     </div>
