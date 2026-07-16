@@ -12,6 +12,8 @@ public record AdminUserDto(
         String phone,
         int userType,
         String userTypeName,
+        boolean suspendedForChargebacks,
+        String adminNotes,
         LocalDateTime createdAt
 ) {
     public static AdminUserDto from(User u) {
@@ -23,17 +25,19 @@ public record AdminUserDto(
                 u.getLastName(),
                 u.getPhone(),
                 u.getUserType(),
-                typeName(u.getUserType()),
+                typeName(u.getUserType(), u.isSuspendedForChargebacks()),
+                u.isSuspendedForChargebacks(),
+                u.getAdminNotes(),
                 u.getCreatedAt()
         );
     }
 
-    private static String typeName(int type) {
+    private static String typeName(int type, boolean chargebacks) {
         return switch (type) {
             case 10 -> "admin";
             case 8  -> "user";
             case 6  -> "closed";
-            case 4  -> "suspended";
+            case 4  -> chargebacks ? "suspended - chargebacks" : "suspended";
             default -> "unknown";
         };
     }

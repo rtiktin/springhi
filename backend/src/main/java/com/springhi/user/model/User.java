@@ -52,6 +52,12 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private boolean phoneVerified = false;
 
+    @Column(nullable = false)
+    private boolean suspendedForChargebacks = false;
+
+    @Column(columnDefinition = "TEXT")
+    private String adminNotes;
+
     @Column(updatable = false)
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -105,6 +111,10 @@ public class User implements UserDetails {
     public void setEmailVerified(boolean emailVerified) { this.emailVerified = emailVerified; }
     public boolean isPhoneVerified() { return phoneVerified; }
     public void setPhoneVerified(boolean phoneVerified) { this.phoneVerified = phoneVerified; }
+    public boolean isSuspendedForChargebacks() { return suspendedForChargebacks; }
+    public void setSuspendedForChargebacks(boolean suspendedForChargebacks) { this.suspendedForChargebacks = suspendedForChargebacks; }
+    public String getAdminNotes() { return adminNotes; }
+    public void setAdminNotes(String adminNotes) { this.adminNotes = adminNotes; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 

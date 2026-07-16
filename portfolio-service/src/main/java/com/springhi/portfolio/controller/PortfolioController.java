@@ -118,10 +118,12 @@ public class PortfolioController {
     }
 
     @GetMapping("/default-portfolio")
-    public ResponseEntity<Portfolio> getOrCreateDefaultPortfolio(
+    public ResponseEntity<Portfolio> getDefaultPortfolio(
             @AuthenticationPrincipal UserPrincipal principal) {
         if (principal == null) return ResponseEntity.status(403).build();
-        return ResponseEntity.ok(portfolioService.getOrCreateDefaultPortfolio(principal.getId()));
+        return portfolioService.getFirstPortfolio(principal.getId())
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/pnl")

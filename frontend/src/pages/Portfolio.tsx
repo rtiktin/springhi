@@ -462,16 +462,14 @@ const Portfolio: React.FC = () => {
                             </button>
                         </>
                     )}
+                    <button
+                        className="btn-logout"
+                        style={{ fontSize: '0.85rem', padding: '0.35rem 0.7rem' }}
+                        onClick={openWizard}
+                    >
+                        + New Portfolio
+                    </button>
                     {portfolios.length > 0 && (
-                        <button
-                            className="btn-logout"
-                            style={{ fontSize: '0.85rem', padding: '0.35rem 0.7rem' }}
-                            onClick={openWizard}
-                        >
-                            + New Portfolio
-                        </button>
-                    )}
-                    {portfolios.length > 1 && (
                         <button
                             className="btn-logout"
                             style={{ fontSize: '0.85rem', padding: '0.35rem 0.7rem', color: '#e55' }}

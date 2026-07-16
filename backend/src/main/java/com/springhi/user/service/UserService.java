@@ -100,8 +100,32 @@ public class UserService {
         User user = repository.findById(userId)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + userId));
         user.setUserType(newType);
+        if (newType != 4) {
+            user.setSuspendedForChargebacks(false);
+        }
         repository.save(user);
         log.info("Admin updated userType for userId={} to {}", userId, newType);
+        return AdminUserDto.from(user);
+    }
+
+    @Transactional
+    public AdminUserDto suspendForChargebacks(Long userId) {
+        User user = repository.findById(userId)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + userId));
+        user.setUserType(4);
+        user.setSuspendedForChargebacks(true);
+        repository.save(user);
+        log.info("Admin suspended userId={} for chargebacks", userId);
+        return AdminUserDto.from(user);
+    }
+
+    @Transactional
+    public AdminUserDto updateAdminNotes(Long userId, String notes) {
+        User user = repository.findById(userId)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + userId));
+        user.setAdminNotes(notes);
+        repository.save(user);
+        log.info("Admin updated notes for userId={}", userId);
         return AdminUserDto.from(user);
     }
 

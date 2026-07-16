@@ -591,7 +591,7 @@ const Leaderboard: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', gap: '0', marginBottom: '1.75rem', borderBottom: '1px solid var(--border)' }}>
-                    {([['regular', 'All Portfolios / Mine'], ['monthly', '🏆 Monthly Competitions']] as [MainTab, string][]).map(([tab, label]) => (
+                    {([['regular', 'All Portfolios / Mine'], ['monthly', '🏆 Monthly Leaderboards']] as [MainTab, string][]).map(([tab, label]) => (
                         <button key={tab} onClick={() => setMainTab(tab)} style={{
                             padding: '0.65rem 1.5rem', border: 'none',
                             borderBottom: mainTab === tab ? '2px solid var(--accent)' : '2px solid transparent',

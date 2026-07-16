@@ -97,6 +97,38 @@ public class AdminController {
         }
     }
 
+    @PutMapping("/users/{id}/notes")
+    public ResponseEntity<?> updateAdminNotes(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null || !isAdmin(userDetails)) {
+            return ResponseEntity.status(403).build();
+        }
+        String notes = body.getOrDefault("notes", "");
+        try {
+            AdminUserDto updated = userService.updateAdminNotes(id, notes);
+            return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/users/{id}/suspend-chargebacks")
+    public ResponseEntity<?> suspendForChargebacks(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null || !isAdmin(userDetails)) {
+            return ResponseEntity.status(403).build();
+        }
+        try {
+            AdminUserDto updated = userService.suspendForChargebacks(id);
+            return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
     @PostMapping("/users/{id}/impersonate")
     public ResponseEntity<?> impersonateUser(
             @PathVariable Long id,

@@ -13,6 +13,8 @@ interface AdminUser {
     phone: string | null;
     userType: number;
     userTypeName: string;
+    suspendedForChargebacks: boolean;
+    adminNotes: string | null;
     createdAt: string;
 }
 
@@ -46,6 +48,7 @@ const TYPE_BADGE_COLOR: Record<number, string> = {
     8: '#22c55e',
     6: '#6b7280',
     4: '#ef4444',
+    3: '#b91c1c',
 };
 
 type AdminTab = 'users' | 'portfolios';
@@ -86,6 +89,12 @@ const Admin: React.FC = () => {
     const [emailSaving, setEmailSaving] = useState(false);
     const [emailSuccess, setEmailSuccess] = useState('');
 
+    const [notesModal, setNotesModal] = useState<PasswordModal | null>(null);
+    const [notesText, setNotesText] = useState('');
+    const [notesError, setNotesError] = useState('');
+    const [notesSaving, setNotesSaving] = useState(false);
+    const [notesSuccess, setNotesSuccess] = useState('');
+
     useEffect(() => {
         if (!isAdmin()) {
             navigate('/portfolio');
@@ -118,14 +127,24 @@ const Admin: React.FC = () => {
             .finally(() => setLoadingPortfolios(false));
     };
 
-    const handleTypeChange = (userId: number, newType: number) => {
+    const handleTypeChange = (userId: number, value: string) => {
         setChangingType(userId);
-        axios.put(`${API_GATEWAY}/api/v1/admin/users/${userId}/type`, { userType: newType }, { headers: authHeader() })
-            .then(res => {
-                setUsers(prev => prev.map(u => u.id === userId ? { ...u, userType: res.data.userType, userTypeName: res.data.userTypeName } : u));
-            })
-            .catch(() => setError('Failed to update user type.'))
-            .finally(() => setChangingType(null));
+        if (value === 'chargeback') {
+            axios.put(`${API_GATEWAY}/api/v1/admin/users/${userId}/suspend-chargebacks`, {}, { headers: authHeader() })
+                .then(res => {
+                    setUsers(prev => prev.map(u => u.id === userId ? { ...u, userType: res.data.userType, userTypeName: res.data.userTypeName, suspendedForChargebacks: res.data.suspendedForChargebacks } : u));
+                })
+                .catch(() => setError('Failed to update user type.'))
+                .finally(() => setChangingType(null));
+        } else {
+            const newType = parseInt(value);
+            axios.put(`${API_GATEWAY}/api/v1/admin/users/${userId}/type`, { userType: newType }, { headers: authHeader() })
+                .then(res => {
+                    setUsers(prev => prev.map(u => u.id === userId ? { ...u, userType: res.data.userType, userTypeName: res.data.userTypeName, suspendedForChargebacks: res.data.suspendedForChargebacks } : u));
+                })
+                .catch(() => setError('Failed to update user type.'))
+                .finally(() => setChangingType(null));
+        }
     };
 
     const handleChangePassword = () => {
@@ -169,6 +188,23 @@ const Admin: React.FC = () => {
             })
             .catch(err => setEmailError(err?.response?.data?.message ?? 'Failed to update email.'))
             .finally(() => setEmailSaving(false));
+    };
+
+    const handleSaveNotes = () => {
+        if (!notesModal) return;
+        setNotesSaving(true);
+        setNotesError('');
+        axios.put(`${API_GATEWAY}/api/v1/admin/users/${notesModal.userId}/notes`, { notes: notesText }, { headers: authHeader() })
+            .then(res => {
+                setUsers(prev => prev.map(u => u.id === notesModal.userId ? { ...u, adminNotes: res.data.adminNotes } : u));
+                setNotesSuccess('Notes saved.');
+                setTimeout(() => {
+                    setNotesModal(null);
+                    setNotesSuccess('');
+                }, 1500);
+            })
+            .catch(err => setNotesError(err?.response?.data?.message ?? 'Failed to save notes.'))
+            .finally(() => setNotesSaving(false));
     };
 
     const handleImpersonate = (user: AdminUser) => {
@@ -260,7 +296,7 @@ const Admin: React.FC = () => {
                                                     <td style={tdStyle}>{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}</td>
                                                     <td style={tdStyle}>
                                                         <span style={{
-                                                            background: TYPE_BADGE_COLOR[u.userType] ?? '#6b7280',
+                                                            background: u.userType === 4 && u.suspendedForChargebacks ? '#b91c1c' : (TYPE_BADGE_COLOR[u.userType] ?? '#6b7280'),
                                                             color: '#fff',
                                                             borderRadius: 6,
                                                             padding: '0.2rem 0.6rem',
@@ -272,9 +308,9 @@ const Admin: React.FC = () => {
                                                     </td>
                                                     <td style={tdStyle}>
                                                         <select
-                                                            value={u.userType}
+                                                            value={u.userType === 4 && u.suspendedForChargebacks ? 'chargeback' : String(u.userType)}
                                                             disabled={changingType === u.id}
-                                                            onChange={e => handleTypeChange(u.id, parseInt(e.target.value))}
+                                                            onChange={e => handleTypeChange(u.id, e.target.value)}
                                                             style={{
                                                                 background: 'var(--bg-input, #1e2035)',
                                                                 color: 'var(--text-primary)',
@@ -288,9 +324,26 @@ const Admin: React.FC = () => {
                                                             {Object.entries(TYPE_LABELS).map(([val, label]) => (
                                                                 <option key={val} value={val}>{label}</option>
                                                             ))}
+                                                            <option value="chargeback">suspended for chargebacks</option>
                                                         </select>
                                                     </td>
                                                     <td style={{ ...tdStyle, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                        <button
+                                                            onClick={() => { setNotesModal({ userId: u.id, username: u.username }); setNotesText(u.adminNotes ?? ''); setNotesError(''); setNotesSuccess(''); }}
+                                                            style={{
+                                                                background: '#1d4ed8',
+                                                                color: '#fff',
+                                                                border: 'none',
+                                                                borderRadius: 6,
+                                                                padding: '0.3rem 0.65rem',
+                                                                fontSize: '0.82rem',
+                                                                cursor: 'pointer',
+                                                                whiteSpace: 'nowrap',
+                                                            }}
+                                                            title={u.adminNotes ? 'Has notes' : 'Add notes'}
+                                                        >
+                                                            {u.adminNotes ? '📝 Notes' : 'Notes'}
+                                                        </button>
                                                         <button
                                                             onClick={() => { setEmailModal({ userId: u.id, username: u.username }); setNewEmail(u.email); setEmailError(''); setEmailSuccess(''); }}
                                                             style={{
@@ -469,6 +522,46 @@ const Admin: React.FC = () => {
                                 <button className="btn-logout" onClick={() => setPwModal(null)}>Cancel</button>
                                 <button className="btn-trade" onClick={handleChangePassword} disabled={pwSaving}>
                                     {pwSaving ? 'Saving…' : 'Update Password'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {notesModal && (
+                <div className="modal-overlay" onClick={() => setNotesModal(null)}>
+                    <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 500, width: '95%' }}>
+                        <div className="modal-header">
+                            <h2 className="modal-title">Admin Notes</h2>
+                            <button className="modal-close" onClick={() => setNotesModal(null)}>✕</button>
+                        </div>
+                        <div style={{ padding: '1.25rem' }}>
+                            <p style={{ marginBottom: '1rem', color: 'var(--text-gray)' }}>
+                                Notes for <strong style={{ color: 'var(--text-primary)' }}>{notesModal.username}</strong>
+                            </p>
+                            {notesSuccess && (
+                                <div style={{ background: '#d1fae5', color: '#065f46', borderRadius: 6, padding: '0.6rem 0.75rem', marginBottom: '0.75rem', fontSize: '0.9rem' }}>
+                                    {notesSuccess}
+                                </div>
+                            )}
+                            {notesError && (
+                                <div style={{ background: '#fee2e2', color: '#b91c1c', borderRadius: 6, padding: '0.6rem 0.75rem', marginBottom: '0.75rem', fontSize: '0.9rem' }}>
+                                    {notesError}
+                                </div>
+                            )}
+                            <textarea
+                                className="profile-input"
+                                value={notesText}
+                                onChange={e => { setNotesText(e.target.value); setNotesError(''); }}
+                                placeholder="Enter admin notes here…"
+                                rows={6}
+                                style={{ marginBottom: '1rem', width: '100%', resize: 'vertical', fontFamily: 'inherit' }}
+                                autoFocus
+                            />
+                            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                                <button className="btn-logout" onClick={() => setNotesModal(null)}>Cancel</button>
+                                <button className="btn-trade" onClick={handleSaveNotes} disabled={notesSaving}>
+                                    {notesSaving ? 'Saving…' : 'Save Notes'}
                                 </button>
                             </div>
                         </div>

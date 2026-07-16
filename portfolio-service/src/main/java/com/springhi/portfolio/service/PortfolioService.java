@@ -61,13 +61,9 @@ public class PortfolioService {
         return portfolioRepository.findByUserIdOrderByCreatedAtAsc(userId);
     }
 
-    public Portfolio getOrCreateDefaultPortfolio(Long userId) {
+    public java.util.Optional<Portfolio> getFirstPortfolio(Long userId) {
         List<Portfolio> portfolios = portfolioRepository.findByUserIdOrderByCreatedAtAsc(userId);
-        if (!portfolios.isEmpty()) return portfolios.get(0);
-        Portfolio p = new Portfolio();
-        p.setUserId(userId);
-        p.setName("Default Portfolio");
-        return portfolioRepository.save(p);
+        return portfolios.isEmpty() ? java.util.Optional.empty() : java.util.Optional.of(portfolios.get(0));
     }
 
     public Portfolio createPortfolio(Long userId, String name, String description) {
