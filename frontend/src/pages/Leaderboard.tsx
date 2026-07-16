@@ -7,6 +7,7 @@ import {
     getLeaderboardAiRunDetails,
     getLeaderboardPortfolioCash,
     getLeaderboardPortfolioPnl,
+    getMonthlyLeaderboard,
 } from '../api/portfolioApi';
 import type { LeaderboardEntry, AssetWithPrice, Transaction, AiRunDetails, PnlSummary } from '../api/portfolioApi';
 import { getLoggedInUsername } from '../utils/auth';
@@ -401,12 +402,15 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
 
 interface LeaderboardTableProps {
     entries: LeaderboardEntry[];
-    range: LeaderboardRange;
+    range: LeaderboardRange | null;
     showUser: boolean;
+    rangeLabel?: string;
 }
 
-const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, showUser }) => {
+const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, showUser, rangeLabel }) => {
     const [selectedEntry, setSelectedEntry] = useState<LeaderboardEntry | null>(null);
+    const hasMargin = entries.some(e => e.marginVsSpy != null);
+    const label = rangeLabel ?? (range ? RANGE_LABELS[range] : '');
 
     return (
         <>
@@ -417,7 +421,8 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
                             <th style={thStyle}>Rank</th>
                             {showUser && <th style={thStyle}>Username</th>}
                             <th style={thStyle}>Portfolio</th>
-                            <th style={{ ...thStyle, textAlign: 'right' }}>TWR ({RANGE_LABELS[range]})</th>
+                            <th style={{ ...thStyle, textAlign: 'right' }}>TWR{label ? ` (${label})` : ''}</th>
+                            {hasMargin && <th style={{ ...thStyle, textAlign: 'right' }}>vs SPY</th>}
                             <th style={{ ...thStyle, textAlign: 'right' }}>Holdings</th>
                             <th style={{ ...thStyle, textAlign: 'right' }}>Max Position</th>
                         </tr>
@@ -448,6 +453,9 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
                                     <span style={{ fontWeight: 600, color: 'var(--accent)', textDecoration: 'underline', cursor: 'pointer' }}>
                                         {entry.portfolioName}
                                     </span>
+                                    {entry.competitionMonth && (
+                                        <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', background: 'rgba(99,102,241,0.2)', color: '#818cf8', borderRadius: 4, padding: '1px 5px' }}>🏆</span>
+                                    )}
                                 </td>
                                 <td style={{
                                     padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700, fontSize: '1.05rem',
@@ -455,6 +463,14 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
                                 }}>
                                     {entry.twrPercent >= 0 ? '+' : ''}{entry.twrPercent.toFixed(2)}%
                                 </td>
+                                {hasMargin && (
+                                    <td style={{
+                                        padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 600,
+                                        color: entry.marginVsSpy == null ? 'var(--text-gray)' : entry.marginVsSpy >= 0 ? '#34d399' : '#f87171',
+                                    }}>
+                                        {entry.marginVsSpy == null ? '—' : `${entry.marginVsSpy >= 0 ? '+' : ''}${entry.marginVsSpy.toFixed(2)}%`}
+                                    </td>
+                                )}
                                 <td style={{ padding: '1rem 1.25rem', textAlign: 'right', color: 'var(--text-gray)' }}>
                                     {entry.holdingCount}
                                 </td>
@@ -494,9 +510,46 @@ const LeaderboardPane: React.FC<{ scope: LeaderboardScope; range: LeaderboardRan
     return <LeaderboardTable entries={entries} range={range} showUser={scope === 'all'} />;
 };
 
+const MonthlyLeaderboardPane: React.FC<{ month: string }> = ({ month }) => {
+    const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        if (!month) return;
+        setLoading(true);
+        setError('');
+        getMonthlyLeaderboard(month)
+            .then(setEntries)
+            .catch(() => setError('Failed to load monthly leaderboard.'))
+            .finally(() => setLoading(false));
+    }, [month]);
+
+    if (loading) return <div style={{ textAlign: 'center', color: 'var(--text-gray)', padding: '3rem' }}>Loading…</div>;
+    if (error) return <div style={{ textAlign: 'center', color: '#f87171', padding: '1rem' }}>{error}</div>;
+    if (entries.length === 0) return (
+        <div style={{ textAlign: 'center', color: 'var(--text-gray)', padding: '3rem', background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+            <p style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>No competition portfolios yet for this month</p>
+            <p style={{ fontSize: '0.9rem' }}>Portfolios entered in this competition will appear here once they qualify.</p>
+        </div>
+    );
+    return <LeaderboardTable entries={entries} range={null} rangeLabel="Since Start" showUser={true} />;
+};
+
+type MainTab = 'regular' | 'monthly';
+
+const getDefaultMonthlyMonth = () => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+};
+
 const Leaderboard: React.FC = () => {
     const [range, setRange] = useState<LeaderboardRange>('1M');
     const [scope, setScope] = useState<LeaderboardScope>('all');
+    const [mainTab, setMainTab] = useState<MainTab>('regular');
+    const [monthlyMonth, setMonthlyMonth] = useState<string>(getDefaultMonthlyMonth());
     const username = getLoggedInUsername();
 
     return (
@@ -538,34 +591,68 @@ const Leaderboard: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', gap: '0', marginBottom: '1.75rem', borderBottom: '1px solid var(--border)' }}>
-                    {(['all', 'mine'] as LeaderboardScope[]).map(s => (
-                        <button key={s} onClick={() => setScope(s)} style={{
+                    {([['regular', 'All Portfolios / Mine'], ['monthly', '🏆 Monthly Competitions']] as [MainTab, string][]).map(([tab, label]) => (
+                        <button key={tab} onClick={() => setMainTab(tab)} style={{
                             padding: '0.65rem 1.5rem', border: 'none',
-                            borderBottom: scope === s ? '2px solid var(--accent)' : '2px solid transparent',
+                            borderBottom: mainTab === tab ? '2px solid var(--accent)' : '2px solid transparent',
                             background: 'transparent',
-                            color: scope === s ? 'var(--accent)' : 'var(--text-gray)',
-                            fontWeight: scope === s ? 700 : 400, cursor: 'pointer',
+                            color: mainTab === tab ? 'var(--accent)' : 'var(--text-gray)',
+                            fontWeight: mainTab === tab ? 700 : 400, cursor: 'pointer',
                             fontSize: '0.95rem', marginBottom: '-1px',
                         }}>
-                            {s === 'all' ? 'All Portfolios' : 'My Portfolios'}
+                            {label}
                         </button>
                     ))}
                 </div>
 
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem' }}>
-                    {(Object.keys(RANGE_LABELS) as LeaderboardRange[]).map(r => (
-                        <button key={r} onClick={() => setRange(r)} style={{
-                            padding: '0.4rem 1rem', borderRadius: '6px', border: '1px solid var(--border)',
-                            background: range === r ? 'var(--accent)' : 'var(--bg-card)',
-                            color: range === r ? '#fff' : 'var(--text-gray)',
-                            fontWeight: range === r ? 700 : 400, cursor: 'pointer', fontSize: '0.85rem',
-                        }}>
-                            {RANGE_LABELS[r]}
-                        </button>
-                    ))}
-                </div>
+                {mainTab === 'regular' && (
+                    <>
+                        <div style={{ display: 'flex', gap: '0', marginBottom: '1.25rem', borderBottom: '1px solid var(--border)' }}>
+                            {(['all', 'mine'] as LeaderboardScope[]).map(s => (
+                                <button key={s} onClick={() => setScope(s)} style={{
+                                    padding: '0.55rem 1.25rem', border: 'none',
+                                    borderBottom: scope === s ? '2px solid #818cf8' : '2px solid transparent',
+                                    background: 'transparent',
+                                    color: scope === s ? '#818cf8' : 'var(--text-gray)',
+                                    fontWeight: scope === s ? 700 : 400, cursor: 'pointer',
+                                    fontSize: '0.9rem', marginBottom: '-1px',
+                                }}>
+                                    {s === 'all' ? 'All Portfolios' : 'My Portfolios'}
+                                </button>
+                            ))}
+                        </div>
 
-                <LeaderboardPane scope={scope} range={range} />
+                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem' }}>
+                            {(Object.keys(RANGE_LABELS) as LeaderboardRange[]).map(r => (
+                                <button key={r} onClick={() => setRange(r)} style={{
+                                    padding: '0.4rem 1rem', borderRadius: '6px', border: '1px solid var(--border)',
+                                    background: range === r ? 'var(--accent)' : 'var(--bg-card)',
+                                    color: range === r ? '#fff' : 'var(--text-gray)',
+                                    fontWeight: range === r ? 700 : 400, cursor: 'pointer', fontSize: '0.85rem',
+                                }}>
+                                    {RANGE_LABELS[r]}
+                                </button>
+                            ))}
+                        </div>
+
+                        <LeaderboardPane scope={scope} range={range} />
+                    </>
+                )}
+
+                {mainTab === 'monthly' && (
+                    <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.75rem' }}>
+                            <label style={{ color: 'var(--text-gray)', fontSize: '0.9rem' }}>Competition Month:</label>
+                            <input
+                                type="month"
+                                value={monthlyMonth}
+                                onChange={e => setMonthlyMonth(e.target.value)}
+                                style={{ background: '#1e2030', color: '#e2e8f0', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.35rem 0.75rem', fontSize: '0.9rem' }}
+                            />
+                        </div>
+                        <MonthlyLeaderboardPane month={monthlyMonth} />
+                    </>
+                )}
 
                 <p style={{ textAlign: 'center', color: 'var(--text-gray)', fontSize: '0.78rem', marginTop: '1.5rem' }}>
                     TWR (Time-Weighted Return) measures performance independently of cash deposits and withdrawals.

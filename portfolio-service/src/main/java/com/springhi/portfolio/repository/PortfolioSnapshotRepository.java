@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -13,8 +14,8 @@ public interface PortfolioSnapshotRepository extends JpaRepository<PortfolioSnap
     List<PortfolioSnapshot> findByUserIdOrderBySnapshotDateAsc(Long userId);
     Optional<PortfolioSnapshot> findByUserIdAndSnapshotDate(Long userId, LocalDate snapshotDate);
 
-    List<PortfolioSnapshot> findByPortfolioIdOrderBySnapshotDateAsc(Long portfolioId);
+    List<PortfolioSnapshot> findByPortfolioIdOrderBySnapshotAtAsc(Long portfolioId);
     Optional<PortfolioSnapshot> findFirstByPortfolioIdAndSnapshotDate(Long portfolioId, LocalDate snapshotDate);
-    List<PortfolioSnapshot> findByPortfolioIdAndSnapshotDateGreaterThanEqualOrderBySnapshotDateAsc(
-            Long portfolioId, LocalDate startDate);
+    List<PortfolioSnapshot> findByPortfolioIdAndSnapshotAtGreaterThanEqualOrderBySnapshotAtAsc(
+            Long portfolioId, LocalDateTime startAt);
 }

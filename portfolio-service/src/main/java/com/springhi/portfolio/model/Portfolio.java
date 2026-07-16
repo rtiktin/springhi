@@ -3,6 +3,7 @@ package com.springhi.portfolio.model;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -22,6 +23,9 @@ public class Portfolio {
     @Column
     private String description;
 
+    @Column(name = "competition_month")
+    private LocalDate competitionMonth;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -40,6 +44,8 @@ public class Portfolio {
     public void setName(String name) { this.name = name; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+    public LocalDate getCompetitionMonth() { return competitionMonth; }
+    public void setCompetitionMonth(LocalDate competitionMonth) { this.competitionMonth = competitionMonth; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

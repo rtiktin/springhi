@@ -127,7 +127,7 @@ const ProfileEdit: React.FC = () => {
             </header>
 
             <main className="portfolio-main">
-                <h1 className="portfolio-heading">Investor Profile</h1>
+                <h1 className="portfolio-heading">Default Profile</h1>
                 <p className="portfolio-sub">Your profile guides the AI portfolio optimizer.</p>
 
                 <div className="profile-form-card">

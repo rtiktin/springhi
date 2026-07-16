@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,10 +30,15 @@ public class TwrService {
     }
 
     public TwrResponseDto computeTwr(Long portfolioId, String range) {
-        LocalDate startDate = resolveStartDate(range);
+        return computeTwr(portfolioId, range, null);
+    }
+
+    public TwrResponseDto computeTwr(Long portfolioId, String range, LocalDate anchorDate) {
+        LocalDate startDate = anchorDate != null ? anchorDate : resolveStartDate(range);
+        LocalDateTime startAt = startDate.atStartOfDay();
         List<PortfolioSnapshot> snapshots =
-                snapshotRepository.findByPortfolioIdAndSnapshotDateGreaterThanEqualOrderBySnapshotDateAsc(
-                        portfolioId, startDate);
+                snapshotRepository.findByPortfolioIdAndSnapshotAtGreaterThanEqualOrderBySnapshotAtAsc(
+                        portfolioId, startAt);
 
         if (snapshots.size() < 2) {
             return new TwrResponseDto(0.0, startDate, LocalDate.now(), snapshots.size(), List.of());
@@ -50,8 +54,8 @@ public class TwrService {
             BigDecimal beginValue = s1.getTotalValue();
             BigDecimal endValue = s2.getTotalValue();
 
-            LocalDateTime afterTs = s1.getSnapshotDate().atTime(LocalTime.MAX);
-            LocalDateTime beforeTs = s2.getSnapshotDate().atTime(LocalTime.MAX);
+            LocalDateTime afterTs = s1.getSnapshotAt();
+            LocalDateTime beforeTs = s2.getSnapshotAt();
             List<Transaction> cashFlows = transactionRepository.findCashFlowsBetween(portfolioId, afterTs, beforeTs);
 
             BigDecimal netCashFlow = cashFlows.stream()
@@ -71,8 +75,8 @@ public class TwrService {
             chainedReturn *= (1.0 + periodReturn);
 
             subPeriods.add(new TwrSubPeriodDto(
-                    s1.getSnapshotDate(),
-                    s2.getSnapshotDate(),
+                    s1.getSnapshotAt().toLocalDate(),
+                    s2.getSnapshotAt().toLocalDate(),
                     beginValue,
                     endValue,
                     netCashFlow,
@@ -82,13 +86,12 @@ public class TwrService {
 
         PortfolioSnapshot lastSnapshot = snapshots.get(snapshots.size() - 1);
         BigDecimal liveValue = snapshotService.computeLiveValue(portfolioId);
-        LocalDate today = LocalDate.now();
+        LocalDateTime now = LocalDateTime.now();
 
-        if (liveValue != null && !today.equals(lastSnapshot.getSnapshotDate())) {
+        if (liveValue != null && java.time.temporal.ChronoUnit.SECONDS.between(lastSnapshot.getSnapshotAt(), now) > 30) {
             BigDecimal beginValue = lastSnapshot.getTotalValue();
-            LocalDateTime afterTs = lastSnapshot.getSnapshotDate().atTime(LocalTime.MAX);
-            LocalDateTime beforeTs = today.atTime(LocalTime.MAX);
-            List<Transaction> cashFlows = transactionRepository.findCashFlowsBetween(portfolioId, afterTs, beforeTs);
+            LocalDateTime afterTs = lastSnapshot.getSnapshotAt();
+            List<Transaction> cashFlows = transactionRepository.findCashFlowsBetween(portfolioId, afterTs, now);
 
             BigDecimal netCashFlow = cashFlows.stream()
                     .map(t -> {
@@ -105,8 +108,9 @@ public class TwrService {
 
             chainedReturn *= (1.0 + periodReturn);
 
+            LocalDate today = LocalDate.now();
             subPeriods.add(new TwrSubPeriodDto(
-                    lastSnapshot.getSnapshotDate(),
+                    lastSnapshot.getSnapshotAt().toLocalDate(),
                     today,
                     beginValue,
                     liveValue,
@@ -116,10 +120,16 @@ public class TwrService {
         }
 
         double twrPercent = (chainedReturn - 1.0) * 100.0;
-        LocalDate effectiveStart = snapshots.get(0).getSnapshotDate();
-        LocalDate effectiveEnd = subPeriods.isEmpty() ? lastSnapshot.getSnapshotDate() : today;
+        LocalDate effectiveStart = snapshots.get(0).getSnapshotAt().toLocalDate();
+        LocalDate effectiveEnd = subPeriods.isEmpty() ? lastSnapshot.getSnapshotAt().toLocalDate() : LocalDate.now();
 
         return new TwrResponseDto(twrPercent, effectiveStart, effectiveEnd, snapshots.size() + (subPeriods.size() > snapshots.size() - 1 ? 1 : 0), subPeriods);
+    }
+
+    public LocalDate resolveCompetitionAnchor(LocalDate performanceStart) {
+        LocalDate today = LocalDate.now();
+        long yearsElapsed = java.time.temporal.ChronoUnit.YEARS.between(performanceStart, today);
+        return performanceStart.plusYears(yearsElapsed);
     }
 
     private LocalDate resolveStartDate(String range) {

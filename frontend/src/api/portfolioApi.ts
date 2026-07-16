@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-import API_GATEWAY from './apiBase';
+import API_GATEWAY, { axiosInstance as axios } from './apiBase';
 const BASE_URL = `${API_GATEWAY}/api/v1/portfolio`;
 const PORTFOLIOS_URL = `${API_GATEWAY}/api/v1/portfolios`;
 
@@ -13,6 +11,7 @@ export interface Portfolio {
     userId: number;
     name: string;
     description?: string;
+    competitionMonth?: string | null;
     createdAt: string;
     updatedAt: string;
 }
@@ -251,8 +250,10 @@ export interface LeaderboardEntry {
     portfolioName: string;
     username: string | null;
     twrPercent: number;
+    marginVsSpy: number | null;
     holdingCount: number;
     maxHoldingPct: number;
+    competitionMonth: string | null;
 }
 
 export const getLeaderboard = async (range: string, scope: 'mine' | 'all' = 'all'): Promise<LeaderboardEntry[]> => {
@@ -295,6 +296,21 @@ export const getLeaderboardPortfolioCash = async (portfolioId: number): Promise<
 export const getLeaderboardPortfolioPnl = async (portfolioId: number): Promise<PnlSummary> => {
     const response = await axios.get(`${API_GATEWAY}/api/v1/leaderboard/portfolio/${portfolioId}/pnl`, {
         headers: authHeader(),
+    });
+    return response.data;
+};
+
+export const getSpyBenchmark = async (): Promise<Record<string, number>> => {
+    const response = await axios.get(`${API_GATEWAY}/api/v1/benchmark/spy`, {
+        headers: authHeader(),
+    });
+    return response.data;
+};
+
+export const getMonthlyLeaderboard = async (month: string): Promise<LeaderboardEntry[]> => {
+    const response = await axios.get(`${API_GATEWAY}/api/v1/leaderboard/monthly`, {
+        headers: authHeader(),
+        params: { month },
     });
     return response.data;
 };

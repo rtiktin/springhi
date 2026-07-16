@@ -223,7 +223,7 @@ const AccountMaintenance: React.FC = () => {
                 </div>
                 <nav className="portfolio-nav">
                     <Link to="/portfolio" className="btn-logout">Portfolios</Link>
-                    <Link to="/profile" className="btn-logout">Investor Profile</Link>
+                    <Link to="/profile" className="btn-logout">Default Profile</Link>
                     <Link to="/leaderboard" className="btn-logout">Leaderboard</Link>
                     {isAdmin() && <Link to="/admin" className="btn-logout">Admin</Link>}
                     <button className="btn-trade" onClick={() => setShowCashForm(true)}>$ Cash</button>

@@ -42,6 +42,15 @@ public class LeaderboardController {
         this.profileRepository = profileRepository;
     }
 
+    @GetMapping("/monthly")
+    public ResponseEntity<List<LeaderboardEntryDto>> getMonthlyLeaderboard(
+            @RequestParam String month,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) return ResponseEntity.status(403).build();
+        return ResponseEntity.ok(leaderboardService.getMonthlyLeaderboard(month, authHeader));
+    }
+
     @GetMapping
     public ResponseEntity<List<LeaderboardEntryDto>> getLeaderboard(
             @RequestParam(defaultValue = "1M") String range,

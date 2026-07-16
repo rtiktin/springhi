@@ -73,7 +73,7 @@ const PortfolioProfileForm: React.FC<Props> = ({ portfolioId, bannerMessage, onS
         <div style={{ maxWidth: 640, margin: '0 auto', padding: '1.5rem 0' }}>
             <h2 style={{ marginBottom: '0.25rem', color: 'var(--text-light)' }}>Portfolio Investment Profile</h2>
             <p style={{ color: 'var(--text-gray)', fontSize: '0.88rem', marginBottom: '1.5rem' }}>
-                These settings override your global Investor Profile for this portfolio's AI optimization.
+                These settings override your global Default Profile for this portfolio's AI optimization.
                 Set Risk Tolerance, Goal, Time Horizon, and Liquidity Needs to N/A only when Additional Notes fully describe the strategy.
             </p>
 

@@ -16,6 +16,8 @@ import { isPhoneVerified } from '../utils/auth';
 
 type Tab = 'holdings' | 'transactions' | 'optimize' | 'profile';
 
+
+
 const Portfolio: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -396,7 +398,7 @@ const Portfolio: React.FC = () => {
                 </div>
                 <nav className="portfolio-nav">
                     <Link to="/account" className="btn-logout">Account</Link>
-                    <Link to="/profile" className="btn-logout">Investor Profile</Link>
+                    <Link to="/profile" className="btn-logout">Default Profile</Link>
                     <Link to="/leaderboard" className="btn-logout">Leaderboard</Link>
                     {isAdmin() && <Link to="/admin" className="btn-logout">Admin</Link>}
                     <button className="btn-trade" onClick={() => setShowCashForm(true)}>

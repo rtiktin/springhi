@@ -71,10 +71,17 @@ public class PortfolioService {
     }
 
     public Portfolio createPortfolio(Long userId, String name, String description) {
+        return createPortfolio(userId, name, description, null);
+    }
+
+    public Portfolio createPortfolio(Long userId, String name, String description, java.time.LocalDate competitionMonth) {
         Portfolio p = new Portfolio();
         p.setUserId(userId);
         p.setName(name);
         p.setDescription(description);
+        if (competitionMonth != null) {
+            p.setCompetitionMonth(competitionMonth.withDayOfMonth(1));
+        }
         Portfolio saved = portfolioRepository.save(p);
         initPortfolioProfileFromInvestorProfile(saved.getId(), userId);
         return saved;

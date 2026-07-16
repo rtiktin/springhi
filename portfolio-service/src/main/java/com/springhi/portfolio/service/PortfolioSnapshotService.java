@@ -93,9 +93,7 @@ public class PortfolioSnapshotService {
         BigDecimal totalValue = investedValue.add(cashValue);
         LocalDate today = LocalDate.now();
 
-        PortfolioSnapshot snapshot = snapshotRepository
-                .findFirstByPortfolioIdAndSnapshotDate(portfolioId, today)
-                .orElse(new PortfolioSnapshot());
+        PortfolioSnapshot snapshot = new PortfolioSnapshot();
 
         snapshot.setPortfolioId(portfolioId);
         snapshot.setUserId(userId != null ? userId : 0L);
@@ -125,6 +123,6 @@ public class PortfolioSnapshotService {
     }
 
     public List<PortfolioSnapshot> getSnapshotsForPortfolio(Long portfolioId) {
-        return snapshotRepository.findByPortfolioIdOrderBySnapshotDateAsc(portfolioId);
+        return snapshotRepository.findByPortfolioIdOrderBySnapshotAtAsc(portfolioId);
     }
 }

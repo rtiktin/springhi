@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getQuote } from '../api/marketApi';
 import { submitTransaction, getCashBalance } from '../api/portfolioApi';
 import type { TransactionRequest } from '../api/portfolioApi';
+import CashForm from './CashForm';
 
 interface Props {
     portfolioId: number;
@@ -23,6 +24,8 @@ const TradeForm: React.FC<Props> = ({ portfolioId, onClose, onSuccess, defaultSy
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [cashBalance, setCashBalance] = useState<number | null>(null);
+    const [showCashModal, setShowCashModal] = useState(false);
+    const [insufficientCash, setInsufficientCash] = useState(false);
 
     useEffect(() => {
         getCashBalance(portfolioId).then(setCashBalance).catch(() => {});
@@ -84,6 +87,7 @@ const TradeForm: React.FC<Props> = ({ portfolioId, onClose, onSuccess, defaultSy
                 setCashBalance(cash);
                 if (cash < totalCost) {
                     setError(`Insufficient cash. Available: ${fmtCash(cash)}, Required: ${fmtCash(totalCost)}`);
+                    setInsufficientCash(true);
                     return;
                 }
             } catch {
@@ -112,6 +116,7 @@ const TradeForm: React.FC<Props> = ({ portfolioId, onClose, onSuccess, defaultSy
     };
 
     return (
+        <>
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-card" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
@@ -126,7 +131,25 @@ const TradeForm: React.FC<Props> = ({ portfolioId, onClose, onSuccess, defaultSy
                     </strong>
                 </div>
 
-                {error && <div className="error-msg">{error}</div>}
+                {error && (
+                    <div>
+                        <div className="error-msg">{error}</div>
+                        {insufficientCash && (
+                            <button
+                                type="button"
+                                onClick={() => setTimeout(() => setShowCashModal(true), 0)}
+                                style={{
+                                    display: 'block', width: '100%', marginBottom: '0.75rem',
+                                    padding: '0.5rem', fontSize: '0.9rem', fontWeight: 600,
+                                    background: 'var(--accent)', color: '#fff',
+                                    border: 'none', borderRadius: 6, cursor: 'pointer',
+                                }}
+                            >
+                                + Add Cash
+                            </button>
+                        )}
+                    </div>
+                )}
 
                 <form onSubmit={handleSubmit}>
                     <div className="trade-type-toggle">
@@ -242,6 +265,21 @@ const TradeForm: React.FC<Props> = ({ portfolioId, onClose, onSuccess, defaultSy
                 </form>
             </div>
         </div>
+        {showCashModal && (
+            <CashForm
+                portfolioId={portfolioId}
+                onClose={() => setShowCashModal(false)}
+                onSuccess={() => {
+                    setShowCashModal(false);
+                    getCashBalance(portfolioId).then(bal => {
+                        setCashBalance(bal);
+                        setInsufficientCash(false);
+                        setError('');
+                    }).catch(() => {});
+                }}
+            />
+        )}
+        </>
     );
 };
 

@@ -36,9 +36,9 @@ function checkReadiness(
     const issues: ReadinessIssue[] = [];
     if (!profile || !profile.horizonYears) {
         issues.push({
-            message: 'Complete your Investor Profile (time horizon is required).',
+            message: 'Complete your Default Profile (time horizon is required).',
             link: '/profile',
-            label: 'Investor Profile',
+            label: 'Default Profile',
         });
     }
     return issues;

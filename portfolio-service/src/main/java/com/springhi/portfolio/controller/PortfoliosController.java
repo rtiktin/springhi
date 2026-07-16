@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -39,7 +40,12 @@ public class PortfoliosController {
         String name = body.getOrDefault("name", "New Portfolio").trim();
         if (name.isBlank()) name = "New Portfolio";
         String description = body.get("description");
-        Portfolio created = portfolioService.createPortfolio(principal.getId(), name, description);
+        String competitionMonthStr = body.get("competitionMonth");
+        LocalDate competitionMonth = null;
+        if (competitionMonthStr != null && !competitionMonthStr.isBlank()) {
+            competitionMonth = LocalDate.parse(competitionMonthStr + "-01");
+        }
+        Portfolio created = portfolioService.createPortfolio(principal.getId(), name, description, competitionMonth);
         portfolioProfileService.initFromInvestorProfile(created.getId(), principal.getId());
         return ResponseEntity.ok(created);
     }

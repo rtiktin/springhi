@@ -1,5 +1,6 @@
 package com.springhi.portfolio.security;
 
+import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -70,6 +71,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             } else {
                 log.warn("Auth not set — username={}, userId={}, existingAuth={}", username, userId, SecurityContextHolder.getContext().getAuthentication());
             }
+        } catch (ExpiredJwtException e) {
+            log.warn("Expired JWT for {} {}", request.getMethod(), request.getRequestURI());
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"error\":\"TOKEN_EXPIRED\",\"message\":\"Your session has expired. Please log in again.\"}");
+            return;
         } catch (Exception e) {
             log.error("JWT processing failed for {} {}: {} — {}", request.getMethod(), request.getRequestURI(), e.getClass().getSimpleName(), e.getMessage());
         }

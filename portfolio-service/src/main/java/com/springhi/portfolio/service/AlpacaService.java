@@ -18,8 +18,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import javax.net.ssl.SSLException;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -177,6 +182,45 @@ public class AlpacaService {
             return Optional.empty();
         }
         return Optional.ofNullable(response.get(symbol));
+    }
+
+    public Map<LocalDate, BigDecimal> fetchHistoricalDailyCloses(String symbol, LocalDate start, LocalDate end) {
+        Map<LocalDate, BigDecimal> result = new LinkedHashMap<>();
+        try {
+            String startStr = start.format(DateTimeFormatter.ISO_LOCAL_DATE);
+            String endStr = end.format(DateTimeFormatter.ISO_LOCAL_DATE);
+            JsonNode response = webClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/v2/stocks/bars")
+                            .queryParam("symbols", symbol)
+                            .queryParam("timeframe", "1Day")
+                            .queryParam("start", startStr)
+                            .queryParam("end", endStr)
+                            .queryParam("limit", 400)
+                            .queryParam("adjustment", "raw")
+                            .build())
+                    .header("APCA-API-KEY-ID", apiKeyId)
+                    .header("APCA-API-SECRET-KEY", apiSecretKey)
+                    .header("accept", "application/json")
+                    .retrieve()
+                    .bodyToMono(JsonNode.class)
+                    .block();
+            if (response == null) return result;
+            JsonNode bars = response.path("bars").path(symbol);
+            if (bars.isArray()) {
+                for (JsonNode bar : bars) {
+                    String t = bar.path("t").asText(null);
+                    double close = bar.path("c").asDouble(0);
+                    if (t != null && close > 0) {
+                        LocalDate date = java.time.Instant.parse(t).atZone(ZoneOffset.UTC).toLocalDate();
+                        result.put(date, BigDecimal.valueOf(close));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to fetch historical bars for {}: {}", symbol, e.getMessage());
+        }
+        return result;
     }
 
     public Map<String, AlpacaSnapshotResponse.Snapshot> fetchSnapshots(List<String> symbols) {

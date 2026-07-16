@@ -3,6 +3,7 @@ package com.springhi.portfolio.scheduler;
 import com.springhi.portfolio.repository.AssetRepository;
 import com.springhi.portfolio.service.MarketDataService;
 import com.springhi.portfolio.service.PortfolioSnapshotService;
+import com.springhi.portfolio.service.SpyBenchmarkService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -20,13 +21,16 @@ public class QuoteScheduler {
     private final AssetRepository assetRepository;
     private final MarketDataService marketDataService;
     private final PortfolioSnapshotService snapshotService;
+    private final SpyBenchmarkService spyBenchmarkService;
 
     public QuoteScheduler(AssetRepository assetRepository,
                           MarketDataService marketDataService,
-                          PortfolioSnapshotService snapshotService) {
+                          PortfolioSnapshotService snapshotService,
+                          SpyBenchmarkService spyBenchmarkService) {
         this.assetRepository = assetRepository;
         this.marketDataService = marketDataService;
         this.snapshotService = snapshotService;
+        this.spyBenchmarkService = spyBenchmarkService;
     }
 
     @Async
@@ -34,6 +38,8 @@ public class QuoteScheduler {
     public void refreshOnStartup() {
         log.info("Startup quote refresh triggered");
         refreshAllHeldSymbols();
+        spyBenchmarkService.refreshSpyPrice();
+        spyBenchmarkService.seedHistoricalSpyPrices();
     }
 
     @Scheduled(cron = "0 0 15 * * MON-FRI", zone = "America/New_York")
@@ -53,6 +59,12 @@ public class QuoteScheduler {
             }
         }
         log.info("Scheduled quote refresh complete");
+    }
+
+    @Scheduled(cron = "0 0 16 * * MON-FRI", zone = "America/New_York")
+    public void refreshSpyEndOfDay() {
+        log.info("End-of-day SPY price refresh");
+        spyBenchmarkService.refreshSpyPrice();
     }
 
     @Scheduled(cron = "0 5 16 * * MON-FRI", zone = "America/New_York")

@@ -32,6 +32,8 @@ public class MarketDataService {
         this.alpacaService = alpacaService;
     }
 
+    public AlpacaService getAlpacaService() { return alpacaService; }
+
     public Optional<MarketQuote> getLatestCachedQuote(String symbol) {
         return marketQuoteRepository.findTopBySymbolAndQuoteTypeOrderByFetchedAtDesc(symbol, "REALTIME");
     }

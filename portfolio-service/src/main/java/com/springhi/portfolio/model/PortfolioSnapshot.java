@@ -6,8 +6,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "portfolio_snapshots", schema = "springhi",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"portfolio_id", "snapshot_date"}))
+@Table(name = "portfolio_snapshots", schema = "springhi")
 public class PortfolioSnapshot {
 
     @Id

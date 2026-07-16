@@ -1,6 +1,4 @@
-import axios from 'axios';
-
-import API_GATEWAY from './apiBase';
+import API_GATEWAY, { axiosInstance as axios } from './apiBase';
 const BASE_URL = `${API_GATEWAY}/api/v1/market`;
 
 const authHeader = () => ({
