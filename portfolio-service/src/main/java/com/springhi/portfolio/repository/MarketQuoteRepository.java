@@ -18,4 +18,6 @@ public interface MarketQuoteRepository extends JpaRepository<MarketQuote, Long> 
 
     Optional<MarketQuote> findTopBySymbolAndQuoteTypeAndTradingDayLessThanEqualOrderByTradingDayDesc(
             String symbol, String quoteType, LocalDate date);
+
+    boolean existsByTradingDay(LocalDate tradingDay);
 }

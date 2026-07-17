@@ -55,19 +55,22 @@ public class PortfolioSnapshotService {
     }
 
     public void takeSnapshotsIfNotTakenToday() {
+        takeSnapshotsIfNotTakenOnDate(LocalDate.now());
+    }
+
+    public void takeSnapshotsIfNotTakenOnDate(LocalDate date) {
         List<Long> portfolioIds = assetRepository.findDistinctPortfolioIds();
         if (portfolioIds.isEmpty()) return;
-        LocalDate today = LocalDate.now();
         for (Long portfolioId : portfolioIds) {
             boolean alreadySnapshotted = snapshotRepository
-                    .findFirstByPortfolioIdAndSnapshotDate(portfolioId, today)
+                    .findFirstByPortfolioIdAndSnapshotDate(portfolioId, date)
                     .isPresent();
             if (!alreadySnapshotted) {
                 try {
                     takeSnapshotForPortfolio(portfolioId);
-                    log.info("Pre-refresh snapshot taken for portfolioId={}", portfolioId);
+                    log.info("Catch-up snapshot taken for portfolioId={} date={}", portfolioId, date);
                 } catch (Exception e) {
-                    log.error("Failed pre-refresh snapshot for portfolioId={}: {}", portfolioId, e.getMessage(), e);
+                    log.error("Failed catch-up snapshot for portfolioId={} date={}: {}", portfolioId, date, e.getMessage(), e);
                 }
             }
         }
