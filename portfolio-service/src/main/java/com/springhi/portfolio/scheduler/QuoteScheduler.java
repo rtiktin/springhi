@@ -4,6 +4,7 @@ import com.springhi.portfolio.repository.AssetRepository;
 import com.springhi.portfolio.repository.MarketQuoteRepository;
 import com.springhi.portfolio.service.MarketDataService;
 import com.springhi.portfolio.service.PortfolioSnapshotService;
+import com.springhi.portfolio.service.SnapshotTracker;
 import com.springhi.portfolio.service.SpyBenchmarkService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,17 +32,20 @@ public class QuoteScheduler {
     private final PortfolioSnapshotService snapshotService;
     private final SpyBenchmarkService spyBenchmarkService;
     private final MarketQuoteRepository marketQuoteRepository;
+    private final SnapshotTracker snapshotTracker;
 
     public QuoteScheduler(AssetRepository assetRepository,
                           MarketDataService marketDataService,
                           PortfolioSnapshotService snapshotService,
                           SpyBenchmarkService spyBenchmarkService,
-                          MarketQuoteRepository marketQuoteRepository) {
+                          MarketQuoteRepository marketQuoteRepository,
+                          SnapshotTracker snapshotTracker) {
         this.assetRepository = assetRepository;
         this.marketDataService = marketDataService;
         this.snapshotService = snapshotService;
         this.spyBenchmarkService = spyBenchmarkService;
         this.marketQuoteRepository = marketQuoteRepository;
+        this.snapshotTracker = snapshotTracker;
     }
 
     @Async
@@ -57,8 +61,14 @@ public class QuoteScheduler {
         if (now.isAfter(SNAPSHOT_TIME)) {
             // After 4:05 PM — closing prices should be in the DB.
             // Take today's snapshot if the primary job was missed.
-            log.info("Startup after 4:05 PM — checking for missed today snapshot");
-            snapshotService.takeSnapshotsIfNotTakenToday();
+            if (snapshotTracker.tryStart()) {
+                try {
+                    log.info("Startup after 4:05 PM — checking for missed today snapshot");
+                    snapshotService.takeSnapshotsIfNotTakenToday();
+                } finally {
+                    snapshotTracker.finish();
+                }
+            }
             spyBenchmarkService.refreshSpyPrice();
 
         } else {
@@ -68,9 +78,13 @@ public class QuoteScheduler {
             // (i.e. today's prices haven't been fetched yet), take yesterday's
             // snapshot now while those prices are still accurate.
             boolean todayPricesPresent = marketQuoteRepository.existsByTradingDay(today);
-            if (!todayPricesPresent) {
-                log.info("Startup before 4:05 PM, today's prices not yet fetched — taking yesterday's catch-up snapshot");
-                snapshotService.takeSnapshotsIfNotTakenOnDate(yesterday);
+            if (!todayPricesPresent && snapshotTracker.tryStart()) {
+                try {
+                    log.info("Startup before 4:05 PM, today's prices not yet fetched — taking yesterday's catch-up snapshot");
+                    snapshotService.takeSnapshotsIfNotTakenOnDate(yesterday);
+                } finally {
+                    snapshotTracker.finish();
+                }
             }
 
             // Step 2: If it's after 9:00 AM, refresh prices so the rest of the
@@ -110,13 +124,29 @@ public class QuoteScheduler {
 
     @Scheduled(cron = "0 5 16 * * MON-FRI", zone = "America/New_York")
     public void takeEndOfDaySnapshots() {
-        log.info("Taking end-of-day portfolio snapshots");
-        snapshotService.takeSnapshotsForAllUsers();
+        if (!snapshotTracker.tryStart()) {
+            log.info("Snapshot already running — skipping end-of-day job");
+            return;
+        }
+        try {
+            log.info("Taking end-of-day portfolio snapshots");
+            snapshotService.takeSnapshotsForAllUsers();
+        } finally {
+            snapshotTracker.finish();
+        }
     }
 
     @Scheduled(cron = "0 0 23 * * MON-FRI", zone = "America/New_York")
     public void backupSnapshotCheck() {
-        log.info("Backup snapshot check: ensuring all portfolios have a snapshot for today");
-        snapshotService.takeSnapshotsIfNotTakenToday();
+        if (!snapshotTracker.tryStart()) {
+            log.info("Snapshot already running — skipping backup check");
+            return;
+        }
+        try {
+            log.info("Backup snapshot check: ensuring all portfolios have a snapshot for today");
+            snapshotService.takeSnapshotsIfNotTakenToday();
+        } finally {
+            snapshotTracker.finish();
+        }
     }
 }

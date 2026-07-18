@@ -20,6 +20,8 @@ public class ProfileResponse {
     private LocalDate dateOfBirth;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private boolean emailVerified;
+    private boolean phoneVerified;
 
     public ProfileResponse() {}
 
@@ -55,4 +57,8 @@ public class ProfileResponse {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public boolean isEmailVerified() { return emailVerified; }
+    public void setEmailVerified(boolean emailVerified) { this.emailVerified = emailVerified; }
+    public boolean isPhoneVerified() { return phoneVerified; }
+    public void setPhoneVerified(boolean phoneVerified) { this.phoneVerified = phoneVerified; }
 }

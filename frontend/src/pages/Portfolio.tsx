@@ -174,13 +174,15 @@ const Portfolio: React.FC = () => {
         setWizardSaving(true);
         try {
             const acct = await getAccountProfile().catch(() => null);
-            if (!isEmailVerified()) {
+            const emailOk = acct?.emailVerified === true || isEmailVerified();
+            const phoneOk = acct?.phoneVerified === true || isPhoneVerified();
+            if (!emailOk) {
                 setWizardEmailSent(false);
                 setWizardEmailCode('');
                 setWizardEmail(acct?.email ?? '');
                 setWizardPhone(acct?.phone ?? '');
                 setWizardStep('ai-verify-email');
-            } else if (!isPhoneVerified()) {
+            } else if (!phoneOk) {
                 setWizardPhone(acct?.phone ?? '');
                 setWizardPhoneSent(false);
                 setWizardPhoneCode('');

@@ -185,6 +185,8 @@ public class UserService {
         r.setDateOfBirth(user.getDateOfBirth());
         r.setCreatedAt(user.getCreatedAt());
         r.setUpdatedAt(user.getUpdatedAt());
+        r.setEmailVerified(user.isEmailVerified());
+        r.setPhoneVerified(user.isPhoneVerified());
         return r;
     }
 }

@@ -4,7 +4,7 @@ import { getProfile, saveProfile } from '../api/profileApi';
 import type { UserProfile } from '../api/profileApi';
 import { getOrCreateDefaultPortfolio } from '../api/portfolioApi';
 import CashForm from '../components/CashForm';
-import { getLoggedInUsername } from '../utils/auth';
+import { getLoggedInUsername, isAdmin } from '../utils/auth';
 
 const RISK_LEVELS = ['conservative', 'moderate', 'moderate_aggressive', 'aggressive'];
 const GOALS = ['income', 'balanced', 'growth', 'speculation'];
@@ -121,6 +121,7 @@ const ProfileEdit: React.FC = () => {
                 <nav className="portfolio-nav">
                     <Link to="/portfolio" className="btn-logout">Portfolio</Link>
                     <Link to="/account" className="btn-logout">Account</Link>
+                    {isAdmin() && <Link to="/admin" className="btn-logout">Admin</Link>}
                     <button className="btn-logout" onClick={() => setShowCashForm(true)}>$ Cash</button>
                     <button className="btn-logout" onClick={handleLogout}>Log Out</button>
                 </nav>

@@ -10,7 +10,7 @@ import {
     getMonthlyLeaderboard,
 } from '../api/portfolioApi';
 import type { LeaderboardEntry, AssetWithPrice, Transaction, AiRunDetails, PnlSummary } from '../api/portfolioApi';
-import { getLoggedInUsername } from '../utils/auth';
+import { getLoggedInUsername, isAdmin } from '../utils/auth';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 
 const isLoggedIn = () => !!localStorage.getItem('token');
@@ -565,6 +565,7 @@ const Leaderboard: React.FC = () => {
                         <>
                             <Link to="/account" className="btn-logout">Account</Link>
                             <Link to="/portfolio" className="btn-logout">My Portfolios</Link>
+                            {isAdmin() && <Link to="/admin" className="btn-logout">Admin</Link>}
                         </>
                     ) : (
                         <>

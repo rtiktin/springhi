@@ -22,6 +22,8 @@ export interface AccountProfile {
     dateOfBirth: string;
     createdAt?: string;
     updatedAt?: string;
+    emailVerified?: boolean;
+    phoneVerified?: boolean;
 }
 
 export const getAccountProfile = async (): Promise<AccountProfile> => {
