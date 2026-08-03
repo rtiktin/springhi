@@ -545,6 +545,23 @@ const getDefaultMonthlyMonth = () => {
     return `${y}-${m}`;
 };
 
+const getMonthlyMonthOptions = (): { value: string; label: string }[] => {
+    const options: { value: string; label: string }[] = [];
+    const start = new Date(2026, 0, 1);
+    const now = new Date();
+    const end = new Date(now.getFullYear(), now.getMonth(), 1);
+    const cursor = new Date(start);
+    while (cursor <= end) {
+        const y = cursor.getFullYear();
+        const m = cursor.getMonth();
+        const value = `${y}-${String(m + 1).padStart(2, '0')}`;
+        const label = cursor.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        options.push({ value, label });
+        cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return options.reverse();
+};
+
 const Leaderboard: React.FC = () => {
     const [range, setRange] = useState<LeaderboardRange>('1M');
     const [scope, setScope] = useState<LeaderboardScope>('all');
@@ -644,12 +661,15 @@ const Leaderboard: React.FC = () => {
                     <>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.75rem' }}>
                             <label style={{ color: 'var(--text-gray)', fontSize: '0.9rem' }}>Competition Month:</label>
-                            <input
-                                type="month"
+                            <select
                                 value={monthlyMonth}
                                 onChange={e => setMonthlyMonth(e.target.value)}
                                 style={{ background: '#1e2030', color: '#e2e8f0', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.35rem 0.75rem', fontSize: '0.9rem' }}
-                            />
+                            >
+                                {getMonthlyMonthOptions().map(o => (
+                                    <option key={o.value} value={o.value}>{o.label}</option>
+                                ))}
+                            </select>
                         </div>
                         <MonthlyLeaderboardPane month={monthlyMonth} />
                     </>

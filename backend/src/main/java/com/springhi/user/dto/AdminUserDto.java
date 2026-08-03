@@ -14,7 +14,8 @@ public record AdminUserDto(
         String userTypeName,
         boolean suspendedForChargebacks,
         String adminNotes,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        LocalDateTime lastActiveAt
 ) {
     public static AdminUserDto from(User u) {
         return new AdminUserDto(
@@ -28,7 +29,8 @@ public record AdminUserDto(
                 typeName(u.getUserType(), u.isSuspendedForChargebacks()),
                 u.isSuspendedForChargebacks(),
                 u.getAdminNotes(),
-                u.getCreatedAt()
+                u.getCreatedAt(),
+                u.getLastActiveAt()
         );
     }
 

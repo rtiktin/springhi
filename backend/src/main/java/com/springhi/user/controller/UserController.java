@@ -127,6 +127,13 @@ public class UserController {
         }
     }
 
+    @PutMapping("/activity")
+    public ResponseEntity<Void> recordActivity(Principal principal) {
+        if (principal == null) return ResponseEntity.status(401).build();
+        userService.updateLastActive(principal.getName());
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/phone/verify")
     public ResponseEntity<?> verifyPhone(
             Principal principal,

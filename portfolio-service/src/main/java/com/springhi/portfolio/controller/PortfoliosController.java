@@ -26,6 +26,13 @@ public class PortfoliosController {
         this.portfolioProfileService = portfolioProfileService;
     }
 
+    @GetMapping("/creation-count")
+    public ResponseEntity<Map<String, Integer>> getCreationCount(@AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) return ResponseEntity.status(403).build();
+        int count = portfolioService.getTotalPortfoliosCreated(principal.getId());
+        return ResponseEntity.ok(Map.of("totalCreated", count));
+    }
+
     @GetMapping
     public ResponseEntity<List<Portfolio>> list(@AuthenticationPrincipal UserPrincipal principal) {
         if (principal == null) return ResponseEntity.status(403).build();

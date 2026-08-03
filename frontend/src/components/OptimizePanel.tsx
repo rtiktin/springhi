@@ -580,7 +580,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                     disabled={loading || checking || isBlocked}
                     title={isBlocked ? 'Complete required profile information first' : undefined}
                 >
-                    {loading ? 'Analyzing...' : 'Generate Recommendations'}
+                    {loading ? 'Analyzing...' : recommendations.some(r => r.status === 'PENDING') ? 'Generate New Recommendations' : 'Generate Recommendations'}
                 </button>
             </div>
 

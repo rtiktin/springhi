@@ -16,6 +16,7 @@ interface AdminUser {
     suspendedForChargebacks: boolean;
     adminNotes: string | null;
     createdAt: string;
+    lastActiveAt: string | null;
 }
 
 interface AdminPortfolio {
@@ -281,6 +282,7 @@ const Admin: React.FC = () => {
                                                 <th style={thStyle}>Name</th>
                                                 <th style={thStyle}>Phone</th>
                                                 <th style={thStyle}>Member Since</th>
+                                                <th style={thStyle}>Last Active</th>
                                                 <th style={thStyle}>Type</th>
                                                 <th style={thStyle}>Change Type</th>
                                                 <th style={thStyle}>Actions</th>
@@ -294,6 +296,7 @@ const Admin: React.FC = () => {
                                                     <td style={tdStyle}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || '—'}</td>
                                                     <td style={tdStyle}>{u.phone || '—'}</td>
                                                     <td style={tdStyle}>{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}</td>
+                                                    <td style={tdStyle}>{u.lastActiveAt ? new Date(u.lastActiveAt).toLocaleDateString() : '—'}</td>
                                                     <td style={tdStyle}>
                                                         <span style={{
                                                             background: u.userType === 4 && u.suspendedForChargebacks ? '#b91c1c' : (TYPE_BADGE_COLOR[u.userType] ?? '#6b7280'),
@@ -397,7 +400,7 @@ const Admin: React.FC = () => {
                                             ))}
                                             {users.length === 0 && (
                                                 <tr>
-                                                    <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-gray)' }}>No users found.</td>
+                                                    <td colSpan={9} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-gray)' }}>No users found.</td>
                                                 </tr>
                                             )}
                                         </tbody>

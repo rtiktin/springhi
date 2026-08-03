@@ -69,6 +69,11 @@ export interface TransactionRequest {
     price: number;
 }
 
+export const getPortfoliosCreatedCount = async (): Promise<number> => {
+    const response = await axios.get(`${PORTFOLIOS_URL}/creation-count`, { headers: authHeader() });
+    return response.data.totalCreated as number;
+};
+
 export const listPortfolios = async (): Promise<Portfolio[]> => {
     const response = await axios.get(PORTFOLIOS_URL, { headers: authHeader() });
     return response.data;

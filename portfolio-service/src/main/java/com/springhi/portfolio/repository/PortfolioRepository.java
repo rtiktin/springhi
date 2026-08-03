@@ -13,4 +13,5 @@ public interface PortfolioRepository extends JpaRepository<Portfolio, Long> {
     List<Portfolio> findByCompetitionMonthNotNull();
     List<Portfolio> findByCompetitionMonth(LocalDate competitionMonth);
     List<Portfolio> findByCreatedAtGreaterThanEqualAndCreatedAtLessThan(LocalDateTime from, LocalDateTime to);
+    List<Portfolio> findByCreatedAtLessThan(LocalDateTime to);
 }

@@ -38,6 +38,14 @@ public class UserService {
                 .collect(Collectors.toMap(User::getId, User::getUsername));
     }
 
+    @Transactional
+    public void updateLastActive(String username) {
+        repository.findByUsername(username).ifPresent(user -> {
+            user.setLastActiveAt(java.time.LocalDateTime.now());
+            repository.save(user);
+        });
+    }
+
     public ProfileResponse getProfile(String username) {
         log.debug("Loading profile for username={}", username);
         User user = repository.findByUsername(username)

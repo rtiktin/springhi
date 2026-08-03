@@ -63,10 +63,8 @@ public class LeaderboardService {
 
     public List<LeaderboardEntryDto> getMonthlyLeaderboard(String monthStr, String jwtToken) {
         LocalDate competitionMonth = LocalDate.parse(monthStr + "-01");
-        LocalDate creationMonthStart = competitionMonth.minusMonths(1);
-        java.time.LocalDateTime from = creationMonthStart.atStartOfDay();
         java.time.LocalDateTime to = competitionMonth.atStartOfDay();
-        List<Portfolio> portfolios = portfolioRepository.findByCreatedAtGreaterThanEqualAndCreatedAtLessThan(from, to);
+        List<Portfolio> portfolios = portfolioRepository.findByCreatedAtLessThan(to);
 
         List<Long> userIds = portfolios.stream()
                 .map(Portfolio::getUserId).distinct().collect(Collectors.toList());

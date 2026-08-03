@@ -61,6 +61,7 @@ public class User implements UserDetails {
     @Column(updatable = false)
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private LocalDateTime lastActiveAt;
 
     @PrePersist
     protected void onCreate() {
@@ -117,6 +118,8 @@ public class User implements UserDetails {
     public void setAdminNotes(String adminNotes) { this.adminNotes = adminNotes; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public LocalDateTime getLastActiveAt() { return lastActiveAt; }
+    public void setLastActiveAt(LocalDateTime lastActiveAt) { this.lastActiveAt = lastActiveAt; }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

@@ -9,11 +9,13 @@ import com.springhi.portfolio.model.Portfolio;
 import com.springhi.portfolio.model.PortfolioProfile;
 import com.springhi.portfolio.model.PortfolioRecommendation;
 import com.springhi.portfolio.model.Transaction;
+import com.springhi.portfolio.model.UserPortfolioStats;
 import com.springhi.portfolio.repository.AssetRepository;
 import com.springhi.portfolio.repository.PortfolioProfileRepository;
 import com.springhi.portfolio.repository.PortfolioRecommendationRepository;
 import com.springhi.portfolio.repository.PortfolioRepository;
 import com.springhi.portfolio.repository.TransactionRepository;
+import com.springhi.portfolio.repository.UserPortfolioStatsRepository;
 import com.springhi.portfolio.service.UserProfileService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +40,7 @@ public class PortfolioService {
     private final PortfolioProfileRepository portfolioProfileRepository;
     private final UserProfileService userProfileService;
     private final PortfolioRecommendationRepository recommendationRepository;
+    private final UserPortfolioStatsRepository userPortfolioStatsRepository;
 
     public PortfolioService(AssetRepository assetRepository,
                             TransactionRepository transactionRepository,
@@ -46,7 +49,8 @@ public class PortfolioService {
                             PortfolioRepository portfolioRepository,
                             PortfolioProfileRepository portfolioProfileRepository,
                             UserProfileService userProfileService,
-                            PortfolioRecommendationRepository recommendationRepository) {
+                            PortfolioRecommendationRepository recommendationRepository,
+                            UserPortfolioStatsRepository userPortfolioStatsRepository) {
         this.assetRepository = assetRepository;
         this.transactionRepository = transactionRepository;
         this.marketDataService = marketDataService;
@@ -55,6 +59,13 @@ public class PortfolioService {
         this.portfolioProfileRepository = portfolioProfileRepository;
         this.userProfileService = userProfileService;
         this.recommendationRepository = recommendationRepository;
+        this.userPortfolioStatsRepository = userPortfolioStatsRepository;
+    }
+
+    public int getTotalPortfoliosCreated(Long userId) {
+        return userPortfolioStatsRepository.findById(userId)
+                .map(UserPortfolioStats::getTotalCreated)
+                .orElse(0);
     }
 
     public List<Portfolio> listPortfolios(Long userId) {
@@ -80,6 +91,10 @@ public class PortfolioService {
         }
         Portfolio saved = portfolioRepository.save(p);
         initPortfolioProfileFromInvestorProfile(saved.getId(), userId);
+        UserPortfolioStats stats = userPortfolioStatsRepository.findById(userId)
+                .orElseGet(() -> new UserPortfolioStats(userId));
+        stats.setTotalCreated(stats.getTotalCreated() + 1);
+        userPortfolioStatsRepository.save(stats);
         return saved;
     }
 

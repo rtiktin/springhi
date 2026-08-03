@@ -184,11 +184,7 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId, onTradeSuccess }) =>
                             {twrData.startDate} → {twrData.endDate}
                         </span>
                     )}
-                    {twrData && twrData.snapshotCount < 2 && (
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-gray)' }}>
-                            Need 2+ snapshots
-                        </span>
-                    )}
+
                 </div>
             </div>
 

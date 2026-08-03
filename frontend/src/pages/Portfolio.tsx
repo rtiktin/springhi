@@ -8,7 +8,7 @@ import TradeForm from '../components/TradeForm';
 import CashForm from '../components/CashForm';
 import OptimizePanel from '../components/OptimizePanel';
 import PortfolioProfileForm from '../components/PortfolioProfileForm';
-import { listPortfolios, createPortfolio, updatePortfolio, deletePortfolio, savePortfolioProfile, getCashBalance, submitTransaction } from '../api/portfolioApi';
+import { listPortfolios, createPortfolio, updatePortfolio, deletePortfolio, savePortfolioProfile, getCashBalance, submitTransaction, getPortfoliosCreatedCount } from '../api/portfolioApi';
 import type { Portfolio as PortfolioType } from '../api/portfolioApi';
 import { getProfile, saveProfile, optimizePortfolio } from '../api/profileApi';
 import { getAccountProfile, sendEmailVerification, verifyEmail, sendPhoneVerification, verifyPhone } from '../api/accountApi';
@@ -62,6 +62,7 @@ const Portfolio: React.FC = () => {
     const [wizardPhoneCode, setWizardPhoneCode] = useState('');
     const [wizardPhoneSent, setWizardPhoneSent] = useState(false);
     const [wizardPhoneSending, setWizardPhoneSending] = useState(false);
+    const [wizardTotalCreated, setWizardTotalCreated] = useState(0);
 
     const openWizard = async () => {
         setWizardStep('ai-choice');
@@ -173,7 +174,11 @@ const Portfolio: React.FC = () => {
         setWizardError('');
         setWizardSaving(true);
         try {
-            const acct = await getAccountProfile().catch(() => null);
+            const [acct, totalCreated] = await Promise.all([
+                getAccountProfile().catch(() => null),
+                getPortfoliosCreatedCount().catch(() => 0),
+            ]);
+            setWizardTotalCreated(totalCreated);
             const emailOk = acct?.emailVerified === true || isEmailVerified();
             const phoneOk = acct?.phoneVerified === true || isPhoneVerified();
             if (!emailOk) {
@@ -182,7 +187,7 @@ const Portfolio: React.FC = () => {
                 setWizardEmail(acct?.email ?? '');
                 setWizardPhone(acct?.phone ?? '');
                 setWizardStep('ai-verify-email');
-            } else if (!phoneOk) {
+            } else if (totalCreated >= 1 && !phoneOk) {
                 setWizardPhone(acct?.phone ?? '');
                 setWizardPhoneSent(false);
                 setWizardPhoneCode('');
@@ -219,7 +224,7 @@ const Portfolio: React.FC = () => {
         try {
             const resp = await verifyEmail(wizardEmailCode.trim());
             if (resp.token) localStorage.setItem('token', resp.token);
-            if (!isPhoneVerified()) {
+            if (wizardTotalCreated >= 1 && !isPhoneVerified()) {
                 setWizardPhoneSent(false);
                 setWizardPhoneCode('');
                 setWizardStep('ai-verify-phone');
