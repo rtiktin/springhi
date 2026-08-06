@@ -246,7 +246,7 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                                             {new Date(t.timestamp).toLocaleDateString()}
                                         </td>
                                         <td style={{ fontWeight: 700 }}>{t.symbol}</td>
-                                        <td style={{ color: t.type === 'BUY' ? '#34d399' : t.type === 'SELL' ? '#f87171' : 'var(--text-gray)' }}>
+                                        <td style={{ color: t.type === 'BUY' || t.type === 'DIVIDEND' ? '#34d399' : t.type === 'SELL' ? '#f87171' : 'var(--text-gray)' }}>
                                             {t.type}
                                         </td>
                                         <td style={{ textAlign: 'right' }}>{t.quantity}</td>
@@ -659,6 +659,13 @@ const Leaderboard: React.FC = () => {
 
                 {mainTab === 'monthly' && (
                     <>
+                        <div style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: 10, padding: '1rem 1.25rem', marginBottom: '1.75rem', fontSize: '0.875rem', color: 'var(--text-gray)', lineHeight: 1.6 }}>
+                            <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '0.4rem' }}>How Monthly Leaderboards Work</strong>
+                            Portfolios are automatically entered into the monthly leaderboard for the month <em>after</em> they are created — for example, a portfolio created in July competes in the August leaderboard.
+                            Performance is measured using TWR (Time-Weighted Return) starting on the 1st of the competition month, so all portfolios in the same cohort start on equal footing regardless of when they were created.
+                            Each leaderboard shows raw TWR alongside the margin vs. the S&amp;P 500 (SPY) across 1W, 1M, 3M, 6M, and 1Y timeframes.
+                            Monthly portfolios also appear on the global leaderboard and continue accumulating history beyond month-end.
+                        </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.75rem' }}>
                             <label style={{ color: 'var(--text-gray)', fontSize: '0.9rem' }}>Competition Month:</label>
                             <select

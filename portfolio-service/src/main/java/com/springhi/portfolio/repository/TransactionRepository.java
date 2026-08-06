@@ -20,6 +20,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
                 CASE t.type
                     WHEN 'DEPOSIT'    THEN  t.quantity * t.price
                     WHEN 'SELL'       THEN  t.quantity * t.price
+                    WHEN 'DIVIDEND'   THEN  t.quantity * t.price
                     WHEN 'BUY'        THEN -(t.quantity * t.price)
                     WHEN 'WITHDRAWAL' THEN -(t.quantity * t.price)
                     ELSE 0
@@ -34,6 +35,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
                 CASE t.type
                     WHEN 'DEPOSIT'    THEN  t.quantity * t.price
                     WHEN 'SELL'       THEN  t.quantity * t.price
+                    WHEN 'DIVIDEND'   THEN  t.quantity * t.price
                     WHEN 'BUY'        THEN -(t.quantity * t.price)
                     WHEN 'WITHDRAWAL' THEN -(t.quantity * t.price)
                     ELSE 0
@@ -60,4 +62,20 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     @Query("SELECT COALESCE(SUM(t.quantity * t.price), 0) FROM Transaction t WHERE t.portfolioId = :portfolioId AND t.type = 'SELL'")
     BigDecimal totalSellProceeds(@Param("portfolioId") Long portfolioId);
+
+    @Query("""
+            SELECT t FROM Transaction t
+            WHERE t.portfolioId = :portfolioId
+            AND t.symbol = :symbol
+            AND t.type IN ('BUY', 'SELL')
+            AND t.timestamp <= :asOf
+            ORDER BY t.timestamp ASC
+            """)
+    List<Transaction> findTradesForSymbolUpTo(
+            @Param("portfolioId") Long portfolioId,
+            @Param("symbol") String symbol,
+            @Param("asOf") java.time.LocalDateTime asOf);
+
+    @Query("SELECT DISTINCT t.symbol FROM Transaction t WHERE t.portfolioId = :portfolioId AND t.type = 'BUY'")
+    List<String> findDistinctBoughtSymbols(@Param("portfolioId") Long portfolioId);
 }

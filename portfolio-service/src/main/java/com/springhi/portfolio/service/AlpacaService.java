@@ -24,6 +24,8 @@ import java.net.URL;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -221,6 +223,63 @@ public class AlpacaService {
             log.error("Failed to fetch historical bars for {}: {}", symbol, e.getMessage());
         }
         return result;
+    }
+
+    public record DividendInfo(LocalDate exDate, BigDecimal amount) {}
+
+    public List<DividendInfo> fetchDividends(String symbol, LocalDate from, LocalDate to) {
+        List<DividendInfo> results = new ArrayList<>();
+        try {
+            long period1 = from.atStartOfDay().toEpochSecond(ZoneOffset.UTC);
+            long period2 = to.plusDays(1).atStartOfDay().toEpochSecond(ZoneOffset.UTC);
+            String urlStr = "https://query1.finance.yahoo.com/v8/finance/chart/"
+                    + symbol.toUpperCase()
+                    + "?period1=" + period1
+                    + "&period2=" + period2
+                    + "&interval=1d&events=div";
+
+            HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("User-Agent", BROWSER_USER_AGENT);
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setConnectTimeout(8_000);
+            conn.setReadTimeout(8_000);
+            conn.setInstanceFollowRedirects(true);
+
+            if (conn.getResponseCode() != 200) {
+                log.info("Yahoo Finance dividends returned HTTP {} for {}", conn.getResponseCode(), symbol);
+                return results;
+            }
+
+            String body;
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                body = reader.lines().collect(Collectors.joining("\n"));
+            }
+
+            JsonNode root = MAPPER.readTree(body);
+            JsonNode dividends = root.path("chart").path("result").path(0)
+                    .path("events").path("dividends");
+
+            if (!dividends.isMissingNode() && dividends.isObject()) {
+                Iterator<Map.Entry<String, JsonNode>> fields = dividends.fields();
+                while (fields.hasNext()) {
+                    Map.Entry<String, JsonNode> entry = fields.next();
+                    JsonNode div = entry.getValue();
+                    long ts = div.path("date").asLong(0);
+                    double amount = div.path("amount").asDouble(0);
+                    if (ts > 0 && amount > 0) {
+                        LocalDate exDate = java.time.Instant.ofEpochSecond(ts)
+                                .atZone(ZoneOffset.UTC).toLocalDate();
+                        if (!exDate.isBefore(from) && !exDate.isAfter(to)) {
+                            results.add(new DividendInfo(exDate, BigDecimal.valueOf(amount)));
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch dividends for {}: {}", symbol, e.getMessage());
+        }
+        return results;
     }
 
     public Map<String, AlpacaSnapshotResponse.Snapshot> fetchSnapshots(List<String> symbols) {

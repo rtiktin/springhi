@@ -118,7 +118,7 @@ const TransactionHistory: React.FC<Props> = ({ portfolioId }) => {
                                 >
                                     {t.symbol}
                                 </td>
-                                <td className={t.type === 'BUY' ? 'positive' : 'negative'}>{t.type}</td>
+                                <td className={t.type === 'BUY' || t.type === 'DIVIDEND' ? 'positive' : 'negative'}>{t.type}</td>
                                 <td>{t.quantity}</td>
                                 <td>${t.price.toFixed(4)}</td>
                                 <td>${(t.quantity * t.price).toFixed(2)}</td>

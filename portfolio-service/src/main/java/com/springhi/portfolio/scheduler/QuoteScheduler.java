@@ -2,6 +2,7 @@ package com.springhi.portfolio.scheduler;
 
 import com.springhi.portfolio.repository.AssetRepository;
 import com.springhi.portfolio.repository.MarketQuoteRepository;
+import com.springhi.portfolio.service.DividendService;
 import com.springhi.portfolio.service.MarketDataService;
 import com.springhi.portfolio.service.PortfolioSnapshotService;
 import com.springhi.portfolio.service.SnapshotTracker;
@@ -33,19 +34,22 @@ public class QuoteScheduler {
     private final SpyBenchmarkService spyBenchmarkService;
     private final MarketQuoteRepository marketQuoteRepository;
     private final SnapshotTracker snapshotTracker;
+    private final DividendService dividendService;
 
     public QuoteScheduler(AssetRepository assetRepository,
                           MarketDataService marketDataService,
                           PortfolioSnapshotService snapshotService,
                           SpyBenchmarkService spyBenchmarkService,
                           MarketQuoteRepository marketQuoteRepository,
-                          SnapshotTracker snapshotTracker) {
+                          SnapshotTracker snapshotTracker,
+                          DividendService dividendService) {
         this.assetRepository = assetRepository;
         this.marketDataService = marketDataService;
         this.snapshotService = snapshotService;
         this.spyBenchmarkService = spyBenchmarkService;
         this.marketQuoteRepository = marketQuoteRepository;
         this.snapshotTracker = snapshotTracker;
+        this.dividendService = dividendService;
     }
 
     @Async
@@ -53,6 +57,13 @@ public class QuoteScheduler {
     public void refreshOnStartup() {
         log.info("Startup catch-up check triggered");
         spyBenchmarkService.seedHistoricalSpyPrices();
+
+        try {
+            log.info("Startup: processing any missed dividends");
+            dividendService.processAllPortfolios();
+        } catch (Exception e) {
+            log.error("Startup dividend catch-up failed: {}", e.getMessage(), e);
+        }
 
         LocalTime now = LocalTime.now(NY);
         LocalDate today = LocalDate.now();
@@ -147,6 +158,17 @@ public class QuoteScheduler {
             snapshotService.takeSnapshotsIfNotTakenToday();
         } finally {
             snapshotTracker.finish();
+        }
+    }
+
+    @Scheduled(cron = "0 30 18 * * MON-FRI", zone = "America/New_York")
+    public void processDividends() {
+        log.info("Nightly dividend processing started");
+        try {
+            dividendService.processAllPortfolios();
+            log.info("Nightly dividend processing complete");
+        } catch (Exception e) {
+            log.error("Nightly dividend processing failed: {}", e.getMessage(), e);
         }
     }
 }
