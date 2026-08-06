@@ -2,12 +2,18 @@ package com.springhi.user.controller;
 
 import com.springhi.user.dto.AdminUserDto;
 import com.springhi.user.model.User;
+import com.springhi.user.repository.UserRepository;
 import com.springhi.user.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -16,9 +22,11 @@ import java.util.Map;
 public class AdminController {
 
     private final UserService userService;
+    private final UserRepository userRepository;
 
-    public AdminController(UserService userService) {
+    public AdminController(UserService userService, UserRepository userRepository) {
         this.userService = userService;
+        this.userRepository = userRepository;
     }
 
     private boolean isAdmin(UserDetails userDetails) {
@@ -35,6 +43,48 @@ public class AdminController {
             return ResponseEntity.status(403).build();
         }
         return ResponseEntity.ok(userService.getAllUsers());
+    }
+
+    @GetMapping("/stats/users")
+    public ResponseEntity<Map<String, Object>> getUserStats(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(defaultValue = "0") int daysOffset) {
+        if (userDetails == null || !isAdmin(userDetails)) {
+            return ResponseEntity.status(403).build();
+        }
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startOfToday    = now.toLocalDate().atStartOfDay();
+        LocalDateTime startOfWeek     = now.toLocalDate().with(java.time.DayOfWeek.MONDAY).atStartOfDay();
+        LocalDateTime startOfMonth    = now.toLocalDate().withDayOfMonth(1).atStartOfDay();
+        LocalDateTime startOfYear     = now.toLocalDate().withDayOfYear(1).atStartOfDay();
+
+        long today     = userRepository.findByCreatedAtBetween(startOfToday, now.plusDays(1)).size();
+        long thisWeek  = userRepository.findByCreatedAtBetween(startOfWeek, now.plusDays(1)).size();
+        long thisMonth = userRepository.findByCreatedAtBetween(startOfMonth, now.plusDays(1)).size();
+        long thisYear  = userRepository.findByCreatedAtBetween(startOfYear, now.plusDays(1)).size();
+
+        LocalDateTime windowEnd   = startOfToday.minusDays(daysOffset);
+        LocalDateTime windowStart = windowEnd.minusDays(29);
+        List<User> recent = userRepository.findByCreatedAtBetween(windowStart, windowEnd.plusDays(1));
+
+        Map<String, Long> dailyCounts = new LinkedHashMap<>();
+        for (int i = 29; i >= 0; i--) {
+            dailyCounts.put(windowEnd.minusDays(i).toLocalDate().toString(), 0L);
+        }
+        for (User u : recent) {
+            String day = u.getCreatedAt().toLocalDate().toString();
+            dailyCounts.computeIfPresent(day, (k, v) -> v + 1);
+        }
+        List<Map<String, Object>> daily = new ArrayList<>();
+        dailyCounts.forEach((date, count) -> daily.add(Map.of("date", date, "count", count)));
+
+        return ResponseEntity.ok(Map.of(
+                "today", today,
+                "thisWeek", thisWeek,
+                "thisMonth", thisMonth,
+                "thisYear", thisYear,
+                "daily", daily
+        ));
     }
 
     @PutMapping("/users/{id}/type")

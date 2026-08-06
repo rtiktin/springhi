@@ -1,6 +1,7 @@
 package com.springhi.user.repository;
 
 import com.springhi.user.model.User;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -17,4 +18,5 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsSuspendedByEmailOrName(@Param("email") String email, @Param("firstName") String firstName, @Param("lastName") String lastName);
 
     List<User> findAllByOrderByCreatedAtDesc();
+    List<User> findByCreatedAtBetween(LocalDateTime from, LocalDateTime to);
 }
