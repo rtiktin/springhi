@@ -60,6 +60,8 @@ export interface AiRunRec {
 export interface AiRunDetails {
     recommendations: AiRunRec[];
     profile: PortfolioProfile | null;
+    scheduleId: number | null;
+    scheduleFrequency: string | null;
 }
 
 export interface TransactionRequest {
@@ -318,4 +320,41 @@ export const getMonthlyLeaderboard = async (month: string): Promise<LeaderboardE
         params: { month },
     });
     return response.data;
+};
+
+export interface OptimizationSchedule {
+    id: number;
+    portfolioId: number;
+    userId: number;
+    frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
+    aiProvider: string;
+    dayOfWeek: number | null;
+    dayOfMonth: number | null;
+    enabled: boolean;
+    lastRunAt: string | null;
+    nextRunAt: string | null;
+    createdAt: string;
+}
+
+export const getOptimizationSchedules = async (portfolioId: number): Promise<OptimizationSchedule[]> => {
+    const response = await axios.get(`${BASE_URL}/schedules`, { headers: authHeader(), params: { portfolioId } });
+    return response.data;
+};
+
+export const createOptimizationSchedule = async (portfolioId: number, body: {
+    frequency: string; aiProvider: string; dayOfWeek?: number | null; dayOfMonth?: number | null;
+}): Promise<OptimizationSchedule> => {
+    const response = await axios.post(`${BASE_URL}/schedules`, body, { headers: authHeader(), params: { portfolioId } });
+    return response.data;
+};
+
+export const updateOptimizationSchedule = async (id: number, portfolioId: number, body: {
+    frequency?: string; aiProvider?: string; dayOfWeek?: number | null; dayOfMonth?: number | null; enabled?: boolean;
+}): Promise<OptimizationSchedule> => {
+    const response = await axios.put(`${BASE_URL}/schedules/${id}`, body, { headers: authHeader(), params: { portfolioId } });
+    return response.data;
+};
+
+export const deleteOptimizationSchedule = async (id: number, portfolioId: number): Promise<void> => {
+    await axios.delete(`${BASE_URL}/schedules/${id}`, { headers: authHeader(), params: { portfolioId } });
 };

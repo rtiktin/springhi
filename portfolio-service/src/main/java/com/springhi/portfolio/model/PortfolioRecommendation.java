@@ -74,6 +74,9 @@ public class PortfolioRecommendation {
     @Column(length = 50)
     private String aiProvider;
 
+    @Column(name = "schedule_id")
+    private Long scheduleId;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -128,6 +131,8 @@ public class PortfolioRecommendation {
     public void setSnapshotSectorConstraints(String snapshotSectorConstraints) { this.snapshotSectorConstraints = snapshotSectorConstraints; }
     public String getAiProvider() { return aiProvider; }
     public void setAiProvider(String aiProvider) { this.aiProvider = aiProvider; }
+    public Long getScheduleId() { return scheduleId; }
+    public void setScheduleId(Long scheduleId) { this.scheduleId = scheduleId; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

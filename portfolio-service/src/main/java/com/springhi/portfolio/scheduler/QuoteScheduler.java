@@ -5,6 +5,7 @@ import com.springhi.portfolio.repository.MarketQuoteRepository;
 import com.springhi.portfolio.service.DividendService;
 import com.springhi.portfolio.service.MarketDataService;
 import com.springhi.portfolio.service.PortfolioSnapshotService;
+import com.springhi.portfolio.service.ScheduledOptimizationService;
 import com.springhi.portfolio.service.SnapshotTracker;
 import com.springhi.portfolio.service.SpyBenchmarkService;
 import org.slf4j.Logger;
@@ -35,6 +36,7 @@ public class QuoteScheduler {
     private final MarketQuoteRepository marketQuoteRepository;
     private final SnapshotTracker snapshotTracker;
     private final DividendService dividendService;
+    private final ScheduledOptimizationService scheduledOptimizationService;
 
     public QuoteScheduler(AssetRepository assetRepository,
                           MarketDataService marketDataService,
@@ -42,7 +44,8 @@ public class QuoteScheduler {
                           SpyBenchmarkService spyBenchmarkService,
                           MarketQuoteRepository marketQuoteRepository,
                           SnapshotTracker snapshotTracker,
-                          DividendService dividendService) {
+                          DividendService dividendService,
+                          ScheduledOptimizationService scheduledOptimizationService) {
         this.assetRepository = assetRepository;
         this.marketDataService = marketDataService;
         this.snapshotService = snapshotService;
@@ -50,6 +53,7 @@ public class QuoteScheduler {
         this.marketQuoteRepository = marketQuoteRepository;
         this.snapshotTracker = snapshotTracker;
         this.dividendService = dividendService;
+        this.scheduledOptimizationService = scheduledOptimizationService;
     }
 
     @Async
@@ -63,6 +67,13 @@ public class QuoteScheduler {
             dividendService.processAllPortfolios();
         } catch (Exception e) {
             log.error("Startup dividend catch-up failed: {}", e.getMessage(), e);
+        }
+
+        try {
+            log.info("Startup: checking for any overdue optimization schedules");
+            scheduledOptimizationService.processDueSchedules();
+        } catch (Exception e) {
+            log.error("Startup optimization schedule catch-up failed: {}", e.getMessage(), e);
         }
 
         LocalTime now = LocalTime.now(NY);
@@ -158,6 +169,16 @@ public class QuoteScheduler {
             snapshotService.takeSnapshotsIfNotTakenToday();
         } finally {
             snapshotTracker.finish();
+        }
+    }
+
+    @Scheduled(cron = "0 0 * * * MON-FRI", zone = "America/New_York")
+    public void checkOptimizationSchedules() {
+        log.info("Hourly check: running any due optimization schedules");
+        try {
+            scheduledOptimizationService.processDueSchedules();
+        } catch (Exception e) {
+            log.error("Optimization schedule check failed: {}", e.getMessage(), e);
         }
     }
 

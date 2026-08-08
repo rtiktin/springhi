@@ -5,6 +5,7 @@ import com.springhi.portfolio.dto.OptimizationResponse;
 import com.springhi.portfolio.dto.PortfolioProfileDto;
 import com.springhi.portfolio.dto.RecommendationDto;
 import com.springhi.portfolio.model.PortfolioRecommendation;
+import com.springhi.portfolio.repository.OptimizationScheduleRepository;
 import com.springhi.portfolio.repository.PortfolioProfileRepository;
 import com.springhi.portfolio.repository.PortfolioRecommendationRepository;
 import com.springhi.portfolio.security.UserPrincipal;
@@ -30,15 +31,18 @@ public class PortfolioOptimizationController {
     private final PortfolioRecommendationRepository recommendationRepository;
     private final PortfolioService portfolioService;
     private final PortfolioProfileRepository profileRepository;
+    private final OptimizationScheduleRepository scheduleRepository;
 
     public PortfolioOptimizationController(PortfolioOptimizationService optimizationService,
                                            PortfolioRecommendationRepository recommendationRepository,
                                            PortfolioService portfolioService,
-                                           PortfolioProfileRepository profileRepository) {
+                                           PortfolioProfileRepository profileRepository,
+                                           OptimizationScheduleRepository scheduleRepository) {
         this.optimizationService = optimizationService;
         this.recommendationRepository = recommendationRepository;
         this.portfolioService = portfolioService;
         this.profileRepository = profileRepository;
+        this.scheduleRepository = scheduleRepository;
     }
 
     @PostMapping("/optimize")
@@ -138,6 +142,13 @@ public class PortfolioOptimizationController {
                             sectors);
                 })
                 .orElse(currentProfile);
-        return ResponseEntity.ok(new AiRunDetailsDto(recs, profileDto));
+        Long scheduleId = runRecs.stream()
+                .map(PortfolioRecommendation::getScheduleId)
+                .filter(java.util.Objects::nonNull)
+                .findFirst().orElse(null);
+        String scheduleFrequency = scheduleId != null
+                ? scheduleRepository.findById(scheduleId).map(s -> s.getFrequency()).orElse(null)
+                : null;
+        return ResponseEntity.ok(new AiRunDetailsDto(recs, profileDto, scheduleId, scheduleFrequency));
     }
 }

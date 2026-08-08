@@ -8,6 +8,7 @@ import com.springhi.portfolio.dto.PortfolioProfileDto;
 import com.springhi.portfolio.dto.RecommendationDto;
 import com.springhi.portfolio.dto.TransactionDto;
 import com.springhi.portfolio.model.PortfolioRecommendation;
+import com.springhi.portfolio.repository.OptimizationScheduleRepository;
 import com.springhi.portfolio.repository.PortfolioProfileRepository;
 import com.springhi.portfolio.repository.PortfolioRecommendationRepository;
 import com.springhi.portfolio.security.UserPrincipal;
@@ -31,15 +32,18 @@ public class LeaderboardController {
     private final PortfolioService portfolioService;
     private final PortfolioRecommendationRepository recommendationRepository;
     private final PortfolioProfileRepository profileRepository;
+    private final OptimizationScheduleRepository scheduleRepository;
 
     public LeaderboardController(LeaderboardService leaderboardService,
                                  PortfolioService portfolioService,
                                  PortfolioRecommendationRepository recommendationRepository,
-                                 PortfolioProfileRepository profileRepository) {
+                                 PortfolioProfileRepository profileRepository,
+                                 OptimizationScheduleRepository scheduleRepository) {
         this.leaderboardService = leaderboardService;
         this.portfolioService = portfolioService;
         this.recommendationRepository = recommendationRepository;
         this.profileRepository = profileRepository;
+        this.scheduleRepository = scheduleRepository;
     }
 
     @GetMapping("/monthly")
@@ -125,6 +129,13 @@ public class LeaderboardController {
                 })
                 .orElseGet(() -> profileRepository.findByPortfolioId(portfolioId)
                         .map(PortfolioProfileDto::from).orElse(null));
-        return ResponseEntity.ok(new AiRunDetailsDto(recs, profileDto));
+        Long scheduleId = runRecs.stream()
+                .map(PortfolioRecommendation::getScheduleId)
+                .filter(java.util.Objects::nonNull)
+                .findFirst().orElse(null);
+        String scheduleFrequency = scheduleId != null
+                ? scheduleRepository.findById(scheduleId).map(s -> s.getFrequency()).orElse(null)
+                : null;
+        return ResponseEntity.ok(new AiRunDetailsDto(recs, profileDto, scheduleId, scheduleFrequency));
     }
 }

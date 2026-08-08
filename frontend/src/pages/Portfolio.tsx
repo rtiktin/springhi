@@ -7,6 +7,7 @@ import TransactionHistory from '../components/TransactionHistory';
 import TradeForm from '../components/TradeForm';
 import CashForm from '../components/CashForm';
 import OptimizePanel from '../components/OptimizePanel';
+import ScheduleManager from '../components/ScheduleManager';
 import PortfolioProfileForm from '../components/PortfolioProfileForm';
 import { listPortfolios, createPortfolio, updatePortfolio, deletePortfolio, savePortfolioProfile, getCashBalance, submitTransaction, getPortfoliosCreatedCount } from '../api/portfolioApi';
 import type { Portfolio as PortfolioType } from '../api/portfolioApi';
@@ -542,7 +543,10 @@ const Portfolio: React.FC = () => {
                             <TransactionHistory key={`tx-${activePortfolioId}-${refreshKey}`} portfolioId={activePortfolioId} />
                         )}
                         {activeTab === 'optimize' && (
-                            <OptimizePanel key={`opt-${activePortfolioId}`} portfolioId={activePortfolioId} onTradeSuccess={handleTradeSuccess} onNavigateToProfile={() => setActiveTab('profile')} cashRefreshSignal={refreshKey} />
+                            <>
+                                <OptimizePanel key={`opt-${activePortfolioId}`} portfolioId={activePortfolioId} onTradeSuccess={handleTradeSuccess} onNavigateToProfile={() => setActiveTab('profile')} cashRefreshSignal={refreshKey} />
+                                <ScheduleManager portfolioId={activePortfolioId} />
+                            </>
                         )}
                         {activeTab === 'profile' && (
                             <PortfolioProfileForm

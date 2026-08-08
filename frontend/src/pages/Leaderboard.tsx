@@ -293,15 +293,20 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                             <button className="modal-close" onClick={() => setAiRunModal(null)}>✕</button>
                         </div>
 
-                        <p style={{ color: 'var(--text-gray)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-                            Generated{' '}
-                            {new Date(aiRunModal.details.recommendations[0]?.generatedAt ?? '').toLocaleString()}
+                        <p style={{ color: 'var(--text-gray)', fontSize: '0.85rem', marginBottom: '1rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' }}>
+                            <span>Generated{' '}
+                            {new Date(aiRunModal.details.recommendations[0]?.generatedAt ?? '').toLocaleString()}</span>
                             {(() => {
                                 const provider = aiRunModal.details.recommendations[0]?.aiProvider;
                                 if (!provider) return null;
                                 const label = aiBadgeLabel(provider);
-                                return <span style={{ marginLeft: '0.75rem', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.8rem', color: 'var(--accent)', fontWeight: 600 }}>via {label}</span>;
+                                return <span style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.8rem', color: 'var(--accent)', fontWeight: 600 }}>via {label}</span>;
                             })()}
+                            {aiRunModal.details.scheduleFrequency && (
+                                <span style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.4)', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.8rem', color: '#22c55e', fontWeight: 600 }}>
+                                    🗓 Scheduled — {aiRunModal.details.scheduleFrequency.charAt(0) + aiRunModal.details.scheduleFrequency.slice(1).toLowerCase()}
+                                </span>
+                            )}
                         </p>
 
                         {profile && (
