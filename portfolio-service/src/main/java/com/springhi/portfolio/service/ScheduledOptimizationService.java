@@ -45,6 +45,11 @@ public class ScheduledOptimizationService {
     }
 
     public void processDueSchedules() {
+        LocalDate today = LocalDate.now();
+        if (!MarketCalendar.isTradingDay(today)) {
+            log.info("Skipping scheduled optimizations — {} is not a market trading day", today);
+            return;
+        }
         List<OptimizationSchedule> due = scheduleRepository.findDueSchedules(LocalDateTime.now());
         if (due.isEmpty()) return;
         log.info("Processing {} due optimization schedule(s)", due.size());
@@ -209,18 +214,20 @@ public class ScheduledOptimizationService {
         LocalDate today = LocalDate.now();
         LocalDate next;
         switch (schedule.getFrequency().toUpperCase()) {
-            case "DAILY" -> next = today.plusDays(1);
+            case "DAILY" -> next = MarketCalendar.nextTradingDay(today);
             case "WEEKLY" -> {
                 int target = schedule.getDayOfWeek() != null ? schedule.getDayOfWeek() : 1;
                 DayOfWeek dow = DayOfWeek.of(target);
                 next = today.with(TemporalAdjusters.nextOrSame(dow));
                 if (!next.isAfter(today)) next = next.plusWeeks(1);
+                next = MarketCalendar.nextOrSameTradingDay(next);
             }
             case "MONTHLY" -> {
                 int dom = schedule.getDayOfMonth() != null ? schedule.getDayOfMonth() : 1;
                 next = today.withDayOfMonth(Math.min(dom, today.lengthOfMonth()));
                 if (!next.isAfter(today)) next = next.plusMonths(1)
                         .withDayOfMonth(Math.min(dom, next.plusMonths(1).lengthOfMonth()));
+                next = MarketCalendar.nextOrSameTradingDay(next);
             }
             case "QUARTERLY" -> {
                 int dom = schedule.getDayOfMonth() != null ? schedule.getDayOfMonth() : 1;
@@ -229,14 +236,16 @@ public class ScheduledOptimizationService {
                     next = next.plusMonths(3);
                     next = next.withDayOfMonth(Math.min(dom, next.lengthOfMonth()));
                 }
+                next = MarketCalendar.nextOrSameTradingDay(next);
             }
             case "YEARLY" -> {
                 int dom = schedule.getDayOfMonth() != null ? schedule.getDayOfMonth() : 1;
                 next = today.withDayOfYear(1).withDayOfMonth(Math.min(dom, today.lengthOfMonth()));
                 if (!next.isAfter(today)) next = next.plusYears(1)
                         .withDayOfMonth(Math.min(dom, next.plusYears(1).lengthOfMonth()));
+                next = MarketCalendar.nextOrSameTradingDay(next);
             }
-            default -> next = today.plusDays(1);
+            default -> next = MarketCalendar.nextTradingDay(today);
         }
         return next.atTime(RUN_TIME);
     }
