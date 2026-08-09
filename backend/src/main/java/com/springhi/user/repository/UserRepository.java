@@ -19,4 +19,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findAllByOrderByCreatedAtDesc();
     List<User> findByCreatedAtBetween(LocalDateTime from, LocalDateTime to);
+    List<User> findByEmailIn(java.util.Collection<String> emails);
+    List<User> findByPhoneIn(java.util.Collection<String> phones);
 }

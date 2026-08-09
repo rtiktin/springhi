@@ -13,4 +13,6 @@ public interface UserIpAddressRepository extends JpaRepository<UserIpAddress, Lo
     Optional<UserIpAddress> findByUserIdAndIpAddress(Long userId, String ipAddress);
 
     List<UserIpAddress> findByUserIdOrderByLastSeenDesc(Long userId);
+
+    List<UserIpAddress> findByIpAddressIn(java.util.Collection<String> ipAddresses);
 }

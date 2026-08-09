@@ -3,6 +3,9 @@ package com.springhi.user.controller;
 import com.springhi.user.dto.AdminUserDto;
 import com.springhi.user.model.User;
 import com.springhi.user.model.UserIpAddress;
+import com.springhi.user.repository.UserEmailHistoryRepository;
+import com.springhi.user.repository.UserIpAddressRepository;
+import com.springhi.user.repository.UserPhoneHistoryRepository;
 import com.springhi.user.repository.UserRepository;
 import com.springhi.user.service.UserIpAddressService;
 import com.springhi.user.service.UserService;
@@ -14,10 +17,8 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/admin")
@@ -26,12 +27,21 @@ public class AdminController {
     private final UserService userService;
     private final UserRepository userRepository;
     private final UserIpAddressService userIpAddressService;
+    private final UserEmailHistoryRepository emailHistoryRepository;
+    private final UserPhoneHistoryRepository phoneHistoryRepository;
+    private final UserIpAddressRepository userIpAddressRepository;
 
     public AdminController(UserService userService, UserRepository userRepository,
-                           UserIpAddressService userIpAddressService) {
+                           UserIpAddressService userIpAddressService,
+                           UserEmailHistoryRepository emailHistoryRepository,
+                           UserPhoneHistoryRepository phoneHistoryRepository,
+                           UserIpAddressRepository userIpAddressRepository) {
         this.userService = userService;
         this.userRepository = userRepository;
         this.userIpAddressService = userIpAddressService;
+        this.emailHistoryRepository = emailHistoryRepository;
+        this.phoneHistoryRepository = phoneHistoryRepository;
+        this.userIpAddressRepository = userIpAddressRepository;
     }
 
     private boolean isAdmin(UserDetails userDetails) {
@@ -215,6 +225,80 @@ public class AdminController {
             m.put("requestCount", ip.getRequestCount());
             return m;
         }).toList();
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/users/{id}/linked-accounts")
+    public ResponseEntity<List<Map<String, Object>>> getLinkedAccounts(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null || !isAdmin(userDetails)) {
+            return ResponseEntity.status(403).build();
+        }
+
+        Optional<User> targetOpt = userRepository.findById(id);
+        if (targetOpt.isEmpty()) return ResponseEntity.notFound().build();
+        User target = targetOpt.get();
+
+        Set<String> allEmails = new HashSet<>();
+        if (target.getEmail() != null) allEmails.add(target.getEmail());
+        emailHistoryRepository.findByUserId(id).forEach(h -> allEmails.add(h.getEmail()));
+
+        Set<String> allPhones = new HashSet<>();
+        if (target.getPhone() != null) allPhones.add(target.getPhone());
+        phoneHistoryRepository.findByUserId(id).forEach(h -> allPhones.add(h.getPhone()));
+
+        Set<String> allIps = userIpAddressRepository.findByUserIdOrderByLastSeenDesc(id)
+                .stream().map(UserIpAddress::getIpAddress).collect(Collectors.toSet());
+
+        Map<Long, Set<String>> sharedMap = new HashMap<>();
+
+        if (!allEmails.isEmpty()) {
+            emailHistoryRepository.findByEmailIn(allEmails).stream()
+                    .filter(h -> !h.getUserId().equals(id))
+                    .forEach(h -> sharedMap.computeIfAbsent(h.getUserId(), k -> new LinkedHashSet<>())
+                            .add("email (history): " + h.getEmail()));
+            userRepository.findByEmailIn(allEmails).stream()
+                    .filter(u -> !u.getId().equals(id))
+                    .forEach(u -> sharedMap.computeIfAbsent(u.getId(), k -> new LinkedHashSet<>())
+                            .add("email: " + u.getEmail()));
+        }
+
+        if (!allPhones.isEmpty()) {
+            phoneHistoryRepository.findByPhoneIn(allPhones).stream()
+                    .filter(h -> !h.getUserId().equals(id))
+                    .forEach(h -> sharedMap.computeIfAbsent(h.getUserId(), k -> new LinkedHashSet<>())
+                            .add("phone (history): " + h.getPhone()));
+            userRepository.findByPhoneIn(allPhones).stream()
+                    .filter(u -> !u.getId().equals(id) && u.getPhone() != null)
+                    .forEach(u -> sharedMap.computeIfAbsent(u.getId(), k -> new LinkedHashSet<>())
+                            .add("phone: " + u.getPhone()));
+        }
+
+        if (!allIps.isEmpty()) {
+            userIpAddressRepository.findByIpAddressIn(allIps).stream()
+                    .filter(ip -> !ip.getUserId().equals(id))
+                    .forEach(ip -> sharedMap.computeIfAbsent(ip.getUserId(), k -> new LinkedHashSet<>())
+                            .add("IP: " + ip.getIpAddress()));
+        }
+
+        if (sharedMap.isEmpty()) return ResponseEntity.ok(List.of());
+
+        Map<Long, User> linkedUsers = userRepository.findAllById(sharedMap.keySet())
+                .stream().collect(Collectors.toMap(User::getId, u -> u));
+
+        List<Map<String, Object>> result = sharedMap.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(e -> {
+                    User u = linkedUsers.get(e.getKey());
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("userId", e.getKey());
+                    m.put("username", u != null ? u.getUsername() : "unknown");
+                    m.put("email", u != null ? u.getEmail() : null);
+                    m.put("sharedValues", new ArrayList<>(e.getValue()));
+                    return m;
+                }).toList();
+
         return ResponseEntity.ok(result);
     }
 }

@@ -234,6 +234,10 @@ const Admin: React.FC = () => {
     const [ipAddresses, setIpAddresses] = useState<{ ipAddress: string; firstSeen: string; lastSeen: string; requestCount: number }[]>([]);
     const [ipLoading, setIpLoading] = useState(false);
 
+    const [linkedModal, setLinkedModal] = useState<{ userId: number; username: string } | null>(null);
+    const [linkedAccounts, setLinkedAccounts] = useState<{ userId: number; username: string; email: string | null; sharedValues: string[] }[]>([]);
+    const [linkedLoading, setLinkedLoading] = useState(false);
+
     useEffect(() => {
         if (!isAdmin()) {
             navigate('/portfolio');
@@ -373,6 +377,15 @@ const Admin: React.FC = () => {
         axios.get(`${API_GATEWAY}/api/v1/admin/users/${user.id}/ip-addresses`, { headers: authHeader() })
             .then(res => setIpAddresses(res.data))
             .finally(() => setIpLoading(false));
+    };
+
+    const openLinkedAccountsModal = (user: AdminUser) => {
+        setLinkedModal({ userId: user.id, username: user.username });
+        setLinkedLoading(true);
+        setLinkedAccounts([]);
+        axios.get(`${API_GATEWAY}/api/v1/admin/users/${user.id}/linked-accounts`, { headers: authHeader() })
+            .then(res => setLinkedAccounts(res.data))
+            .finally(() => setLinkedLoading(false));
     };
 
     const handleImpersonate = (user: AdminUser) => {
@@ -579,6 +592,22 @@ const Admin: React.FC = () => {
                                                         >
                                                             IP Addresses
                                                         </button>
+                                                        <button
+                                                            onClick={() => openLinkedAccountsModal(u)}
+                                                            style={{
+                                                                background: '#374151',
+                                                                color: '#fff',
+                                                                border: 'none',
+                                                                borderRadius: 6,
+                                                                padding: '0.3rem 0.65rem',
+                                                                fontSize: '0.82rem',
+                                                                cursor: 'pointer',
+                                                                whiteSpace: 'nowrap',
+                                                            }}
+                                                            title="Show linked accounts sharing email, phone, or IP"
+                                                        >
+                                                            Linked Accounts
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -761,6 +790,47 @@ const Admin: React.FC = () => {
                                     {notesSaving ? 'Saving…' : 'Save Notes'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {linkedModal && (
+                <div className="modal-overlay" onClick={() => setLinkedModal(null)}>
+                    <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 680, width: '95%' }}>
+                        <div className="modal-header">
+                            <h2 className="modal-title">Linked Accounts — {linkedModal.username}</h2>
+                            <button className="modal-close" onClick={() => setLinkedModal(null)}>✕</button>
+                        </div>
+                        <div style={{ padding: '1.25rem' }}>
+                            {linkedLoading ? (
+                                <p style={{ color: 'var(--text-gray)' }}>Loading…</p>
+                            ) : linkedAccounts.length === 0 ? (
+                                <p style={{ color: 'var(--text-gray)' }}>No linked accounts found.</p>
+                            ) : (
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                            <th style={{ textAlign: 'left', padding: '0.4rem 0.75rem', color: 'var(--text-gray)', fontWeight: 600 }}>User</th>
+                                            <th style={{ textAlign: 'left', padding: '0.4rem 0.75rem', color: 'var(--text-gray)', fontWeight: 600 }}>Email</th>
+                                            <th style={{ textAlign: 'left', padding: '0.4rem 0.75rem', color: 'var(--text-gray)', fontWeight: 600 }}>Shared Values</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {linkedAccounts.map((acct, i) => (
+                                            <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                <td style={{ padding: '0.5rem 0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>{acct.username}</td>
+                                                <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-gray)' }}>{acct.email ?? '—'}</td>
+                                                <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-primary)' }}>
+                                                    {acct.sharedValues.map((v, j) => (
+                                                        <div key={j} style={{ background: 'rgba(99,102,241,0.12)', borderRadius: 4, padding: '0.15rem 0.5rem', marginBottom: 3, fontSize: '0.82rem', display: 'inline-block', marginRight: 4 }}>{v}</div>
+                                                    ))}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
                         </div>
                     </div>
                 </div>
