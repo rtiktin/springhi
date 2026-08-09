@@ -230,6 +230,10 @@ const Admin: React.FC = () => {
     const [loadingStats, setLoadingStats] = useState(false);
     const [chartOffset, setChartOffset] = useState(0);
 
+    const [ipModal, setIpModal] = useState<{ userId: number; username: string } | null>(null);
+    const [ipAddresses, setIpAddresses] = useState<{ ipAddress: string; firstSeen: string; lastSeen: string; requestCount: number }[]>([]);
+    const [ipLoading, setIpLoading] = useState(false);
+
     useEffect(() => {
         if (!isAdmin()) {
             navigate('/portfolio');
@@ -360,6 +364,15 @@ const Admin: React.FC = () => {
             })
             .catch(err => setNotesError(err?.response?.data?.message ?? 'Failed to save notes.'))
             .finally(() => setNotesSaving(false));
+    };
+
+    const openIpModal = (user: AdminUser) => {
+        setIpModal({ userId: user.id, username: user.username });
+        setIpLoading(true);
+        setIpAddresses([]);
+        axios.get(`${API_GATEWAY}/api/v1/admin/users/${user.id}/ip-addresses`, { headers: authHeader() })
+            .then(res => setIpAddresses(res.data))
+            .finally(() => setIpLoading(false));
     };
 
     const handleImpersonate = (user: AdminUser) => {
@@ -550,6 +563,22 @@ const Admin: React.FC = () => {
                                                         >
                                                             {impersonating === u.id ? 'Switching…' : 'Become User'}
                                                         </button>
+                                                        <button
+                                                            onClick={() => openIpModal(u)}
+                                                            style={{
+                                                                background: '#374151',
+                                                                color: '#fff',
+                                                                border: 'none',
+                                                                borderRadius: 6,
+                                                                padding: '0.3rem 0.65rem',
+                                                                fontSize: '0.82rem',
+                                                                cursor: 'pointer',
+                                                                whiteSpace: 'nowrap',
+                                                            }}
+                                                            title="View IP addresses"
+                                                        >
+                                                            IP Addresses
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -732,6 +761,45 @@ const Admin: React.FC = () => {
                                     {notesSaving ? 'Saving…' : 'Save Notes'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {ipModal && (
+                <div className="modal-overlay" onClick={() => setIpModal(null)}>
+                    <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 620, width: '95%' }}>
+                        <div className="modal-header">
+                            <h2 className="modal-title">IP Addresses — {ipModal.username}</h2>
+                            <button className="modal-close" onClick={() => setIpModal(null)}>✕</button>
+                        </div>
+                        <div style={{ padding: '1.25rem' }}>
+                            {ipLoading ? (
+                                <p style={{ color: 'var(--text-gray)' }}>Loading…</p>
+                            ) : ipAddresses.length === 0 ? (
+                                <p style={{ color: 'var(--text-gray)' }}>No IP addresses recorded yet.</p>
+                            ) : (
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                            <th style={{ textAlign: 'left', padding: '0.4rem 0.75rem', color: 'var(--text-gray)', fontWeight: 600 }}>IP Address</th>
+                                            <th style={{ textAlign: 'left', padding: '0.4rem 0.75rem', color: 'var(--text-gray)', fontWeight: 600 }}>First Seen</th>
+                                            <th style={{ textAlign: 'left', padding: '0.4rem 0.75rem', color: 'var(--text-gray)', fontWeight: 600 }}>Last Seen</th>
+                                            <th style={{ textAlign: 'right', padding: '0.4rem 0.75rem', color: 'var(--text-gray)', fontWeight: 600 }}>Requests</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {ipAddresses.map((ip, i) => (
+                                            <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                <td style={{ padding: '0.5rem 0.75rem', fontFamily: 'monospace', color: 'var(--text-primary)' }}>{ip.ipAddress}</td>
+                                                <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-gray)' }}>{new Date(ip.firstSeen).toLocaleString()}</td>
+                                                <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-gray)' }}>{new Date(ip.lastSeen).toLocaleString()}</td>
+                                                <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', color: 'var(--text-primary)' }}>{ip.requestCount.toLocaleString()}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
                         </div>
                     </div>
                 </div>

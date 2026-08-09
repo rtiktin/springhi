@@ -1,5 +1,7 @@
 package com.springhi.user.security;
 
+import com.springhi.user.model.User;
+import com.springhi.user.service.UserIpAddressService;
 import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -20,10 +22,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final UserIpAddressService userIpAddressService;
 
-    public JwtAuthenticationFilter(JwtService jwtService, UserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtService jwtService, UserDetailsService userDetailsService,
+                                   UserIpAddressService userIpAddressService) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.userIpAddressService = userIpAddressService;
     }
 
     @Override
@@ -57,6 +62,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     );
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
+                    if (userDetails instanceof User u) {
+                        userIpAddressService.record(u.getId(), extractIp(request));
+                    }
                 }
             }
         } catch (ExpiredJwtException e) {
@@ -66,5 +74,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
         filterChain.doFilter(request, response);
+    }
+
+    private String extractIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        String realIp = request.getHeader("X-Real-IP");
+        if (realIp != null && !realIp.isBlank()) {
+            return realIp.trim();
+        }
+        return request.getRemoteAddr();
     }
 }

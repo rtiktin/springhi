@@ -2,7 +2,9 @@ package com.springhi.user.controller;
 
 import com.springhi.user.dto.AdminUserDto;
 import com.springhi.user.model.User;
+import com.springhi.user.model.UserIpAddress;
 import com.springhi.user.repository.UserRepository;
+import com.springhi.user.service.UserIpAddressService;
 import com.springhi.user.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,10 +25,13 @@ public class AdminController {
 
     private final UserService userService;
     private final UserRepository userRepository;
+    private final UserIpAddressService userIpAddressService;
 
-    public AdminController(UserService userService, UserRepository userRepository) {
+    public AdminController(UserService userService, UserRepository userRepository,
+                           UserIpAddressService userIpAddressService) {
         this.userService = userService;
         this.userRepository = userRepository;
+        this.userIpAddressService = userIpAddressService;
     }
 
     private boolean isAdmin(UserDetails userDetails) {
@@ -192,5 +197,24 @@ public class AdminController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
+    }
+
+    @GetMapping("/users/{id}/ip-addresses")
+    public ResponseEntity<List<Map<String, Object>>> getUserIpAddresses(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null || !isAdmin(userDetails)) {
+            return ResponseEntity.status(403).build();
+        }
+        List<UserIpAddress> ips = userIpAddressService.getForUser(id);
+        List<Map<String, Object>> result = ips.stream().map(ip -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("ipAddress", ip.getIpAddress());
+            m.put("firstSeen", ip.getFirstSeen());
+            m.put("lastSeen", ip.getLastSeen());
+            m.put("requestCount", ip.getRequestCount());
+            return m;
+        }).toList();
+        return ResponseEntity.ok(result);
     }
 }
