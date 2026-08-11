@@ -10,6 +10,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class UserServiceClient {
@@ -20,6 +21,21 @@ public class UserServiceClient {
 
     public UserServiceClient(@Value("${backend.url:http://localhost:8080}") String backendUrl) {
         this.webClient = WebClient.builder().baseUrl(backendUrl).build();
+    }
+
+    public Optional<Map<String, Object>> getSubscriptionLimits(Long userId, String jwtToken) {
+        try {
+            Map<String, Object> result = webClient.get()
+                    .uri("/api/v1/subscription/limits/" + userId)
+                    .header("Authorization", jwtToken)
+                    .retrieve()
+                    .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                    .block();
+            return Optional.ofNullable(result);
+        } catch (Exception e) {
+            log.warn("Failed to fetch subscription limits for userId={}: {}", userId, e.getMessage());
+            return Optional.empty();
+        }
     }
 
     public Map<Long, String> getDisplayNames(List<Long> ids, String jwtToken) {

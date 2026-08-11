@@ -2,14 +2,19 @@ package com.springhi.portfolio.controller;
 
 import com.springhi.portfolio.dto.PortfolioProfileDto;
 import com.springhi.portfolio.model.Portfolio;
+import com.springhi.portfolio.repository.PortfolioRecommendationRepository;
 import com.springhi.portfolio.security.UserPrincipal;
 import com.springhi.portfolio.service.PortfolioProfileService;
 import com.springhi.portfolio.service.PortfolioService;
+import com.springhi.portfolio.service.UserServiceClient;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -19,11 +24,29 @@ public class PortfoliosController {
 
     private final PortfolioService portfolioService;
     private final PortfolioProfileService portfolioProfileService;
+    private final UserServiceClient userServiceClient;
+    private final PortfolioRecommendationRepository recommendationRepository;
 
     public PortfoliosController(PortfolioService portfolioService,
-                                PortfolioProfileService portfolioProfileService) {
+                                PortfolioProfileService portfolioProfileService,
+                                UserServiceClient userServiceClient,
+                                PortfolioRecommendationRepository recommendationRepository) {
         this.portfolioService = portfolioService;
         this.portfolioProfileService = portfolioProfileService;
+        this.userServiceClient = userServiceClient;
+        this.recommendationRepository = recommendationRepository;
+    }
+
+    @GetMapping("/usage-stats")
+    public ResponseEntity<Map<String, Object>> getUsageStats(@AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) return ResponseEntity.status(403).build();
+        int portfolioCount = portfolioService.listPortfolios(principal.getId()).size();
+        LocalDateTime startOfMonth = LocalDate.now().withDayOfMonth(1).atStartOfDay();
+        long optimizationsThisMonth = recommendationRepository.countOptimizationRunsSince(principal.getId(), startOfMonth);
+        Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("portfolioCount", portfolioCount);
+        stats.put("optimizationsThisMonth", optimizationsThisMonth);
+        return ResponseEntity.ok(stats);
     }
 
     @GetMapping("/creation-count")
@@ -40,10 +63,28 @@ public class PortfoliosController {
     }
 
     @PostMapping
-    public ResponseEntity<Portfolio> create(
+    public ResponseEntity<?> create(
             @AuthenticationPrincipal UserPrincipal principal,
-            @RequestBody Map<String, String> body) {
+            @RequestBody Map<String, String> body,
+            HttpServletRequest request) {
         if (principal == null) return ResponseEntity.status(403).build();
+
+        String authHeader = request.getHeader("Authorization");
+        Map<String, Object> limits = userServiceClient.getSubscriptionLimits(principal.getId(), authHeader).orElse(null);
+        if (limits != null) {
+            int maxPortfolios = limits.get("maxPortfolios") instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
+            int currentCount = portfolioService.listPortfolios(principal.getId()).size();
+            if (currentCount >= maxPortfolios) {
+                String planName = (String) limits.getOrDefault("planName", "FREE");
+                return ResponseEntity.status(429).body(Map.of(
+                        "error", "PORTFOLIO_LIMIT_REACHED",
+                        "message", "You have reached the maximum number of portfolios (" + maxPortfolios + ") for your " + planName + " plan. Please upgrade to create more.",
+                        "maxPortfolios", maxPortfolios,
+                        "planName", planName
+                ));
+            }
+        }
+
         String name = body.getOrDefault("name", "New Portfolio").trim();
         if (name.isBlank()) name = "New Portfolio";
         String description = body.get("description");

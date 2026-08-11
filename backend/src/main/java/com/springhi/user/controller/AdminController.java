@@ -1,12 +1,14 @@
 package com.springhi.user.controller;
 
 import com.springhi.user.dto.AdminUserDto;
+import com.springhi.user.model.SubscriptionConfig;
 import com.springhi.user.model.User;
 import com.springhi.user.model.UserIpAddress;
 import com.springhi.user.repository.UserEmailHistoryRepository;
 import com.springhi.user.repository.UserIpAddressRepository;
 import com.springhi.user.repository.UserPhoneHistoryRepository;
 import com.springhi.user.repository.UserRepository;
+import com.springhi.user.service.SubscriptionService;
 import com.springhi.user.service.UserIpAddressService;
 import com.springhi.user.service.UserService;
 import org.springframework.http.ResponseEntity;
@@ -30,18 +32,21 @@ public class AdminController {
     private final UserEmailHistoryRepository emailHistoryRepository;
     private final UserPhoneHistoryRepository phoneHistoryRepository;
     private final UserIpAddressRepository userIpAddressRepository;
+    private final SubscriptionService subscriptionService;
 
     public AdminController(UserService userService, UserRepository userRepository,
                            UserIpAddressService userIpAddressService,
                            UserEmailHistoryRepository emailHistoryRepository,
                            UserPhoneHistoryRepository phoneHistoryRepository,
-                           UserIpAddressRepository userIpAddressRepository) {
+                           UserIpAddressRepository userIpAddressRepository,
+                           SubscriptionService subscriptionService) {
         this.userService = userService;
         this.userRepository = userRepository;
         this.userIpAddressService = userIpAddressService;
         this.emailHistoryRepository = emailHistoryRepository;
         this.phoneHistoryRepository = phoneHistoryRepository;
         this.userIpAddressRepository = userIpAddressRepository;
+        this.subscriptionService = subscriptionService;
     }
 
     private boolean isAdmin(UserDetails userDetails) {
@@ -300,5 +305,37 @@ public class AdminController {
                 }).toList();
 
         return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/subscription-config")
+    public ResponseEntity<List<SubscriptionConfig>> getSubscriptionConfig(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null || !isAdmin(userDetails)) {
+            return ResponseEntity.status(403).build();
+        }
+        return ResponseEntity.ok(subscriptionService.getAllPlans());
+    }
+
+    @PutMapping("/subscription-config/{planName}")
+    public ResponseEntity<?> updateSubscriptionConfig(
+            @PathVariable String planName,
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null || !isAdmin(userDetails)) {
+            return ResponseEntity.status(403).build();
+        }
+        try {
+            int maxPortfolios = body.get("maxPortfolios") instanceof Number n ? n.intValue() : 0;
+            int maxOptimizations = body.get("maxOptimizationsPerMonth") instanceof Number n ? n.intValue() : 0;
+            java.math.BigDecimal monthlyPrice = body.get("monthlyPrice") != null
+                    ? new java.math.BigDecimal(body.get("monthlyPrice").toString()) : null;
+            java.math.BigDecimal annualPrice = body.get("annualPrice") != null
+                    ? new java.math.BigDecimal(body.get("annualPrice").toString()) : null;
+            SubscriptionConfig updated = subscriptionService.updatePlanConfig(
+                    planName, maxPortfolios, maxOptimizations, monthlyPrice, annualPrice);
+            return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
     }
 }

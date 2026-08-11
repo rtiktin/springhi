@@ -55,3 +55,15 @@ spring:
           uri: ${PORTFOLIO_URL:http://localhost:8081}
           predicates:
             - Path=/api/v1/admin/stats/portfolios
+        - id: portfolios-usage-stats
+          uri: ${PORTFOLIO_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/portfolios/usage-stats
+        - id: admin-subscription-config
+          uri: ${BACKEND_URL:http://localhost:8080}
+          predicates:
+            - Path=/api/v1/admin/subscription-config/**
+        - id: subscription-service
+          uri: ${BACKEND_URL:http://localhost:8080}
+          predicates:
+            - Path=/api/v1/subscription/**

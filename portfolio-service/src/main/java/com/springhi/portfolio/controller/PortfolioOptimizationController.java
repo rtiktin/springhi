@@ -11,6 +11,8 @@ import com.springhi.portfolio.repository.PortfolioRecommendationRepository;
 import com.springhi.portfolio.security.UserPrincipal;
 import com.springhi.portfolio.service.PortfolioOptimizationService;
 import com.springhi.portfolio.service.PortfolioService;
+import com.springhi.portfolio.service.UserServiceClient;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -32,29 +34,51 @@ public class PortfolioOptimizationController {
     private final PortfolioService portfolioService;
     private final PortfolioProfileRepository profileRepository;
     private final OptimizationScheduleRepository scheduleRepository;
+    private final UserServiceClient userServiceClient;
 
     public PortfolioOptimizationController(PortfolioOptimizationService optimizationService,
                                            PortfolioRecommendationRepository recommendationRepository,
                                            PortfolioService portfolioService,
                                            PortfolioProfileRepository profileRepository,
-                                           OptimizationScheduleRepository scheduleRepository) {
+                                           OptimizationScheduleRepository scheduleRepository,
+                                           UserServiceClient userServiceClient) {
         this.optimizationService = optimizationService;
         this.recommendationRepository = recommendationRepository;
         this.portfolioService = portfolioService;
         this.profileRepository = profileRepository;
         this.scheduleRepository = scheduleRepository;
+        this.userServiceClient = userServiceClient;
     }
 
     @PostMapping("/optimize")
     public ResponseEntity<?> optimize(
             @RequestParam Long portfolioId,
             @RequestParam(defaultValue = "gemini") String provider,
-            @AuthenticationPrincipal UserPrincipal principal) {
+            @AuthenticationPrincipal UserPrincipal principal,
+            HttpServletRequest request) {
         if (principal == null) return ResponseEntity.status(403).build();
         if (!principal.isEmailVerified()) {
             return ResponseEntity.status(403).body(Map.of("error", "EMAIL_NOT_VERIFIED", "message", "Please verify your email address before running optimization."));
         }
         portfolioService.validatePortfolioOwnership(principal.getId(), portfolioId);
+
+        String authHeader = request.getHeader("Authorization");
+        Map<String, Object> limits = userServiceClient.getSubscriptionLimits(principal.getId(), authHeader).orElse(null);
+        if (limits != null) {
+            int maxOptimizations = limits.get("maxOptimizationsPerMonth") instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
+            java.time.LocalDateTime startOfMonth = java.time.LocalDate.now().withDayOfMonth(1).atStartOfDay();
+            long runsSoFar = recommendationRepository.countOptimizationRunsSince(principal.getId(), startOfMonth);
+            if (runsSoFar >= maxOptimizations) {
+                String planName = (String) limits.getOrDefault("planName", "FREE");
+                return ResponseEntity.status(429).body(Map.of(
+                        "error", "OPTIMIZATION_LIMIT_REACHED",
+                        "message", "You have used all " + maxOptimizations + " AI optimization(s) for this month on your " + planName + " plan. Please upgrade to run more.",
+                        "maxOptimizationsPerMonth", maxOptimizations,
+                        "planName", planName
+                ));
+            }
+        }
+
         log.info("Portfolio optimization requested for portfolioId={}, userId={}, provider={}", portfolioId, principal.getId(), provider);
         OptimizationResponse result = optimizationService.optimize(principal.getId(), portfolioId, provider);
         return ResponseEntity.ok(result);

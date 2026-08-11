@@ -41,4 +41,7 @@ public interface PortfolioRecommendationRepository extends JpaRepository<Portfol
     @Transactional
     @Query("DELETE FROM PortfolioRecommendation r WHERE r.portfolioId = :portfolioId AND r.status = 'PENDING'")
     void deletePendingForPortfolio(@Param("portfolioId") Long portfolioId);
+
+    @Query("SELECT COUNT(DISTINCT r.generatedAt) FROM PortfolioRecommendation r WHERE r.userId = :userId AND r.generatedAt >= :since")
+    long countOptimizationRunsSince(@Param("userId") Long userId, @Param("since") LocalDateTime since);
 }

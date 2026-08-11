@@ -52,7 +52,18 @@ const TYPE_BADGE_COLOR: Record<number, string> = {
     3: '#b91c1c',
 };
 
-type AdminTab = 'users' | 'portfolios' | 'stats';
+type AdminTab = 'users' | 'portfolios' | 'stats' | 'config';
+
+interface SubscriptionPlan {
+    id: number;
+    planName: string;
+    displayName: string;
+    monthlyPrice: number;
+    annualPrice: number;
+    maxPortfolios: number;
+    maxOptimizationsPerMonth: number;
+    description: string;
+}
 
 const thStyle: React.CSSProperties = {
     padding: '0.6rem 0.75rem',
@@ -238,6 +249,12 @@ const Admin: React.FC = () => {
     const [linkedAccounts, setLinkedAccounts] = useState<{ userId: number; username: string; email: string | null; sharedValues: string[] }[]>([]);
     const [linkedLoading, setLinkedLoading] = useState(false);
 
+    const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>([]);
+    const [configLoading, setConfigLoading] = useState(false);
+    const [configEdits, setConfigEdits] = useState<Record<string, Partial<SubscriptionPlan>>>({});
+    const [configSaving, setConfigSaving] = useState<string | null>(null);
+    const [configMessage, setConfigMessage] = useState<{ planName: string; text: string; error: boolean } | null>(null);
+
     useEffect(() => {
         if (!isAdmin()) {
             navigate('/portfolio');
@@ -251,6 +268,8 @@ const Admin: React.FC = () => {
             loadPortfolios();
         } else if (tab === 'stats') {
             loadStats(chartOffset);
+        } else if (tab === 'config') {
+            loadSubscriptionConfig();
         }
     }, [tab]);
 
@@ -270,6 +289,46 @@ const Admin: React.FC = () => {
             setPortfolioStats(pRes.data);
         }).catch(() => setError('Failed to load statistics.'))
           .finally(() => setLoadingStats(false));
+    };
+
+    const loadSubscriptionConfig = () => {
+        setConfigLoading(true);
+        axios.get(`${API_GATEWAY}/api/v1/admin/subscription-config`, { headers: authHeader() })
+            .then(res => {
+                setSubscriptionPlans(res.data);
+                const edits: Record<string, Partial<SubscriptionPlan>> = {};
+                res.data.forEach((p: SubscriptionPlan) => { edits[p.planName] = { ...p }; });
+                setConfigEdits(edits);
+            })
+            .catch(() => setError('Failed to load subscription config.'))
+            .finally(() => setConfigLoading(false));
+    };
+
+    const saveConfig = (planName: string) => {
+        const edit = configEdits[planName];
+        if (!edit) return;
+        setConfigSaving(planName);
+        setConfigMessage(null);
+        axios.put(`${API_GATEWAY}/api/v1/admin/subscription-config/${planName}`, {
+            maxPortfolios: Number(edit.maxPortfolios),
+            maxOptimizationsPerMonth: Number(edit.maxOptimizationsPerMonth),
+            monthlyPrice: Number(edit.monthlyPrice),
+            annualPrice: Number(edit.annualPrice),
+        }, { headers: authHeader() })
+            .then(res => {
+                setSubscriptionPlans(prev => prev.map(p => p.planName === planName ? res.data : p));
+                setConfigMessage({ planName, text: 'Saved', error: false });
+                setTimeout(() => setConfigMessage(null), 3000);
+            })
+            .catch(() => setConfigMessage({ planName, text: 'Save failed', error: true }))
+            .finally(() => setConfigSaving(null));
+    };
+
+    const updateConfigEdit = (planName: string, field: keyof SubscriptionPlan, value: string) => {
+        setConfigEdits(prev => ({
+            ...prev,
+            [planName]: { ...prev[planName], [field]: field.startsWith('max') || field.endsWith('Price') ? value : value },
+        }));
     };
 
     const loadUsers = () => {
@@ -446,6 +505,7 @@ const Admin: React.FC = () => {
                     <button style={tabStyle('users')} onClick={() => setTab('users')}>Users</button>
                     <button style={tabStyle('portfolios')} onClick={() => setTab('portfolios')}>Portfolios</button>
                     <button style={tabStyle('stats')} onClick={() => setTab('stats')}>Statistics</button>
+                    <button style={tabStyle('config')} onClick={() => setTab('config')}>Config</button>
                 </div>
 
                 <div style={{ background: 'var(--bg-card)', borderRadius: '0 8px 8px 8px', border: '1px solid var(--border)', borderTop: 'none', padding: '1.5rem' }}>
@@ -665,6 +725,64 @@ const Admin: React.FC = () => {
                                 <div className="portfolio-loading">Loading statistics…</div>
                             ) : (
                                 <StatsPanel userStats={userStats} portfolioStats={portfolioStats} chartOffset={chartOffset} setChartOffset={setChartOffset} />
+                            )}
+                        </>
+                    )}
+
+                    {tab === 'config' && (
+                        <>
+                            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1.25rem', color: 'var(--text-primary)' }}>Subscription Plan Configuration</h2>
+                            <p style={{ color: 'var(--text-gray)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+                                Adjust plan limits and pricing. Changes take effect immediately for new limit checks.
+                            </p>
+                            {configLoading ? (
+                                <div className="portfolio-loading">Loading…</div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                    {subscriptionPlans.map(plan => {
+                                        const edit = configEdits[plan.planName] ?? plan;
+                                        const msg = configMessage?.planName === plan.planName ? configMessage : null;
+                                        return (
+                                            <div key={plan.planName} style={{ background: 'var(--bg-input, #1e2035)', borderRadius: 10, border: '1px solid var(--border)', padding: '1.25rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+                                                    <h3 style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)', margin: 0 }}>{plan.displayName}</h3>
+                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-gray)', background: 'var(--bg-card)', borderRadius: 4, padding: '0.15rem 0.5rem', border: '1px solid var(--border)' }}>{plan.planName}</span>
+                                                </div>
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1rem' }}>
+                                                    {[
+                                                        { label: 'Max Portfolios', field: 'maxPortfolios' as keyof SubscriptionPlan },
+                                                        { label: 'Max Optimizations/Month', field: 'maxOptimizationsPerMonth' as keyof SubscriptionPlan },
+                                                        { label: 'Monthly Price ($)', field: 'monthlyPrice' as keyof SubscriptionPlan },
+                                                        { label: 'Annual Price ($)', field: 'annualPrice' as keyof SubscriptionPlan },
+                                                    ].map(({ label, field }) => (
+                                                        <div key={field}>
+                                                            <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-gray)', marginBottom: 4 }}>{label}</label>
+                                                            <input
+                                                                type="number"
+                                                                min={0}
+                                                                value={String(edit[field] ?? '')}
+                                                                onChange={e => updateConfigEdit(plan.planName, field, e.target.value)}
+                                                                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.35rem 0.6rem', color: 'var(--text-primary)', fontSize: '0.9rem', width: '100%' }}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1rem' }}>
+                                                    <button
+                                                        onClick={() => saveConfig(plan.planName)}
+                                                        disabled={configSaving === plan.planName}
+                                                        style={{ background: '#6c47ff', color: '#fff', border: 'none', borderRadius: 6, padding: '0.4rem 1rem', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}
+                                                    >
+                                                        {configSaving === plan.planName ? 'Saving…' : 'Save'}
+                                                    </button>
+                                                    {msg && (
+                                                        <span style={{ fontSize: '0.85rem', color: msg.error ? '#ef4444' : '#22c55e', fontWeight: 600 }}>{msg.text}</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             )}
                         </>
                     )}
