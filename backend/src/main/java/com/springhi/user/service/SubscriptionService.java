@@ -70,29 +70,36 @@ public class SubscriptionService {
     public Map<String, Object> subscribe(Long userId, String planName, String billingCycle,
                                          String cardholderName, String cardNumber,
                                          Integer expiryMonth, Integer expiryYear,
-                                         String billingZip) {
+                                         String billingZip, boolean useExistingCard) {
         String plan = planName.toUpperCase();
         SubscriptionConfig config = getPlan(plan);
 
-        String brand = detectCardBrand(cardNumber);
-        String lastFour = cardNumber != null && cardNumber.length() >= 4
-                ? cardNumber.replaceAll("\\s", "").substring(cardNumber.replaceAll("\\s", "").length() - 4)
-                : "****";
+        PaymentMethod savedPm;
 
-        paymentMethodRepository.findByUserIdOrderByCreatedAtDesc(userId)
-                .forEach(pm -> { pm.setDefault(false); paymentMethodRepository.save(pm); });
+        if (useExistingCard) {
+            savedPm = paymentMethodRepository.findFirstByUserIdAndIsDefaultTrue(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("No existing payment method found."));
+        } else {
+            String brand = detectCardBrand(cardNumber);
+            String lastFour = cardNumber != null && cardNumber.length() >= 4
+                    ? cardNumber.replaceAll("\\s", "").substring(cardNumber.replaceAll("\\s", "").length() - 4)
+                    : "****";
 
-        PaymentMethod pm = new PaymentMethod();
-        pm.setUserId(userId);
-        pm.setCardholderName(cardholderName);
-        pm.setCardLastFour(lastFour);
-        pm.setCardBrand(brand);
-        pm.setExpiryMonth(expiryMonth);
-        pm.setExpiryYear(expiryYear);
-        pm.setBillingZip(billingZip);
-        pm.setCardNumberEncrypted(maskCardNumber(cardNumber));
-        pm.setDefault(true);
-        PaymentMethod savedPm = paymentMethodRepository.save(pm);
+            paymentMethodRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                    .forEach(pm -> { pm.setDefault(false); paymentMethodRepository.save(pm); });
+
+            PaymentMethod pm = new PaymentMethod();
+            pm.setUserId(userId);
+            pm.setCardholderName(cardholderName);
+            pm.setCardLastFour(lastFour);
+            pm.setCardBrand(brand);
+            pm.setExpiryMonth(expiryMonth);
+            pm.setExpiryYear(expiryYear);
+            pm.setBillingZip(billingZip);
+            pm.setCardNumberEncrypted(maskCardNumber(cardNumber));
+            pm.setDefault(true);
+            savedPm = paymentMethodRepository.save(pm);
+        }
 
         BigDecimal amount = "ANNUAL".equalsIgnoreCase(billingCycle)
                 ? config.getAnnualPrice()
@@ -139,6 +146,38 @@ public class SubscriptionService {
 
     public List<PaymentHistory> getPaymentHistory(Long userId) {
         return paymentHistoryRepository.findByUserIdOrderByPaymentDateDesc(userId);
+    }
+
+    @Transactional
+    public Map<String, Object> addPaymentMethod(Long userId, String cardholderName, String cardNumber,
+                                                Integer expiryMonth, Integer expiryYear, String billingZip) {
+        String brand = detectCardBrand(cardNumber);
+        String lastFour = cardNumber != null && cardNumber.replaceAll("\\s", "").length() >= 4
+                ? cardNumber.replaceAll("\\s", "").substring(cardNumber.replaceAll("\\s", "").length() - 4)
+                : "****";
+
+        paymentMethodRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                .forEach(pm -> { pm.setDefault(false); paymentMethodRepository.save(pm); });
+
+        PaymentMethod pm = new PaymentMethod();
+        pm.setUserId(userId);
+        pm.setCardholderName(cardholderName);
+        pm.setCardLastFour(lastFour);
+        pm.setCardBrand(brand);
+        pm.setExpiryMonth(expiryMonth);
+        pm.setExpiryYear(expiryYear);
+        pm.setBillingZip(billingZip);
+        pm.setCardNumberEncrypted(maskCardNumber(cardNumber));
+        pm.setDefault(true);
+        PaymentMethod saved = paymentMethodRepository.save(pm);
+
+        Map<String, Object> card = new LinkedHashMap<>();
+        card.put("cardholderName", saved.getCardholderName());
+        card.put("cardLastFour", saved.getCardLastFour());
+        card.put("cardBrand", saved.getCardBrand());
+        card.put("expiryMonth", saved.getExpiryMonth());
+        card.put("expiryYear", saved.getExpiryYear());
+        return card;
     }
 
     @Transactional

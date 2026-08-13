@@ -66,17 +66,43 @@ public class SubscriptionController {
             Integer expiryYear = body.get("expiryYear") instanceof Number
                     ? ((Number) body.get("expiryYear")).intValue() : null;
             String billingZip = (String) body.get("billingZip");
+            boolean useExistingCard = Boolean.TRUE.equals(body.get("useExistingCard"));
 
             if (planName == null || planName.isBlank()) {
                 return ResponseEntity.badRequest().body(Map.of("message", "planName is required"));
             }
-            if (!"FREE".equalsIgnoreCase(planName) && (cardNumber == null || cardNumber.isBlank())) {
+            if (!"FREE".equalsIgnoreCase(planName) && !useExistingCard && (cardNumber == null || cardNumber.isBlank())) {
                 return ResponseEntity.badRequest().body(Map.of("message", "Card number is required for paid plans"));
             }
 
             Map<String, Object> result = subscriptionService.subscribe(
                     userId, planName, billingCycle, cardholderName, cardNumber,
-                    expiryMonth, expiryYear, billingZip);
+                    expiryMonth, expiryYear, billingZip, useExistingCard);
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/payment-method")
+    public ResponseEntity<?> addPaymentMethod(
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null) return ResponseEntity.status(403).build();
+        Long userId = ((User) userDetails).getId();
+        try {
+            String cardholderName = (String) body.get("cardholderName");
+            String cardNumber = (String) body.get("cardNumber");
+            Integer expiryMonth = body.get("expiryMonth") instanceof Number
+                    ? ((Number) body.get("expiryMonth")).intValue() : null;
+            Integer expiryYear = body.get("expiryYear") instanceof Number
+                    ? ((Number) body.get("expiryYear")).intValue() : null;
+            String billingZip = (String) body.get("billingZip");
+            if (cardNumber == null || cardNumber.isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Card number is required"));
+            }
+            Map<String, Object> result = subscriptionService.addPaymentMethod(
+                    userId, cardholderName, cardNumber, expiryMonth, expiryYear, billingZip);
             return ResponseEntity.ok(result);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));

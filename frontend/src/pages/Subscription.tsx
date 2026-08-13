@@ -50,9 +50,19 @@ const Subscription: React.FC = () => {
     const [expiryYear, setExpiryYear] = useState('');
     const [billingZip, setBillingZip] = useState('');
     const [cvv, setCvv] = useState('');
+    const [useExistingCard, setUseExistingCard] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [showAddCardModal, setShowAddCardModal] = useState(false);
+    const [addCardName, setAddCardName] = useState('');
+    const [addCardNumber, setAddCardNumber] = useState('');
+    const [addCardMonth, setAddCardMonth] = useState('');
+    const [addCardYear, setAddCardYear] = useState('');
+    const [addCardZip, setAddCardZip] = useState('');
+    const [addCardCvv, setAddCardCvv] = useState('');
+    const [addCardError, setAddCardError] = useState('');
+    const [addCardSubmitting, setAddCardSubmitting] = useState(false);
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -72,6 +82,45 @@ const Subscription: React.FC = () => {
           .finally(() => setLoading(false));
     }, []);
 
+    const openAddCardModal = () => {
+        setAddCardName(''); setAddCardNumber(''); setAddCardMonth('');
+        setAddCardYear(''); setAddCardZip(''); setAddCardCvv('');
+        setAddCardError('');
+        setShowAddCardModal(true);
+    };
+
+    const handleAddCard = () => {
+        const brand = detectCardBrand(addCardNumber);
+        if (!addCardNumber.trim() || !addCardName.trim() || !addCardMonth || !addCardYear || !addCardCvv.trim()) {
+            setAddCardError('Please fill in all card details.');
+            return;
+        }
+        if (!brand) {
+            setAddCardError('Only Visa and Mastercard are accepted.');
+            return;
+        }
+        if (addCardCvv.length < 3) {
+            setAddCardError('Please enter a valid security code (CVV).');
+            return;
+        }
+        setAddCardSubmitting(true);
+        setAddCardError('');
+        axios.post(`${API_GATEWAY}/api/v1/subscription/payment-method`, {
+            cardholderName: addCardName,
+            cardNumber: addCardNumber.replace(/\s/g, ''),
+            expiryMonth: parseInt(addCardMonth),
+            expiryYear: parseInt(addCardYear),
+            billingZip: addCardZip,
+        }, { headers: authHeader() })
+            .then(res => {
+                setStatus(prev => prev ? { ...prev, paymentMethod: res.data } : prev);
+                setShowAddCardModal(false);
+                setSuccess('Payment method saved successfully.');
+            })
+            .catch(err => setAddCardError(err.response?.data?.message ?? 'Failed to save card.'))
+            .finally(() => setAddCardSubmitting(false));
+    };
+
     const handleSelectPlan = (planName: string) => {
         if (planName === 'FREE') {
             setSelectedPlan('FREE');
@@ -79,6 +128,13 @@ const Subscription: React.FC = () => {
         } else {
             setSelectedPlan(planName);
             setShowPaymentForm(true);
+            setUseExistingCard(true);
+            setCardNumber('');
+            setCardholderName('');
+            setExpiryMonth('');
+            setExpiryYear('');
+            setBillingZip('');
+            setCvv('');
         }
         setError('');
         setSuccess('');
@@ -89,28 +145,33 @@ const Subscription: React.FC = () => {
         setSubmitting(true);
         setError('');
         const payload: Record<string, unknown> = { planName: selectedPlan, billingCycle };
+        const hasExistingCard = !!(status?.paymentMethod);
         if (selectedPlan !== 'FREE') {
-            const brand = detectCardBrand(cardNumber);
-            if (!cardNumber.trim() || !cardholderName.trim() || !expiryMonth || !expiryYear || !cvv.trim()) {
-                setError('Please fill in all card details including the security code.');
-                setSubmitting(false);
-                return;
+            if (hasExistingCard && useExistingCard) {
+                payload.useExistingCard = true;
+            } else {
+                const brand = detectCardBrand(cardNumber);
+                if (!cardNumber.trim() || !cardholderName.trim() || !expiryMonth || !expiryYear || !cvv.trim()) {
+                    setError('Please fill in all card details including the security code.');
+                    setSubmitting(false);
+                    return;
+                }
+                if (!brand) {
+                    setError('Only Visa and Mastercard are accepted.');
+                    setSubmitting(false);
+                    return;
+                }
+                if (cvv.length < 3) {
+                    setError('Please enter a valid security code (CVV).');
+                    setSubmitting(false);
+                    return;
+                }
+                payload.cardholderName = cardholderName;
+                payload.cardNumber = cardNumber.replace(/\s/g, '');
+                payload.expiryMonth = parseInt(expiryMonth);
+                payload.expiryYear = parseInt(expiryYear);
+                payload.billingZip = billingZip;
             }
-            if (!brand) {
-                setError('Only Visa and Mastercard are accepted.');
-                setSubmitting(false);
-                return;
-            }
-            if (cvv.length < 3) {
-                setError('Please enter a valid security code (CVV).');
-                setSubmitting(false);
-                return;
-            }
-            payload.cardholderName = cardholderName;
-            payload.cardNumber = cardNumber.replace(/\s/g, '');
-            payload.expiryMonth = parseInt(expiryMonth);
-            payload.expiryYear = parseInt(expiryYear);
-            payload.billingZip = billingZip;
         }
         axios.post(`${API_GATEWAY}/api/v1/subscription/subscribe`, payload, { headers: authHeader() })
             .then(res => {
@@ -154,7 +215,7 @@ const Subscription: React.FC = () => {
         return digits.replace(/(.{4})/g, '$1 ').trim();
     };
 
-    const currentPlan = status?.planName ?? 'FREE';
+    const currentPlan = (status?.status === 'CANCELLED') ? 'FREE' : (status?.planName ?? 'FREE');
 
     return (
         <div className="portfolio-page">
@@ -189,6 +250,17 @@ const Subscription: React.FC = () => {
                         {status && (
                             <div style={{ background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border)', padding: '1.25rem', marginBottom: '2rem' }}>
                                 <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>Current Plan</h2>
+                                {status.status === 'CANCELLED' && status.nextBillingDate && (
+                                    <div style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid #f59e0b', borderRadius: 8, padding: '0.7rem 1rem', marginBottom: '1rem', display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
+                                        <span style={{ fontSize: '1rem', lineHeight: 1.4 }}>⚠️</span>
+                                        <div style={{ fontSize: '0.88rem', color: '#f59e0b', lineHeight: 1.5 }}>
+                                            Your <strong>{status.displayName}</strong> subscription has been cancelled.
+                                            All plan features remain active until{' '}
+                                            <strong>{new Date(status.nextBillingDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</strong>.
+                                            After that date your account will revert to the Free plan.
+                                        </div>
+                                    </div>
+                                )}
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '1rem' }}>
                                     <span><strong>Plan:</strong> {status.displayName}</span>
                                     <span><strong>Status:</strong> <span style={{ color: status.status === 'ACTIVE' ? '#22c55e' : '#f59e0b' }}>{status.status}</span></span>
@@ -228,10 +300,32 @@ const Subscription: React.FC = () => {
                                     )}
                                 </div>
 
+                                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                                    <div style={{ fontSize: '0.78rem', color: 'var(--text-gray)', marginBottom: 6 }}>Payment Method</div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                        {status.paymentMethod ? (
+                                            <div style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 500 }}>
+                                                {status.paymentMethod.cardBrand} ····{status.paymentMethod.cardLastFour}
+                                                <span style={{ color: 'var(--text-gray)', fontWeight: 400, marginLeft: '0.5rem' }}>
+                                                    expires {status.paymentMethod.expiryMonth}/{status.paymentMethod.expiryYear}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <div style={{ fontSize: '0.88rem', color: 'var(--text-gray)' }}>No card on file</div>
+                                        )}
+                                        <button
+                                            onClick={openAddCardModal}
+                                            style={{ background: 'var(--bg-input, #1e2035)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.25rem 0.7rem', fontSize: '0.82rem', cursor: 'pointer', fontWeight: 600 }}
+                                        >
+                                            {status.paymentMethod ? 'Update' : 'Add Payment Method'}
+                                        </button>
+                                    </div>
+                                </div>
+
                                 {currentPlan !== 'FREE' && status.status === 'ACTIVE' && (
                                     <button
                                         onClick={handleCancel}
-                                        style={{ marginTop: '0.5rem', background: 'transparent', color: '#ef4444', border: '1px solid #ef4444', borderRadius: 6, padding: '0.35rem 0.85rem', fontSize: '0.85rem', cursor: 'pointer' }}
+                                        style={{ marginTop: '0.75rem', background: 'transparent', color: '#ef4444', border: '1px solid #ef4444', borderRadius: 6, padding: '0.35rem 0.85rem', fontSize: '0.85rem', cursor: 'pointer' }}
                                     >
                                         Cancel Subscription
                                     </button>
@@ -328,12 +422,20 @@ const Subscription: React.FC = () => {
                                 <p style={{ color: 'var(--text-primary)', marginBottom: '1rem' }}>
                                     Downgrading to the Free plan will take effect at the end of your current billing period.
                                 </p>
-                                <button
-                                    onClick={handleCancel}
-                                    style={{ background: '#374151', color: '#fff', border: 'none', borderRadius: 7, padding: '0.5rem 1.25rem', fontWeight: 700, cursor: 'pointer' }}
-                                >
-                                    Confirm Downgrade to Free
-                                </button>
+                                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                    <button
+                                        onClick={handleCancel}
+                                        style={{ background: '#374151', color: '#fff', border: 'none', borderRadius: 7, padding: '0.5rem 1.25rem', fontWeight: 700, cursor: 'pointer' }}
+                                    >
+                                        Confirm Downgrade to Free
+                                    </button>
+                                    <button
+                                        onClick={() => setSelectedPlan(null)}
+                                        style={{ background: 'transparent', color: 'var(--text-gray)', border: '1px solid var(--border)', borderRadius: 7, padding: '0.5rem 1rem', cursor: 'pointer' }}
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </>
@@ -342,7 +444,7 @@ const Subscription: React.FC = () => {
 
             {showPaymentForm && selectedPlan && selectedPlan !== 'FREE' && (
                 <div
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+                    style={{ position: 'fixed', inset: 0, background: '#0f1117', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
                     onClick={() => { setShowPaymentForm(false); setSelectedPlan(null); setError(''); }}
                 >
                     <div
@@ -367,7 +469,32 @@ const Subscription: React.FC = () => {
                             </div>
                         </div>
 
-                        <div style={{ marginBottom: '1rem' }}>
+                        {status?.paymentMethod && (
+                            <div style={{ marginBottom: '1.25rem' }}>
+                                <div
+                                    onClick={() => setUseExistingCard(true)}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: 8, border: `2px solid ${useExistingCard ? '#6c47ff' : 'var(--border)'}`, background: useExistingCard ? 'rgba(108,71,255,0.08)' : 'var(--bg-input, #1e2035)', cursor: 'pointer', marginBottom: '0.6rem' }}
+                                >
+                                    <input type="radio" checked={useExistingCard} onChange={() => setUseExistingCard(true)} style={{ accentColor: '#6c47ff' }} />
+                                    <div>
+                                        <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>Use existing card</div>
+                                        <div style={{ fontSize: '0.82rem', color: 'var(--text-gray)', marginTop: 2 }}>
+                                            {status.paymentMethod.cardBrand} ····{status.paymentMethod.cardLastFour} &nbsp; expires {status.paymentMethod.expiryMonth}/{status.paymentMethod.expiryYear}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div
+                                    onClick={() => setUseExistingCard(false)}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: 8, border: `2px solid ${!useExistingCard ? '#6c47ff' : 'var(--border)'}`, background: !useExistingCard ? 'rgba(108,71,255,0.08)' : 'var(--bg-input, #1e2035)', cursor: 'pointer' }}
+                                >
+                                    <input type="radio" checked={!useExistingCard} onChange={() => setUseExistingCard(false)} style={{ accentColor: '#6c47ff' }} />
+                                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>Use a different card</div>
+                                </div>
+                            </div>
+                        )}
+
+                        {(!status?.paymentMethod || !useExistingCard) && (
+                        <><div style={{ marginBottom: '1rem' }}>
                             <label className="form-label">Cardholder Name</label>
                             <input
                                 type="text"
@@ -425,12 +552,48 @@ const Subscription: React.FC = () => {
                                     value={expiryYear}
                                     onChange={e => setExpiryYear(e.target.value)}
                                     placeholder="YYYY"
-                                    min={2024}
+                                    min={new Date().getFullYear()}
                                     autoComplete="cc-exp-year"
                                 />
                             </div>
                             <div>
-                                <label className="form-label">CVV</label>
+                                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                    CVV
+                                    <span style={{ position: 'relative', display: 'inline-flex' }} className="cvv-hint-wrapper">
+                                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{ cursor: 'pointer', color: 'var(--text-gray)', flexShrink: 0 }}>
+                                            <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="1.5"/>
+                                            <text x="10" y="14.5" textAnchor="middle" fontSize="11" fill="currentColor" fontFamily="sans-serif" fontWeight="700">?</text>
+                                        </svg>
+                                        <span style={{
+                                            display: 'none',
+                                            position: 'absolute',
+                                            bottom: '120%',
+                                            left: '50%',
+                                            transform: 'translateX(-50%)',
+                                            background: '#1e2035',
+                                            border: '1px solid var(--border)',
+                                            borderRadius: 8,
+                                            padding: '0.6rem 0.75rem',
+                                            width: 180,
+                                            zIndex: 50,
+                                            boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                                        }} className="cvv-tooltip">
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-gray)', marginBottom: '0.4rem', textAlign: 'center' }}>
+                                                The 3-digit code on the <strong style={{ color: 'var(--text-primary)' }}>back</strong> of Visa &amp; Mastercard
+                                            </div>
+                                            <svg viewBox="0 0 160 90" width="100%" style={{ display: 'block' }}>
+                                                <rect x="2" y="2" width="156" height="86" rx="6" ry="6" fill="#374151" stroke="#6b7280" strokeWidth="1.5"/>
+                                                <rect x="2" y="18" width="156" height="18" fill="#111827"/>
+                                                <rect x="10" y="46" width="100" height="14" rx="2" fill="#4b5563"/>
+                                                <rect x="116" y="44" width="34" height="18" rx="3" fill="#f3f4f6"/>
+                                                <text x="133" y="57" textAnchor="middle" fontSize="9" fill="#111827" fontWeight="700" fontFamily="monospace">123</text>
+                                                <line x1="113" y1="36" x2="113" y2="70" stroke="#ef4444" strokeWidth="1" strokeDasharray="3,2"/>
+                                                <text x="133" y="73" textAnchor="middle" fontSize="7" fill="#ef4444" fontFamily="sans-serif">CVV</text>
+                                            </svg>
+                                        </span>
+                                    </span>
+                                </label>
+                                <style>{`.cvv-hint-wrapper:hover .cvv-tooltip { display: block !important; }`}</style>
                                 <input
                                     type="text"
                                     className="profile-input"
@@ -459,6 +622,7 @@ const Subscription: React.FC = () => {
                         <p style={{ fontSize: '0.78rem', color: 'var(--text-gray)', marginBottom: '1rem' }}>
                             Your card information is stored securely. No real charges will be processed until a payment provider is integrated.
                         </p>
+                        </>)}
 
                         {error && (
                             <div style={{ background: '#fee2e2', color: '#b91c1c', borderRadius: 7, padding: '0.6rem 0.85rem', marginBottom: '0.75rem', fontSize: '0.88rem' }}>{error}</div>
@@ -476,6 +640,78 @@ const Subscription: React.FC = () => {
                                 onClick={() => { setShowPaymentForm(false); setSelectedPlan(null); setError(''); }}
                                 style={{ background: 'transparent', color: 'var(--text-gray)', border: '1px solid var(--border)', borderRadius: 7, padding: '0.5rem 1rem', cursor: 'pointer' }}
                             >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {showAddCardModal && (
+                <div
+                    style={{ position: 'fixed', inset: 0, background: '#0f1117', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+                    onClick={() => setShowAddCardModal(false)}
+                >
+                    <div
+                        style={{ background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)', padding: '1.75rem', width: '100%', maxWidth: 440, margin: '1rem', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                            <div>
+                                <h2 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+                                    {status?.paymentMethod ? 'Update Payment Method' : 'Add Payment Method'}
+                                </h2>
+                                <div style={{ fontSize: '0.82rem', color: 'var(--text-gray)', marginTop: 3 }}>Visa and Mastercard accepted</div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                                <span style={{ background: '#1a1f71', color: '#fff', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.75rem', fontWeight: 700, letterSpacing: 1 }}>VISA</span>
+                                <span style={{ background: '#eb001b', color: '#fff', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.75rem', fontWeight: 700 }}>MC</span>
+                                <button onClick={() => setShowAddCardModal(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-gray)', fontSize: '1.25rem', cursor: 'pointer', lineHeight: 1, marginLeft: '0.25rem' }} aria-label="Close">×</button>
+                            </div>
+                        </div>
+
+                        <div style={{ marginBottom: '1rem' }}>
+                            <label className="form-label">Cardholder Name</label>
+                            <input type="text" className="profile-input" value={addCardName} onChange={e => setAddCardName(e.target.value)} placeholder="Name on card" autoComplete="cc-name" />
+                        </div>
+                        <div style={{ marginBottom: '1rem' }}>
+                            <label className="form-label">
+                                Card Number
+                                {(() => { const b = detectCardBrand(addCardNumber); return b ? (
+                                    <span style={{ marginLeft: '0.5rem', background: b === 'Visa' ? '#1a1f71' : '#eb001b', color: '#fff', borderRadius: 4, padding: '0.05rem 0.45rem', fontSize: '0.72rem', fontWeight: 700, verticalAlign: 'middle' }}>{b === 'Visa' ? 'VISA' : 'MC'}</span>
+                                ) : addCardNumber.replace(/\s/g, '').length >= 4 ? (
+                                    <span style={{ marginLeft: '0.5rem', color: '#ef4444', fontSize: '0.78rem' }}>Only Visa &amp; Mastercard accepted</span>
+                                ) : null; })()}
+                            </label>
+                            <input type="text" className="profile-input" value={addCardNumber} onChange={e => setAddCardNumber(formatCardNumber(e.target.value))} placeholder="1234 5678 9012 3456" maxLength={19} autoComplete="cc-number" inputMode="numeric" />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                            <div>
+                                <label className="form-label">Exp Month</label>
+                                <input type="number" className="profile-input" value={addCardMonth} onChange={e => setAddCardMonth(e.target.value)} placeholder="MM" min={1} max={12} autoComplete="cc-exp-month" />
+                            </div>
+                            <div>
+                                <label className="form-label">Exp Year</label>
+                                <input type="number" className="profile-input" value={addCardYear} onChange={e => setAddCardYear(e.target.value)} placeholder="YYYY" min={new Date().getFullYear()} autoComplete="cc-exp-year" />
+                            </div>
+                            <div>
+                                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>CVV</label>
+                                <input type="text" className="profile-input" value={addCardCvv} onChange={e => setAddCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="123" maxLength={4} autoComplete="cc-csc" inputMode="numeric" />
+                            </div>
+                            <div>
+                                <label className="form-label">ZIP</label>
+                                <input type="text" className="profile-input" value={addCardZip} onChange={e => setAddCardZip(e.target.value)} placeholder="ZIP" maxLength={10} autoComplete="postal-code" />
+                            </div>
+                        </div>
+
+                        {addCardError && (
+                            <div style={{ background: '#fee2e2', color: '#b91c1c', borderRadius: 7, padding: '0.6rem 0.85rem', marginBottom: '0.75rem', fontSize: '0.88rem' }}>{addCardError}</div>
+                        )}
+
+                        <div style={{ display: 'flex', gap: '0.75rem' }}>
+                            <button onClick={handleAddCard} disabled={addCardSubmitting} style={{ background: '#6c47ff', color: '#fff', border: 'none', borderRadius: 7, padding: '0.5rem 1.25rem', fontWeight: 700, fontSize: '0.9rem', cursor: addCardSubmitting ? 'default' : 'pointer', opacity: addCardSubmitting ? 0.7 : 1 }}>
+                                {addCardSubmitting ? 'Saving…' : 'Save Card'}
+                            </button>
+                            <button onClick={() => setShowAddCardModal(false)} style={{ background: 'transparent', color: 'var(--text-gray)', border: '1px solid var(--border)', borderRadius: 7, padding: '0.5rem 1rem', cursor: 'pointer' }}>
                                 Cancel
                             </button>
                         </div>
