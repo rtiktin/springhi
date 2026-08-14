@@ -358,3 +358,14 @@ export const updateOptimizationSchedule = async (id: number, portfolioId: number
 export const deleteOptimizationSchedule = async (id: number, portfolioId: number): Promise<void> => {
     await axios.delete(`${BASE_URL}/schedules/${id}`, { headers: authHeader(), params: { portfolioId } });
 };
+
+export const getOptimizationQuota = async (): Promise<{ used: number; max: number }> => {
+    const [usageRes, limitsRes] = await Promise.all([
+        axios.get(`${PORTFOLIOS_URL}/usage-stats`, { headers: authHeader() }),
+        axios.get(`${API_GATEWAY}/api/v1/subscription/limits`, { headers: authHeader() }),
+    ]);
+    return {
+        used: usageRes.data.optimizationsThisMonth ?? 0,
+        max: limitsRes.data.maxOptimizationsPerMonth ?? 0,
+    };
+};

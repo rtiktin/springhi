@@ -13,6 +13,7 @@ import {
     markRecommendationExecuted,
     markRecommendationSkipped,
     getPortfolioProfile,
+    getOptimizationQuota,
 } from '../api/portfolioApi';
 import type { PortfolioProfile } from '../api/portfolioApi';
 
@@ -73,6 +74,8 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
     const [aiProvider, setAiProvider] = useState<AiProvider | null>(null);
 
     const [portfolioProfile, setPortfolioProfile] = useState<PortfolioProfile | null>(null);
+    const [upgradeModal, setUpgradeModal] = useState<{ message: string } | null>(null);
+    const [optimizationQuota, setOptimizationQuota] = useState<{ used: number; max: number } | null>(null);
     const [userEmail, setUserEmail] = useState<string>('');
     const [userPhone, setUserPhone] = useState<string>('');
     const [showVerifyModal, setShowVerifyModal] = useState(false);
@@ -114,7 +117,8 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
             loadCash(),
             getTodayRecommendations(portfolioId).catch(() => []),
             getPortfolioProfile(portfolioId).catch(() => null),
-        ]).then(([prof, account, , recs, portProf]) => {
+            getOptimizationQuota().catch(() => null),
+        ]).then(([prof, account, , recs, portProf, quota]) => {
             setProfile(prof);
             setPortfolioProfile(portProf);
             setReadinessIssues(checkReadiness(prof, account));
@@ -127,6 +131,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                 setRecommendations(recs);
                 setRan(true);
             }
+            if (quota) setOptimizationQuota(quota);
         }).finally(() => setChecking(false));
     }, []);
 
@@ -262,9 +267,15 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                 setRecommendations(result.recommendations);
             }
             setRan(true);
+            setOptimizationQuota(prev => prev ? { ...prev, used: prev.used + 1 } : prev);
             await Promise.all([loadCash(), loadHoldingsValue(), getPortfolioProfile(portfolioId).then(setPortfolioProfile).catch(() => {})]);
         } catch (e: unknown) {
-            setError(e instanceof Error ? e.message : 'Optimization request failed.');
+            const data = (e as { response?: { data?: { error?: string; message?: string } } })?.response?.data;
+            if (data?.error === 'OPTIMIZATION_LIMIT_REACHED') {
+                setUpgradeModal({ message: data.message ?? 'Optimization limit reached.' });
+            } else {
+                setError(e instanceof Error ? e.message : 'Optimization request failed.');
+            }
             setRecommendations([]);
         } finally {
             setLoading(false);
@@ -598,6 +609,19 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                         <span style={{ fontSize: '0.78rem', color: 'var(--text-gray)', display: 'block' }}>Total Portfolio Value</span>
                         <strong style={{ fontSize: '1rem' }}>{fmt(cashBalance + holdingsMarketValue)}</strong>
                     </div>
+                    {optimizationQuota && (
+                        <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '1.5rem' }}>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-gray)', display: 'block' }}>AI Optimizations This Month</span>
+                            <strong style={{ fontSize: '1rem', color: optimizationQuota.used >= optimizationQuota.max ? '#ef4444' : 'var(--text-primary)' }}>
+                                {optimizationQuota.used} / {optimizationQuota.max}
+                            </strong>
+                            <span style={{ fontSize: '0.75rem', color: optimizationQuota.used >= optimizationQuota.max ? '#ef4444' : '#22c55e', display: 'block' }}>
+                                {optimizationQuota.used >= optimizationQuota.max
+                                    ? 'Limit reached — upgrade to run more'
+                                    : `${optimizationQuota.max - optimizationQuota.used} remaining`}
+                            </span>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -828,6 +852,29 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                         The optimizer recommends what to <strong>sell</strong> and what to <strong>buy</strong>.
                         Execute sells first — the buy Est. Amounts will refresh automatically using updated cash.
                     </p>
+                </div>
+            )}
+
+            {upgradeModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
+                    onClick={() => setUpgradeModal(null)}>
+                    <div style={{ background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)', padding: '2rem', width: '100%', maxWidth: 440, margin: '1rem', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}
+                        onClick={e => e.stopPropagation()}>
+                        <div style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '0.75rem' }}>🔒</div>
+                        <h2 style={{ textAlign: 'center', fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-primary)', marginBottom: '0.75rem' }}>Upgrade Required</h2>
+                        <p style={{ textAlign: 'center', fontSize: '0.9rem', color: 'var(--text-gray)', marginBottom: '1.5rem', lineHeight: 1.6 }}>{upgradeModal.message}</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                            <Link to="/subscription"
+                                style={{ display: 'block', textAlign: 'center', background: '#6c47ff', color: '#fff', borderRadius: 7, padding: '0.6rem 1rem', fontWeight: 700, fontSize: '0.95rem', textDecoration: 'none' }}
+                                onClick={() => setUpgradeModal(null)}>
+                                View Subscription Plans
+                            </Link>
+                            <button onClick={() => setUpgradeModal(null)}
+                                style={{ background: 'transparent', color: 'var(--text-gray)', border: '1px solid var(--border)', borderRadius: 7, padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                Not Now
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

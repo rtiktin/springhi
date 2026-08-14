@@ -90,6 +90,7 @@ const Portfolio: React.FC = () => {
     const [renameValue, setRenameValue] = useState('');
     const [portfolioError, setPortfolioError] = useState('');
     const [profileBannerMsg, setProfileBannerMsg] = useState('');
+    const [upgradeModal, setUpgradeModal] = useState<{ message: string } | null>(null);
     const [reviewedPortfolioIds, setReviewedPortfolioIds] = useState<Set<number>>(() => {
         try {
             const stored = localStorage.getItem('reviewedPortfolioIds');
@@ -157,8 +158,13 @@ const Portfolio: React.FC = () => {
             setActiveTab('profile');
             setProfileBannerMsg('Please review your Portfolio Profile settings before using the AI Optimize function.');
             markPortfolioReviewed(created.id);
-        } catch {
-            setPortfolioError('Failed to create portfolio.');
+        } catch (err: unknown) {
+            const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data;
+            if (data?.error === 'PORTFOLIO_LIMIT_REACHED') {
+                setUpgradeModal({ message: data.message ?? 'Portfolio limit reached.' });
+            } else {
+                setPortfolioError('Failed to create portfolio.');
+            }
         }
     };
 
@@ -319,8 +325,13 @@ const Portfolio: React.FC = () => {
             setWizardCashAmount('');
             setWizardStep('ai-cash');
         } catch (err: unknown) {
-            const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-            setWizardError(msg || 'Failed to create portfolio. Please try again.');
+            const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data;
+            if (data?.error === 'PORTFOLIO_LIMIT_REACHED') {
+                closeWizard();
+                setUpgradeModal({ message: data.message ?? 'Portfolio limit reached.' });
+            } else {
+                setWizardError(data?.message || 'Failed to create portfolio. Please try again.');
+            }
         } finally {
             setWizardSaving(false);
         }
@@ -351,10 +362,15 @@ const Portfolio: React.FC = () => {
             closeWizard();
             setActiveTab('optimize');
             setRefreshKey(k => k + 1);
-        } catch {
-            setWizardError('AI optimization failed. You can try again from the AI Optimize tab.');
+        } catch (err: unknown) {
+            const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data;
             closeWizard();
-            setActiveTab('optimize');
+            if (data?.error === 'OPTIMIZATION_LIMIT_REACHED') {
+                setUpgradeModal({ message: data.message ?? 'Optimization limit reached.' });
+            } else {
+                setActiveTab('optimize');
+                setWizardError('AI optimization failed. You can try again from the AI Optimize tab.');
+            }
         }
     };
 
@@ -974,6 +990,29 @@ const Portfolio: React.FC = () => {
                         <button className="btn-primary-full" onClick={handleRenamePortfolio}>
                             Save
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {upgradeModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
+                    onClick={() => setUpgradeModal(null)}>
+                    <div style={{ background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)', padding: '2rem', width: '100%', maxWidth: 440, margin: '1rem', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}
+                        onClick={e => e.stopPropagation()}>
+                        <div style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '0.75rem' }}>🔒</div>
+                        <h2 style={{ textAlign: 'center', fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-primary)', marginBottom: '0.75rem' }}>Upgrade Required</h2>
+                        <p style={{ textAlign: 'center', fontSize: '0.9rem', color: 'var(--text-gray)', marginBottom: '1.5rem', lineHeight: 1.6 }}>{upgradeModal.message}</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                            <Link to="/subscription"
+                                style={{ display: 'block', textAlign: 'center', background: '#6c47ff', color: '#fff', borderRadius: 7, padding: '0.6rem 1rem', fontWeight: 700, fontSize: '0.95rem', textDecoration: 'none' }}
+                                onClick={() => setUpgradeModal(null)}>
+                                View Subscription Plans
+                            </Link>
+                            <button onClick={() => setUpgradeModal(null)}
+                                style={{ background: 'transparent', color: 'var(--text-gray)', border: '1px solid var(--border)', borderRadius: 7, padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                Not Now
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
