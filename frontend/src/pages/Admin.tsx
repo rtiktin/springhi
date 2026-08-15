@@ -348,11 +348,14 @@ const Admin: React.FC = () => {
             const defaultDir = DATE_COLS.includes(key) ? 'desc' : 'asc';
             return { key, dir: defaultDir };
         });
+        setUserPage(0);
     };
 
     const [userFilters, setUserFilters] = useState({ username: '', name: '', email: '', plan: '', type: '' });
-    const setFilter = (field: keyof typeof userFilters, value: string) =>
+    const setFilter = (field: keyof typeof userFilters, value: string) => {
         setUserFilters(prev => ({ ...prev, [field]: value }));
+        setUserPage(0);
+    };
 
     const filteredUsers = users.filter(u => {
         const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').toLowerCase();
@@ -385,6 +388,11 @@ const Admin: React.FC = () => {
         if (av > bv) return dir === 'asc' ? 1 : -1;
         return 0;
     });
+
+    const USER_PAGE_SIZE = 20;
+    const [userPage, setUserPage] = useState(0);
+    const userPageCount = Math.max(1, Math.ceil(sortedUsers.length / USER_PAGE_SIZE));
+    const pagedUsers = sortedUsers.slice(userPage * USER_PAGE_SIZE, (userPage + 1) * USER_PAGE_SIZE);
 
     const [pwModal, setPwModal] = useState<PasswordModal | null>(null);
     const [newPassword, setNewPassword] = useState('');
@@ -748,7 +756,7 @@ const Admin: React.FC = () => {
                                     </select>
                                     {(userFilters.username || userFilters.name || userFilters.email || userFilters.plan || userFilters.type) && (
                                         <button
-                                            onClick={() => setUserFilters({ username: '', name: '', email: '', plan: '', type: '' })}
+                                            onClick={() => { setUserFilters({ username: '', name: '', email: '', plan: '', type: '' }); setUserPage(0); }}
                                             style={{ background: 'transparent', color: 'var(--text-gray)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.35rem 0.65rem', fontSize: '0.85rem', cursor: 'pointer' }}
                                         >
                                             Clear
@@ -789,7 +797,7 @@ const Admin: React.FC = () => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {sortedUsers.map(u => (
+                                            {pagedUsers.map(u => (
                                                 <tr key={u.id} style={{ borderBottom: '1px solid var(--border)' }}>
                                                     <td style={{ ...tdStyle, fontWeight: 600 }}>{u.username}</td>
                                                     <td style={tdStyle}>{u.email}</td>
@@ -844,6 +852,56 @@ const Admin: React.FC = () => {
                                                     </td>
                                                     <td style={{ ...tdStyle, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                                         <button
+                                                            onClick={() => handleImpersonate(u)}
+                                                            disabled={impersonating === u.id || u.userType === 10}
+                                                            title={u.userType === 10 ? 'Cannot impersonate another admin' : ''}
+                                                            style={{
+                                                                background: u.userType === 10 ? '#374151' : '#6c47ff',
+                                                                color: '#fff',
+                                                                border: 'none',
+                                                                borderRadius: 6,
+                                                                padding: '0.3rem 0.65rem',
+                                                                fontSize: '0.82rem',
+                                                                cursor: u.userType === 10 ? 'not-allowed' : 'pointer',
+                                                                opacity: u.userType === 10 ? 0.5 : 1,
+                                                                whiteSpace: 'nowrap',
+                                                            }}
+                                                        >
+                                                            {impersonating === u.id ? 'Switching…' : 'Become User'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => openLinkedAccountsModal(u)}
+                                                            style={{
+                                                                background: '#374151',
+                                                                color: '#fff',
+                                                                border: 'none',
+                                                                borderRadius: 6,
+                                                                padding: '0.3rem 0.65rem',
+                                                                fontSize: '0.82rem',
+                                                                cursor: 'pointer',
+                                                                whiteSpace: 'nowrap',
+                                                            }}
+                                                            title="Show linked accounts sharing email, phone, or IP"
+                                                        >
+                                                            Linked Accounts
+                                                        </button>
+                                                        <button
+                                                            onClick={() => openIpModal(u)}
+                                                            style={{
+                                                                background: '#374151',
+                                                                color: '#fff',
+                                                                border: 'none',
+                                                                borderRadius: 6,
+                                                                padding: '0.3rem 0.65rem',
+                                                                fontSize: '0.82rem',
+                                                                cursor: 'pointer',
+                                                                whiteSpace: 'nowrap',
+                                                            }}
+                                                            title="View IP addresses"
+                                                        >
+                                                            IP Addresses
+                                                        </button>
+                                                        <button
                                                             onClick={() => { setNotesModal({ userId: u.id, username: u.username }); setNotesText(u.adminNotes ?? ''); setNotesError(''); setNotesSuccess(''); }}
                                                             style={{
                                                                 background: '#1d4ed8',
@@ -889,56 +947,6 @@ const Admin: React.FC = () => {
                                                         >
                                                             Change Password
                                                         </button>
-                                                        <button
-                                                            onClick={() => handleImpersonate(u)}
-                                                            disabled={impersonating === u.id || u.userType === 10}
-                                                            title={u.userType === 10 ? 'Cannot impersonate another admin' : ''}
-                                                            style={{
-                                                                background: u.userType === 10 ? '#374151' : '#6c47ff',
-                                                                color: '#fff',
-                                                                border: 'none',
-                                                                borderRadius: 6,
-                                                                padding: '0.3rem 0.65rem',
-                                                                fontSize: '0.82rem',
-                                                                cursor: u.userType === 10 ? 'not-allowed' : 'pointer',
-                                                                opacity: u.userType === 10 ? 0.5 : 1,
-                                                                whiteSpace: 'nowrap',
-                                                            }}
-                                                        >
-                                                            {impersonating === u.id ? 'Switching…' : 'Become User'}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => openIpModal(u)}
-                                                            style={{
-                                                                background: '#374151',
-                                                                color: '#fff',
-                                                                border: 'none',
-                                                                borderRadius: 6,
-                                                                padding: '0.3rem 0.65rem',
-                                                                fontSize: '0.82rem',
-                                                                cursor: 'pointer',
-                                                                whiteSpace: 'nowrap',
-                                                            }}
-                                                            title="View IP addresses"
-                                                        >
-                                                            IP Addresses
-                                                        </button>
-                                                        <button
-                                                            onClick={() => openLinkedAccountsModal(u)}
-                                                            style={{
-                                                                background: '#374151',
-                                                                color: '#fff',
-                                                                border: 'none',
-                                                                borderRadius: 6,
-                                                                padding: '0.3rem 0.65rem',
-                                                                fontSize: '0.82rem',
-                                                                cursor: 'pointer',
-                                                                whiteSpace: 'nowrap',
-                                                            }}
-                                                            title="Show linked accounts sharing email, phone, or IP"
-                                                        >
-                                                            Linked Accounts
-                                                        </button>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -950,6 +958,42 @@ const Admin: React.FC = () => {
                                         </tbody>
                                     </table>
                                 </div>
+                                {userPageCount > 1 && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                        <button
+                                            onClick={() => setUserPage(0)}
+                                            disabled={userPage === 0}
+                                            style={{ padding: '0.3rem 0.6rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', cursor: userPage === 0 ? 'default' : 'pointer', opacity: userPage === 0 ? 0.4 : 1 }}
+                                        >«</button>
+                                        <button
+                                            onClick={() => setUserPage(p => Math.max(0, p - 1))}
+                                            disabled={userPage === 0}
+                                            style={{ padding: '0.3rem 0.6rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', cursor: userPage === 0 ? 'default' : 'pointer', opacity: userPage === 0 ? 0.4 : 1 }}
+                                        >‹</button>
+                                        {Array.from({ length: userPageCount }, (_, i) => i)
+                                            .filter(i => Math.abs(i - userPage) <= 2)
+                                            .map(i => (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => setUserPage(i)}
+                                                    style={{ padding: '0.3rem 0.65rem', borderRadius: 6, border: '1px solid var(--border)', background: i === userPage ? '#6c47ff' : 'var(--bg-dark)', color: '#fff', cursor: 'pointer', fontWeight: i === userPage ? 700 : 400 }}
+                                                >{i + 1}</button>
+                                            ))}
+                                        <button
+                                            onClick={() => setUserPage(p => Math.min(userPageCount - 1, p + 1))}
+                                            disabled={userPage === userPageCount - 1}
+                                            style={{ padding: '0.3rem 0.6rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', cursor: userPage === userPageCount - 1 ? 'default' : 'pointer', opacity: userPage === userPageCount - 1 ? 0.4 : 1 }}
+                                        >›</button>
+                                        <button
+                                            onClick={() => setUserPage(userPageCount - 1)}
+                                            disabled={userPage === userPageCount - 1}
+                                            style={{ padding: '0.3rem 0.6rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', cursor: userPage === userPageCount - 1 ? 'default' : 'pointer', opacity: userPage === userPageCount - 1 ? 0.4 : 1 }}
+                                        >»</button>
+                                        <span style={{ fontSize: '0.82rem', color: 'var(--text-gray)' }}>
+                                            {userPage * USER_PAGE_SIZE + 1}–{Math.min((userPage + 1) * USER_PAGE_SIZE, sortedUsers.length)} of {sortedUsers.length}
+                                        </span>
+                                    </div>
+                                )}
                                 </>
                             )}
                         </>
