@@ -8,6 +8,7 @@ import com.springhi.user.repository.UserEmailHistoryRepository;
 import com.springhi.user.repository.UserIpAddressRepository;
 import com.springhi.user.repository.UserPhoneHistoryRepository;
 import com.springhi.user.repository.UserRepository;
+import com.springhi.user.repository.UserSubscriptionRepository;
 import com.springhi.user.service.SubscriptionService;
 import com.springhi.user.service.UserIpAddressService;
 import com.springhi.user.service.UserService;
@@ -33,13 +34,15 @@ public class AdminController {
     private final UserPhoneHistoryRepository phoneHistoryRepository;
     private final UserIpAddressRepository userIpAddressRepository;
     private final SubscriptionService subscriptionService;
+    private final UserSubscriptionRepository userSubscriptionRepository;
 
     public AdminController(UserService userService, UserRepository userRepository,
                            UserIpAddressService userIpAddressService,
                            UserEmailHistoryRepository emailHistoryRepository,
                            UserPhoneHistoryRepository phoneHistoryRepository,
                            UserIpAddressRepository userIpAddressRepository,
-                           SubscriptionService subscriptionService) {
+                           SubscriptionService subscriptionService,
+                           UserSubscriptionRepository userSubscriptionRepository) {
         this.userService = userService;
         this.userRepository = userRepository;
         this.userIpAddressService = userIpAddressService;
@@ -47,6 +50,7 @@ public class AdminController {
         this.phoneHistoryRepository = phoneHistoryRepository;
         this.userIpAddressRepository = userIpAddressRepository;
         this.subscriptionService = subscriptionService;
+        this.userSubscriptionRepository = userSubscriptionRepository;
     }
 
     private boolean isAdmin(UserDetails userDetails) {
@@ -62,7 +66,12 @@ public class AdminController {
         if (userDetails == null || !isAdmin(userDetails)) {
             return ResponseEntity.status(403).build();
         }
-        return ResponseEntity.ok(userService.getAllUsers());
+        Map<Long, String> planByUser = new HashMap<>();
+        userSubscriptionRepository.findAll().forEach(s -> planByUser.put(s.getUserId(), s.getPlanName()));
+        List<AdminUserDto> dtos = userRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(u -> AdminUserDto.from(u, planByUser.getOrDefault(u.getId(), "FREE")))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(dtos);
     }
 
     @GetMapping("/stats/users")
@@ -105,6 +114,66 @@ public class AdminController {
                 "thisYear", thisYear,
                 "daily", daily
         ));
+    }
+
+    @GetMapping("/stats/subscriptions")
+    public ResponseEntity<Map<String, Object>> getSubscriptionStats(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null || !isAdmin(userDetails)) {
+            return ResponseEntity.status(403).build();
+        }
+        long totalUsers = userRepository.count();
+        Map<String, Long> planCounts = new LinkedHashMap<>();
+        planCounts.put("FREE", 0L);
+        planCounts.put("BASIC", 0L);
+        planCounts.put("PREMIUM", 0L);
+        userSubscriptionRepository.countActiveByPlan()
+                .forEach(row -> planCounts.put((String) row[0], (Long) row[1]));
+        planCounts.put("FREE", totalUsers - planCounts.getOrDefault("BASIC", 0L) - planCounts.getOrDefault("PREMIUM", 0L));
+        return ResponseEntity.ok(Map.of(
+                "totalUsers", totalUsers,
+                "free", planCounts.getOrDefault("FREE", 0L),
+                "basic", planCounts.getOrDefault("BASIC", 0L),
+                "premium", planCounts.getOrDefault("PREMIUM", 0L)
+        ));
+    }
+
+    @GetMapping("/stats/subscriptions/daily")
+    public ResponseEntity<Map<String, Object>> getSubscriptionDailyStats(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(defaultValue = "0") int daysOffset) {
+        if (userDetails == null || !isAdmin(userDetails)) {
+            return ResponseEntity.status(403).build();
+        }
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime windowEnd   = now.toLocalDate().atStartOfDay().minusDays(daysOffset);
+        LocalDateTime windowStart = windowEnd.minusDays(29);
+
+        List<com.springhi.user.model.UserSubscription> subs =
+                userSubscriptionRepository.findPaidSubscriptionsCreatedBetween(windowStart, windowEnd.plusDays(1));
+
+        Map<String, Long> basicByDay = new LinkedHashMap<>();
+        Map<String, Long> premiumByDay = new LinkedHashMap<>();
+        for (int i = 29; i >= 0; i--) {
+            String day = windowEnd.minusDays(i).toLocalDate().toString();
+            basicByDay.put(day, 0L);
+            premiumByDay.put(day, 0L);
+        }
+        for (com.springhi.user.model.UserSubscription s : subs) {
+            String day = s.getStartDate().toLocalDate().toString();
+            if ("BASIC".equals(s.getPlanName())) {
+                basicByDay.computeIfPresent(day, (k, v) -> v + 1);
+            } else if ("PREMIUM".equals(s.getPlanName())) {
+                premiumByDay.computeIfPresent(day, (k, v) -> v + 1);
+            }
+        }
+
+        List<Map<String, Object>> basicDaily = new ArrayList<>();
+        basicByDay.forEach((date, count) -> basicDaily.add(Map.of("date", date, "count", count)));
+        List<Map<String, Object>> premiumDaily = new ArrayList<>();
+        premiumByDay.forEach((date, count) -> premiumDaily.add(Map.of("date", date, "count", count)));
+
+        return ResponseEntity.ok(Map.of("basicDaily", basicDaily, "premiumDaily", premiumDaily));
     }
 
     @PutMapping("/users/{id}/type")

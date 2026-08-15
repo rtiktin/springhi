@@ -9,7 +9,7 @@ import CashForm from '../components/CashForm';
 import OptimizePanel from '../components/OptimizePanel';
 import ScheduleManager from '../components/ScheduleManager';
 import PortfolioProfileForm from '../components/PortfolioProfileForm';
-import { listPortfolios, createPortfolio, updatePortfolio, deletePortfolio, savePortfolioProfile, getCashBalance, submitTransaction, getPortfoliosCreatedCount } from '../api/portfolioApi';
+import { listPortfolios, createPortfolio, updatePortfolio, deletePortfolio, savePortfolioProfile, getCashBalance, submitTransaction, getPortfoliosCreatedCount, getOptimizationQuota, getPortfolioQuota } from '../api/portfolioApi';
 import type { Portfolio as PortfolioType } from '../api/portfolioApi';
 import { getProfile, saveProfile, optimizePortfolio } from '../api/profileApi';
 import { getAccountProfile, sendEmailVerification, verifyEmail, sendPhoneVerification, verifyPhone } from '../api/accountApi';
@@ -66,6 +66,14 @@ const Portfolio: React.FC = () => {
     const [wizardTotalCreated, setWizardTotalCreated] = useState(0);
 
     const openWizard = async () => {
+        try {
+            const quota = await getPortfolioQuota();
+            if (quota.used >= quota.max) {
+                setUpgradeModal({ message: `You have reached the maximum number of portfolios (${quota.max}) for your ${quota.planName} plan. Please upgrade to create more.` });
+                return;
+            }
+        } catch {
+        }
         setWizardStep('ai-choice');
         setWizardName('');
         setWizardDesc('');
@@ -91,6 +99,7 @@ const Portfolio: React.FC = () => {
     const [portfolioError, setPortfolioError] = useState('');
     const [profileBannerMsg, setProfileBannerMsg] = useState('');
     const [upgradeModal, setUpgradeModal] = useState<{ message: string } | null>(null);
+    const [wizardQuotaChecking, setWizardQuotaChecking] = useState(false);
     const [reviewedPortfolioIds, setReviewedPortfolioIds] = useState<Set<number>>(() => {
         try {
             const stored = localStorage.getItem('reviewedPortfolioIds');
@@ -165,6 +174,25 @@ const Portfolio: React.FC = () => {
             } else {
                 setPortfolioError('Failed to create portfolio.');
             }
+        }
+    };
+
+    const handleChooseAI = async () => {
+        setWizardQuotaChecking(true);
+        try {
+            const quota = await getOptimizationQuota();
+            if (quota.used >= quota.max) {
+                const limitLabel = quota.isFree ? 'ever' : 'for this month';
+                const planLabel = quota.isFree ? 'FREE' : 'current';
+                closeWizard();
+                setUpgradeModal({ message: `You have used all ${quota.max} AI optimization(s) ${limitLabel} on your ${planLabel} plan. Please upgrade to run more.` });
+                return;
+            }
+            setWizardStep('ai-name-profile');
+        } catch {
+            setWizardStep('ai-name-profile');
+        } finally {
+            setWizardQuotaChecking(false);
         }
     };
 
@@ -561,7 +589,7 @@ const Portfolio: React.FC = () => {
                         {activeTab === 'optimize' && (
                             <>
                                 <OptimizePanel key={`opt-${activePortfolioId}`} portfolioId={activePortfolioId} onTradeSuccess={handleTradeSuccess} onNavigateToProfile={() => setActiveTab('profile')} cashRefreshSignal={refreshKey} />
-                                <ScheduleManager portfolioId={activePortfolioId} />
+                                <ScheduleManager portfolioId={activePortfolioId} onUpgradeRequired={msg => setUpgradeModal({ message: msg })} />
                             </>
                         )}
                         {activeTab === 'profile' && (
@@ -603,8 +631,8 @@ const Portfolio: React.FC = () => {
                             Would you like AI to build an initial portfolio for you based on your investment profile?
                         </p>
                         <div style={{ display: 'flex', gap: '1rem' }}>
-                            <button className="btn-primary-full" onClick={() => setWizardStep('ai-name-profile')}>
-                                Yes, Use AI
+                            <button className="btn-primary-full" onClick={handleChooseAI} disabled={wizardQuotaChecking}>
+                                {wizardQuotaChecking ? 'Checking…' : 'Yes, Use AI'}
                             </button>
                             <button className="btn-primary-full" style={{ background: 'var(--card-bg)', border: '1px solid var(--border)' }}
                                 onClick={() => setWizardStep('no-ai-name')}>

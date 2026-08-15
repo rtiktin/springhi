@@ -359,7 +359,19 @@ export const deleteOptimizationSchedule = async (id: number, portfolioId: number
     await axios.delete(`${BASE_URL}/schedules/${id}`, { headers: authHeader(), params: { portfolioId } });
 };
 
-export const getOptimizationQuota = async (): Promise<{ used: number; max: number }> => {
+export const getPortfolioQuota = async (): Promise<{ used: number; max: number; planName: string }> => {
+    const [usageRes, limitsRes] = await Promise.all([
+        axios.get(`${PORTFOLIOS_URL}/usage-stats`, { headers: authHeader() }),
+        axios.get(`${API_GATEWAY}/api/v1/subscription/limits`, { headers: authHeader() }),
+    ]);
+    return {
+        used: usageRes.data.portfolioCount ?? 0,
+        max: limitsRes.data.maxPortfolios ?? 0,
+        planName: (limitsRes.data.planName ?? 'FREE') as string,
+    };
+};
+
+export const getOptimizationQuota = async (): Promise<{ used: number; max: number; isFree: boolean }> => {
     const [usageRes, limitsRes] = await Promise.all([
         axios.get(`${PORTFOLIOS_URL}/usage-stats`, { headers: authHeader() }),
         axios.get(`${API_GATEWAY}/api/v1/subscription/limits`, { headers: authHeader() }),
@@ -367,5 +379,6 @@ export const getOptimizationQuota = async (): Promise<{ used: number; max: numbe
     return {
         used: usageRes.data.optimizationsThisMonth ?? 0,
         max: limitsRes.data.maxOptimizationsPerMonth ?? 0,
+        isFree: usageRes.data.isFreeLimit ?? true,
     };
 };

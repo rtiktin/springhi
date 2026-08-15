@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+import API_GATEWAY from '../api/apiBase';
 import type { OptimizationSchedule } from '../api/portfolioApi';
 import {
     getOptimizationSchedules,
@@ -9,6 +11,7 @@ import {
 
 interface Props {
     portfolioId: number;
+    onUpgradeRequired?: (message: string) => void;
 }
 
 const FREQUENCIES = ['DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY'] as const;
@@ -31,7 +34,9 @@ const describeSchedule = (s: OptimizationSchedule): string => {
 
 const blank = { frequency: 'MONTHLY' as const, aiProvider: 'gemini', dayOfWeek: 1, dayOfMonth: 1 };
 
-const ScheduleManager: React.FC<Props> = ({ portfolioId }) => {
+const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
+
+const ScheduleManager: React.FC<Props> = ({ portfolioId, onUpgradeRequired }) => {
     const [schedules, setSchedules] = useState<OptimizationSchedule[]>([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
@@ -40,6 +45,7 @@ const ScheduleManager: React.FC<Props> = ({ portfolioId }) => {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+    const [isFree, setIsFree] = useState(false);
 
     const load = () => {
         setLoading(true);
@@ -49,9 +55,20 @@ const ScheduleManager: React.FC<Props> = ({ portfolioId }) => {
             .finally(() => setLoading(false));
     };
 
-    useEffect(() => { load(); }, [portfolioId]);
+    useEffect(() => {
+        load();
+        axios.get(`${API_GATEWAY}/api/v1/subscription/limits`, { headers: authHeader() })
+            .then(res => setIsFree((res.data.planName ?? 'FREE').toUpperCase() === 'FREE'))
+            .catch(() => setIsFree(true));
+    }, [portfolioId]);
 
     const openNew = () => {
+        if (isFree) {
+            if (onUpgradeRequired) {
+                onUpgradeRequired('Scheduled optimizations are not available on the Free plan. Please upgrade to enable automatic portfolio re-optimization.');
+            }
+            return;
+        }
         setEditing(null);
         setForm(blank);
         setError('');

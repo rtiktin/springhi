@@ -38,14 +38,24 @@ public class PortfoliosController {
     }
 
     @GetMapping("/usage-stats")
-    public ResponseEntity<Map<String, Object>> getUsageStats(@AuthenticationPrincipal UserPrincipal principal) {
+    public ResponseEntity<Map<String, Object>> getUsageStats(@AuthenticationPrincipal UserPrincipal principal,
+                                                              HttpServletRequest request) {
         if (principal == null) return ResponseEntity.status(403).build();
         int portfolioCount = portfolioService.listPortfolios(principal.getId()).size();
-        LocalDateTime startOfMonth = LocalDate.now().withDayOfMonth(1).atStartOfDay();
-        long optimizationsThisMonth = recommendationRepository.countOptimizationRunsSince(principal.getId(), startOfMonth);
+
+        Map<String, Object> limits = userServiceClient.getSubscriptionLimits(
+                principal.getId(), request.getHeader("Authorization")).orElse(null);
+        String planName = limits != null ? (String) limits.getOrDefault("planName", "FREE") : "FREE";
+        boolean isFree = "FREE".equalsIgnoreCase(planName);
+        LocalDateTime countSince = isFree
+                ? LocalDateTime.of(2000, 1, 1, 0, 0)
+                : LocalDate.now().withDayOfMonth(1).atStartOfDay();
+        long optimizationCount = recommendationRepository.countOptimizationRunsSince(principal.getId(), countSince);
+
         Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("portfolioCount", portfolioCount);
-        stats.put("optimizationsThisMonth", optimizationsThisMonth);
+        stats.put("optimizationsThisMonth", optimizationCount);
+        stats.put("isFreeLimit", isFree);
         return ResponseEntity.ok(stats);
     }
 

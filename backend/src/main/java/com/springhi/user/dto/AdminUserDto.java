@@ -15,7 +15,8 @@ public record AdminUserDto(
         boolean suspendedForChargebacks,
         String adminNotes,
         LocalDateTime createdAt,
-        LocalDateTime lastActiveAt
+        LocalDateTime lastActiveAt,
+        String planName
 ) {
     public static AdminUserDto from(User u) {
         return new AdminUserDto(
@@ -30,7 +31,26 @@ public record AdminUserDto(
                 u.isSuspendedForChargebacks(),
                 u.getAdminNotes(),
                 u.getCreatedAt(),
-                u.getLastActiveAt()
+                u.getLastActiveAt(),
+                "FREE"
+        );
+    }
+
+    public static AdminUserDto from(User u, String planName) {
+        return new AdminUserDto(
+                u.getId(),
+                u.getUsername(),
+                u.getEmail(),
+                u.getFirstName(),
+                u.getLastName(),
+                u.getPhone(),
+                u.getUserType(),
+                typeName(u.getUserType(), u.isSuspendedForChargebacks()),
+                u.isSuspendedForChargebacks(),
+                u.getAdminNotes(),
+                u.getCreatedAt(),
+                u.getLastActiveAt(),
+                planName != null ? planName : "FREE"
         );
     }
 

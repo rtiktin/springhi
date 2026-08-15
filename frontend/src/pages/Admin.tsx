@@ -17,6 +17,7 @@ interface AdminUser {
     adminNotes: string | null;
     createdAt: string;
     lastActiveAt: string | null;
+    planName: string;
 }
 
 interface AdminPortfolio {
@@ -79,6 +80,8 @@ const tdStyle: React.CSSProperties = {
 
 interface DailyCount { date: string; count: number; }
 interface StatsData { today: number; thisWeek: number; thisMonth: number; thisYear: number; daily: DailyCount[]; }
+interface SubscriptionStats { totalUsers: number; free: number; basic: number; premium: number; }
+interface SubscriptionDailyStats { basicDaily: DailyCount[]; premiumDaily: DailyCount[]; }
 
 const StatCard: React.FC<{ label: string; value: number; color: string }> = ({ label, value, color }) => (
     <div style={{ background: 'var(--bg-dark)', borderRadius: 8, padding: '1rem 1.5rem', minWidth: 120, flex: 1 }}>
@@ -87,59 +90,129 @@ const StatCard: React.FC<{ label: string; value: number; color: string }> = ({ l
     </div>
 );
 
-const DualBarChart: React.FC<{ userDaily: DailyCount[]; portfolioDaily: DailyCount[] }> = ({ userDaily, portfolioDaily }) => {
-    const W = 700, H = 200, PAD_L = 28, PAD_R = 8, PAD_T = 12, PAD_B = 40;
+const niceTicks = (dataMax: number): { ticks: number[]; chartMax: number } => {
+    if (dataMax === 0) return { ticks: [0, 1, 2, 3, 4], chartMax: 4 };
+    if (dataMax <= 4) {
+        const ticks = Array.from({ length: dataMax + 1 }, (_, i) => i);
+        return { ticks, chartMax: dataMax };
+    }
+    const step = Math.ceil(dataMax / 4);
+    const chartMax = step * 4;
+    return { ticks: [0, step, step * 2, step * 3, chartMax], chartMax };
+};
+
+const UsersChart: React.FC<{
+    userDaily: DailyCount[];
+    basicDaily: DailyCount[];
+    premiumDaily: DailyCount[];
+}> = ({ userDaily, basicDaily, premiumDaily }) => {
+    const W = 700, H = 200, PAD_L = 28, PAD_R = 8, PAD_T = 20, PAD_B = 40;
     const innerW = W - PAD_L - PAD_R;
     const innerH = H - PAD_T - PAD_B;
     const n = userDaily.length;
     if (n === 0) return null;
 
-    const maxVal = Math.max(1, ...userDaily.map(d => d.count), ...portfolioDaily.map(d => d.count));
+    const dataMax = Math.max(0,
+        ...userDaily.map(d => d.count),
+        ...basicDaily.map(d => d.count),
+        ...premiumDaily.map(d => d.count),
+    );
+    const { ticks, chartMax } = niceTicks(dataMax);
     const groupW = innerW / n;
-    const barW = Math.max(2, groupW * 0.35);
-    const yTick = (v: number) => PAD_T + innerH - (v / maxVal) * innerH;
-
+    const barW = Math.max(1, groupW * 0.25);
+    const yPos = (v: number) => PAD_T + innerH - (v / chartMax) * innerH;
     const labelEvery = Math.ceil(n / 8);
 
     return (
         <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block' }}>
-            {[0, 0.25, 0.5, 0.75, 1].map(f => {
-                const y = PAD_T + innerH * (1 - f);
-                const val = Math.round(maxVal * f);
+            {ticks.map(val => {
+                const y = yPos(val);
                 return (
-                    <g key={f}>
+                    <g key={val}>
                         <line x1={PAD_L} x2={W - PAD_R} y1={y} y2={y} stroke="var(--border)" strokeWidth={0.5} />
                         <text x={PAD_L - 4} y={y + 4} textAnchor="end" fontSize={9} fill="var(--text-gray)">{val}</text>
                     </g>
                 );
             })}
             {userDaily.map((d, i) => {
-                const x = PAD_L + i * groupW + groupW / 2;
-                const uH = (d.count / maxVal) * innerH;
-                const pCount = portfolioDaily[i]?.count ?? 0;
-                const pH = (pCount / maxVal) * innerH;
+                const cx = PAD_L + i * groupW + groupW / 2;
+                const uCount = d.count;
+                const bCount = basicDaily[i]?.count ?? 0;
+                const pCount = premiumDaily[i]?.count ?? 0;
                 const lastTick = Math.floor((n - 1) / labelEvery) * labelEvery;
                 const showLabel = i % labelEvery === 0 || (i === n - 1 && i - lastTick >= Math.ceil(labelEvery / 2));
-                const shortDate = d.date.slice(5);
                 return (
                     <g key={d.date}>
-                        <rect x={x - barW - 1} y={yTick(d.count)} width={barW} height={uH} fill="#6c47ff" rx={2} opacity={0.85}>
-                            <title>{d.date}: {d.count} user(s)</title>
+                        <rect x={cx - barW * 1.5 - 1} y={yPos(uCount)} width={barW} height={(uCount / chartMax) * innerH} fill="#6c47ff" rx={1} opacity={0.85}>
+                            <title>{d.date}: {uCount} new user(s)</title>
                         </rect>
-                        <rect x={x + 1} y={yTick(pCount)} width={barW} height={pH} fill="#22c55e" rx={2} opacity={0.85}>
-                            <title>{d.date}: {pCount} portfolio(s)</title>
+                        <rect x={cx - barW * 0.5} y={yPos(bCount)} width={barW} height={(bCount / chartMax) * innerH} fill="#f59e0b" rx={1} opacity={0.85}>
+                            <title>{d.date}: {bCount} new Basic subscription(s)</title>
+                        </rect>
+                        <rect x={cx + barW * 0.5 + 1} y={yPos(pCount)} width={barW} height={(pCount / chartMax) * innerH} fill="#a855f7" rx={1} opacity={0.85}>
+                            <title>{d.date}: {pCount} new Premium subscription(s)</title>
                         </rect>
                         {showLabel && (
-                            <text x={x} y={H - 6} textAnchor="middle" fontSize={9} fill="var(--text-gray)">{shortDate}</text>
+                            <text x={cx} y={H - 6} textAnchor="middle" fontSize={9} fill="var(--text-gray)">{d.date.slice(5)}</text>
                         )}
                     </g>
                 );
             })}
             <g>
-                <rect x={PAD_L + 4} y={PAD_T} width={10} height={10} fill="#6c47ff" rx={2} />
-                <text x={PAD_L + 17} y={PAD_T + 9} fontSize={10} fill="var(--text-gray)">New Users</text>
-                <rect x={PAD_L + 84} y={PAD_T} width={10} height={10} fill="#22c55e" rx={2} />
-                <text x={PAD_L + 97} y={PAD_T + 9} fontSize={10} fill="var(--text-gray)">New Portfolios</text>
+                <rect x={PAD_L + 4} y={4} width={10} height={10} fill="#6c47ff" rx={2} />
+                <text x={PAD_L + 17} y={13} fontSize={10} fill="var(--text-gray)">New Users</text>
+                <rect x={PAD_L + 88} y={4} width={10} height={10} fill="#f59e0b" rx={2} />
+                <text x={PAD_L + 101} y={13} fontSize={10} fill="var(--text-gray)">New Basic</text>
+                <rect x={PAD_L + 170} y={4} width={10} height={10} fill="#a855f7" rx={2} />
+                <text x={PAD_L + 183} y={13} fontSize={10} fill="var(--text-gray)">New Premium</text>
+            </g>
+        </svg>
+    );
+};
+
+const PortfoliosChart: React.FC<{ portfolioDaily: DailyCount[] }> = ({ portfolioDaily }) => {
+    const W = 700, H = 200, PAD_L = 28, PAD_R = 8, PAD_T = 12, PAD_B = 40;
+    const innerW = W - PAD_L - PAD_R;
+    const innerH = H - PAD_T - PAD_B;
+    const n = portfolioDaily.length;
+    if (n === 0) return null;
+
+    const dataMax = Math.max(0, ...portfolioDaily.map(d => d.count));
+    const { ticks, chartMax } = niceTicks(dataMax);
+    const groupW = innerW / n;
+    const barW = Math.max(2, groupW * 0.5);
+    const yPos = (v: number) => PAD_T + innerH - (v / chartMax) * innerH;
+    const labelEvery = Math.ceil(n / 8);
+
+    return (
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block' }}>
+            {ticks.map(val => {
+                const y = yPos(val);
+                return (
+                    <g key={val}>
+                        <line x1={PAD_L} x2={W - PAD_R} y1={y} y2={y} stroke="var(--border)" strokeWidth={0.5} />
+                        <text x={PAD_L - 4} y={y + 4} textAnchor="end" fontSize={9} fill="var(--text-gray)">{val}</text>
+                    </g>
+                );
+            })}
+            {portfolioDaily.map((d, i) => {
+                const cx = PAD_L + i * groupW + groupW / 2;
+                const lastTick = Math.floor((n - 1) / labelEvery) * labelEvery;
+                const showLabel = i % labelEvery === 0 || (i === n - 1 && i - lastTick >= Math.ceil(labelEvery / 2));
+                return (
+                    <g key={d.date}>
+                        <rect x={cx - barW / 2} y={yPos(d.count)} width={barW} height={(d.count / chartMax) * innerH} fill="#22c55e" rx={2} opacity={0.85}>
+                            <title>{d.date}: {d.count} portfolio(s)</title>
+                        </rect>
+                        {showLabel && (
+                            <text x={cx} y={H - 6} textAnchor="middle" fontSize={9} fill="var(--text-gray)">{d.date.slice(5)}</text>
+                        )}
+                    </g>
+                );
+            })}
+            <g>
+                <rect x={PAD_L + 4} y={PAD_T} width={10} height={10} fill="#22c55e" rx={2} />
+                <text x={PAD_L + 17} y={PAD_T + 9} fontSize={10} fill="var(--text-gray)">New Portfolios</text>
             </g>
         </svg>
     );
@@ -148,9 +221,13 @@ const DualBarChart: React.FC<{ userDaily: DailyCount[]; portfolioDaily: DailyCou
 const StatsPanel: React.FC<{
     userStats: StatsData | null;
     portfolioStats: StatsData | null;
+    subscriptionStats: SubscriptionStats | null;
+    subscriptionDailyStats: SubscriptionDailyStats | null;
     chartOffset: number;
     setChartOffset: (n: number) => void;
-}> = ({ userStats, portfolioStats, chartOffset, setChartOffset }) => {
+    portfolioChartOffset: number;
+    setPortfolioChartOffset: (n: number) => void;
+}> = ({ userStats, portfolioStats, subscriptionStats, subscriptionDailyStats, chartOffset, setChartOffset, portfolioChartOffset, setPortfolioChartOffset }) => {
     if (!userStats || !portfolioStats) return <div style={{ color: 'var(--text-gray)', padding: '2rem', textAlign: 'center' }}>No data yet.</div>;
     const periods: { label: string; key: keyof StatsData }[] = [
         { label: 'Today', key: 'today' },
@@ -163,6 +240,10 @@ const StatsPanel: React.FC<{
         ? 'Last 30 Days'
         : `${chartOffset + 30} – ${chartOffset + 1} Days Ago`;
 
+    const portfolioWindowLabel = portfolioChartOffset === 0
+        ? 'Last 30 Days'
+        : `${portfolioChartOffset + 30} – ${portfolioChartOffset + 1} Days Ago`;
+
     const btnStyle: React.CSSProperties = {
         padding: '0.3rem 0.8rem',
         borderRadius: 6,
@@ -173,6 +254,8 @@ const StatsPanel: React.FC<{
         fontSize: '0.85rem',
     };
 
+    const emptyDaily = userStats.daily.map(d => ({ date: d.date, count: 0 }));
+
     return (
         <div>
             <h3 style={{ marginBottom: '1.25rem', color: 'var(--text-primary)', fontWeight: 700 }}>New Users</h3>
@@ -180,6 +263,44 @@ const StatsPanel: React.FC<{
                 {periods.map(p => (
                     <StatCard key={p.key} label={p.label} value={userStats[p.key] as number} color="#6c47ff" />
                 ))}
+            </div>
+
+            {subscriptionStats && (
+                <>
+                    <h3 style={{ marginBottom: '1.25rem', color: 'var(--text-primary)', fontWeight: 700 }}>Subscriptions</h3>
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
+                        <StatCard label="Total Users" value={subscriptionStats.totalUsers} color="var(--text-primary)" />
+                        <StatCard label="Free" value={subscriptionStats.free} color="#6b7280" />
+                        <StatCard label="Basic" value={subscriptionStats.basic} color="#f59e0b" />
+                        <StatCard label="Premium" value={subscriptionStats.premium} color="#a855f7" />
+                    </div>
+                    <div style={{ background: 'var(--bg-dark)', borderRadius: 8, padding: '0.75rem 1rem', marginBottom: '2rem', fontSize: '0.85rem', color: 'var(--text-gray)' }}>
+                        {subscriptionStats.totalUsers > 0 && (
+                            <>
+                                <span style={{ color: '#6b7280', fontWeight: 700 }}>{Math.round(subscriptionStats.free / subscriptionStats.totalUsers * 100)}%</span> Free&nbsp;&nbsp;
+                                <span style={{ color: '#f59e0b', fontWeight: 700 }}>{Math.round(subscriptionStats.basic / subscriptionStats.totalUsers * 100)}%</span> Basic&nbsp;&nbsp;
+                                <span style={{ color: '#a855f7', fontWeight: 700 }}>{Math.round(subscriptionStats.premium / subscriptionStats.totalUsers * 100)}%</span> Premium
+                            </>
+                        )}
+                    </div>
+                </>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 700 }}>{windowLabel} — Users &amp; Subscriptions</h3>
+                <button style={btnStyle} onClick={() => setChartOffset(chartOffset + 30)}>&#8592; Back</button>
+                <button style={{ ...btnStyle, opacity: chartOffset === 0 ? 0.4 : 1, pointerEvents: chartOffset === 0 ? 'none' : 'auto' }}
+                    onClick={() => setChartOffset(Math.max(0, chartOffset - 30))}>Forward &#8594;</button>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-gray)', marginLeft: '0.5rem' }}>
+                    <span style={{ color: '#6c47ff', fontWeight: 700 }}>{userStats.daily.reduce((s, d) => s + d.count, 0)}</span> new users
+                </span>
+            </div>
+            <div style={{ background: 'var(--bg-dark)', borderRadius: 8, padding: '1rem', marginBottom: '2rem' }}>
+                <UsersChart
+                    userDaily={userStats.daily}
+                    basicDaily={subscriptionDailyStats?.basicDaily ?? emptyDaily}
+                    premiumDaily={subscriptionDailyStats?.premiumDaily ?? emptyDaily}
+                />
             </div>
 
             <h3 style={{ marginBottom: '1.25rem', color: 'var(--text-primary)', fontWeight: 700 }}>New Portfolios</h3>
@@ -190,17 +311,16 @@ const StatsPanel: React.FC<{
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                <h3 style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 700 }}>{windowLabel}</h3>
-                <button style={btnStyle} onClick={() => setChartOffset(chartOffset + 30)}>&#8592; Back</button>
-                <button style={{ ...btnStyle, opacity: chartOffset === 0 ? 0.4 : 1, pointerEvents: chartOffset === 0 ? 'none' : 'auto' }}
-                    onClick={() => setChartOffset(Math.max(0, chartOffset - 30))}>Forward &#8594;</button>
+                <h3 style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 700 }}>{portfolioWindowLabel} — Portfolios</h3>
+                <button style={btnStyle} onClick={() => setPortfolioChartOffset(portfolioChartOffset + 30)}>&#8592; Back</button>
+                <button style={{ ...btnStyle, opacity: portfolioChartOffset === 0 ? 0.4 : 1, pointerEvents: portfolioChartOffset === 0 ? 'none' : 'auto' }}
+                    onClick={() => setPortfolioChartOffset(Math.max(0, portfolioChartOffset - 30))}>Forward &#8594;</button>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-gray)', marginLeft: '0.5rem' }}>
-                    <span style={{ color: '#6c47ff', fontWeight: 700 }}>{userStats.daily.reduce((s, d) => s + d.count, 0)}</span> new users&nbsp;&nbsp;
                     <span style={{ color: '#22c55e', fontWeight: 700 }}>{portfolioStats.daily.reduce((s, d) => s + d.count, 0)}</span> new portfolios
                 </span>
             </div>
             <div style={{ background: 'var(--bg-dark)', borderRadius: 8, padding: '1rem' }}>
-                <DualBarChart userDaily={userStats.daily} portfolioDaily={portfolioStats.daily} />
+                <PortfoliosChart portfolioDaily={portfolioStats.daily} />
             </div>
         </div>
     );
@@ -238,8 +358,11 @@ const Admin: React.FC = () => {
 
     const [userStats, setUserStats] = useState<StatsData | null>(null);
     const [portfolioStats, setPortfolioStats] = useState<StatsData | null>(null);
+    const [subscriptionStats, setSubscriptionStats] = useState<SubscriptionStats | null>(null);
+    const [subscriptionDailyStats, setSubscriptionDailyStats] = useState<SubscriptionDailyStats | null>(null);
     const [loadingStats, setLoadingStats] = useState(false);
     const [chartOffset, setChartOffset] = useState(0);
+    const [portfolioChartOffset, setPortfolioChartOffset] = useState(0);
 
     const [ipModal, setIpModal] = useState<{ userId: number; username: string } | null>(null);
     const [ipAddresses, setIpAddresses] = useState<{ ipAddress: string; firstSeen: string; lastSeen: string; requestCount: number }[]>([]);
@@ -279,16 +402,32 @@ const Admin: React.FC = () => {
         }
     }, [chartOffset]);
 
+    useEffect(() => {
+        if (tab === 'stats') {
+            loadPortfolioStats(portfolioChartOffset);
+        }
+    }, [portfolioChartOffset]);
+
     const loadStats = (offset: number) => {
         setLoadingStats(true);
         Promise.all([
             axios.get(`${API_GATEWAY}/api/v1/admin/stats/users?daysOffset=${offset}`, { headers: authHeader() }),
-            axios.get(`${API_GATEWAY}/api/v1/admin/stats/portfolios?daysOffset=${offset}`, { headers: authHeader() }),
-        ]).then(([uRes, pRes]) => {
+            axios.get(`${API_GATEWAY}/api/v1/admin/stats/portfolios?daysOffset=${portfolioChartOffset}`, { headers: authHeader() }),
+            axios.get(`${API_GATEWAY}/api/v1/admin/stats/subscriptions`, { headers: authHeader() }),
+            axios.get(`${API_GATEWAY}/api/v1/admin/stats/subscriptions/daily?daysOffset=${offset}`, { headers: authHeader() }),
+        ]).then(([uRes, pRes, sRes, sdRes]) => {
             setUserStats(uRes.data);
             setPortfolioStats(pRes.data);
+            setSubscriptionStats(sRes.data);
+            setSubscriptionDailyStats(sdRes.data);
         }).catch(() => setError('Failed to load statistics.'))
           .finally(() => setLoadingStats(false));
+    };
+
+    const loadPortfolioStats = (offset: number) => {
+        axios.get(`${API_GATEWAY}/api/v1/admin/stats/portfolios?daysOffset=${offset}`, { headers: authHeader() })
+            .then(res => setPortfolioStats(res.data))
+            .catch(() => {});
     };
 
     const loadSubscriptionConfig = () => {
@@ -524,6 +663,7 @@ const Admin: React.FC = () => {
                                                 <th style={thStyle}>Phone</th>
                                                 <th style={thStyle}>Member Since</th>
                                                 <th style={thStyle}>Last Active</th>
+                                                <th style={thStyle}>Plan</th>
                                                 <th style={thStyle}>Type</th>
                                                 <th style={thStyle}>Change Type</th>
                                                 <th style={thStyle}>Actions</th>
@@ -538,6 +678,18 @@ const Admin: React.FC = () => {
                                                     <td style={tdStyle}>{u.phone || '—'}</td>
                                                     <td style={tdStyle}>{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}</td>
                                                     <td style={tdStyle}>{u.lastActiveAt ? new Date(u.lastActiveAt).toLocaleDateString() : '—'}</td>
+                                                    <td style={tdStyle}>
+                                                        <span style={{
+                                                            background: u.planName === 'PREMIUM' ? '#6c47ff' : u.planName === 'BASIC' ? '#f59e0b' : '#6b7280',
+                                                            color: '#fff',
+                                                            borderRadius: 6,
+                                                            padding: '0.2rem 0.6rem',
+                                                            fontSize: '0.78rem',
+                                                            fontWeight: 600,
+                                                        }}>
+                                                            {u.planName ?? 'FREE'}
+                                                        </span>
+                                                    </td>
                                                     <td style={tdStyle}>
                                                         <span style={{
                                                             background: u.userType === 4 && u.suspendedForChargebacks ? '#b91c1c' : (TYPE_BADGE_COLOR[u.userType] ?? '#6b7280'),
@@ -724,7 +876,7 @@ const Admin: React.FC = () => {
                             {loadingStats ? (
                                 <div className="portfolio-loading">Loading statistics…</div>
                             ) : (
-                                <StatsPanel userStats={userStats} portfolioStats={portfolioStats} chartOffset={chartOffset} setChartOffset={setChartOffset} />
+                                <StatsPanel userStats={userStats} portfolioStats={portfolioStats} subscriptionStats={subscriptionStats} subscriptionDailyStats={subscriptionDailyStats} chartOffset={chartOffset} setChartOffset={setChartOffset} portfolioChartOffset={portfolioChartOffset} setPortfolioChartOffset={setPortfolioChartOffset} />
                             )}
                         </>
                     )}

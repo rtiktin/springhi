@@ -75,7 +75,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
 
     const [portfolioProfile, setPortfolioProfile] = useState<PortfolioProfile | null>(null);
     const [upgradeModal, setUpgradeModal] = useState<{ message: string } | null>(null);
-    const [optimizationQuota, setOptimizationQuota] = useState<{ used: number; max: number } | null>(null);
+    const [optimizationQuota, setOptimizationQuota] = useState<{ used: number; max: number; isFree: boolean } | null>(null);
     const [userEmail, setUserEmail] = useState<string>('');
     const [userPhone, setUserPhone] = useState<string>('');
     const [showVerifyModal, setShowVerifyModal] = useState(false);
@@ -611,7 +611,9 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                     </div>
                     {optimizationQuota && (
                         <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '1.5rem' }}>
-                            <span style={{ fontSize: '0.78rem', color: 'var(--text-gray)', display: 'block' }}>AI Optimizations This Month</span>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-gray)', display: 'block' }}>
+                                AI Optimizations {optimizationQuota.isFree ? '(Lifetime)' : '(This Month)'}
+                            </span>
                             <strong style={{ fontSize: '1rem', color: optimizationQuota.used >= optimizationQuota.max ? '#ef4444' : 'var(--text-primary)' }}>
                                 {optimizationQuota.used} / {optimizationQuota.max}
                             </strong>

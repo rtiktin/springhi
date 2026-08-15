@@ -66,15 +66,20 @@ public class PortfolioOptimizationController {
         Map<String, Object> limits = userServiceClient.getSubscriptionLimits(principal.getId(), authHeader).orElse(null);
         if (limits != null) {
             int maxOptimizations = limits.get("maxOptimizationsPerMonth") instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
-            java.time.LocalDateTime startOfMonth = java.time.LocalDate.now().withDayOfMonth(1).atStartOfDay();
-            long runsSoFar = recommendationRepository.countOptimizationRunsSince(principal.getId(), startOfMonth);
+            String planName = (String) limits.getOrDefault("planName", "FREE");
+            boolean isFree = "FREE".equalsIgnoreCase(planName);
+            java.time.LocalDateTime countSince = isFree
+                    ? java.time.LocalDateTime.of(2000, 1, 1, 0, 0)
+                    : java.time.LocalDate.now().withDayOfMonth(1).atStartOfDay();
+            long runsSoFar = recommendationRepository.countOptimizationRunsSince(principal.getId(), countSince);
             if (runsSoFar >= maxOptimizations) {
-                String planName = (String) limits.getOrDefault("planName", "FREE");
+                String limitLabel = isFree ? "ever" : "for this month";
                 return ResponseEntity.status(429).body(Map.of(
                         "error", "OPTIMIZATION_LIMIT_REACHED",
-                        "message", "You have used all " + maxOptimizations + " AI optimization(s) for this month on your " + planName + " plan. Please upgrade to run more.",
+                        "message", "You have used all " + maxOptimizations + " AI optimization(s) " + limitLabel + " on your " + planName + " plan. Please upgrade to run more.",
                         "maxOptimizationsPerMonth", maxOptimizations,
-                        "planName", planName
+                        "planName", planName,
+                        "isFreeLimit", isFree
                 ));
             }
         }

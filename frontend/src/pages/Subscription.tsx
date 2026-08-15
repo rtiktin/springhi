@@ -39,7 +39,7 @@ const Subscription: React.FC = () => {
     const navigate = useNavigate();
     const [plans, setPlans] = useState<Plan[]>([]);
     const [status, setStatus] = useState<SubscriptionStatus | null>(null);
-    const [usageStats, setUsageStats] = useState<{ portfolioCount: number; optimizationsThisMonth: number } | null>(null);
+    const [usageStats, setUsageStats] = useState<{ portfolioCount: number; optimizationsThisMonth: number; isFreeLimit?: boolean } | null>(null);
     const [loading, setLoading] = useState(true);
     const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
     const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY');
@@ -278,13 +278,17 @@ const Subscription: React.FC = () => {
                                         </div>
                                     </div>
                                     <div style={{ background: 'var(--bg-input, #1e2035)', borderRadius: 8, padding: '0.75rem 1rem', border: '1px solid var(--border)' }}>
-                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-gray)', marginBottom: 4 }}>AI Optimizations this month</div>
-                                        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-gray)', marginBottom: 4 }}>
+                                            AI Optimizations {usageStats?.isFreeLimit ? '(Lifetime)' : '(This Month)'}
+                                        </div>
+                                        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: usageStats && usageStats.optimizationsThisMonth >= status.maxOptimizationsPerMonth ? '#ef4444' : 'var(--text-primary)' }}>
                                             {usageStats?.optimizationsThisMonth ?? '—'} <span style={{ fontSize: '0.85rem', fontWeight: 400, color: 'var(--text-gray)' }}>/ {status.maxOptimizationsPerMonth}</span>
                                         </div>
                                         {usageStats && (
-                                            <div style={{ fontSize: '0.78rem', color: '#22c55e', marginTop: 2 }}>
-                                                {Math.max(0, status.maxOptimizationsPerMonth - usageStats.optimizationsThisMonth)} remaining
+                                            <div style={{ fontSize: '0.78rem', color: usageStats.optimizationsThisMonth >= status.maxOptimizationsPerMonth ? '#ef4444' : '#22c55e', marginTop: 2 }}>
+                                                {usageStats.optimizationsThisMonth >= status.maxOptimizationsPerMonth
+                                                    ? 'Limit reached — upgrade to run more'
+                                                    : `${Math.max(0, status.maxOptimizationsPerMonth - usageStats.optimizationsThisMonth)} remaining`}
                                             </div>
                                         )}
                                     </div>
