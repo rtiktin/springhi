@@ -338,6 +338,54 @@ const Admin: React.FC = () => {
     const [changingType, setChangingType] = useState<number | null>(null);
     const [impersonating, setImpersonating] = useState<number | null>(null);
 
+    type UserSortKey = 'username' | 'email' | 'name' | 'phone' | 'createdAt' | 'lastActiveAt' | 'planName' | 'userTypeName';
+    const DATE_COLS: UserSortKey[] = ['createdAt', 'lastActiveAt'];
+    const [userSort, setUserSort] = useState<{ key: UserSortKey; dir: 'asc' | 'desc' }>({ key: 'createdAt', dir: 'desc' });
+
+    const handleUserSort = (key: UserSortKey) => {
+        setUserSort(prev => {
+            if (prev.key === key) return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+            const defaultDir = DATE_COLS.includes(key) ? 'desc' : 'asc';
+            return { key, dir: defaultDir };
+        });
+    };
+
+    const [userFilters, setUserFilters] = useState({ username: '', name: '', email: '', plan: '', type: '' });
+    const setFilter = (field: keyof typeof userFilters, value: string) =>
+        setUserFilters(prev => ({ ...prev, [field]: value }));
+
+    const filteredUsers = users.filter(u => {
+        const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').toLowerCase();
+        if (userFilters.username.length >= 2 && !u.username.toLowerCase().includes(userFilters.username.toLowerCase())) return false;
+        if (userFilters.name.length >= 2 && !fullName.includes(userFilters.name.toLowerCase())) return false;
+        if (userFilters.email && !u.email.toLowerCase().includes(userFilters.email.toLowerCase())) return false;
+        if (userFilters.plan && (u.planName ?? 'FREE').toUpperCase() !== userFilters.plan) return false;
+        if (userFilters.type) {
+            if (userFilters.type === 'chargeback') {
+                if (!(u.userType === 4 && u.suspendedForChargebacks)) return false;
+            } else if (String(u.userType) !== userFilters.type) return false;
+        }
+        return true;
+    });
+
+    const sortedUsers = [...filteredUsers].sort((a, b) => {
+        const { key, dir } = userSort;
+        let av: string, bv: string;
+        if (key === 'name') {
+            av = [a.firstName, a.lastName].filter(Boolean).join(' ').toLowerCase();
+            bv = [b.firstName, b.lastName].filter(Boolean).join(' ').toLowerCase();
+        } else if (key === 'createdAt' || key === 'lastActiveAt') {
+            av = a[key] ?? '';
+            bv = b[key] ?? '';
+        } else {
+            av = ((a[key] as string | null) ?? '').toLowerCase();
+            bv = ((b[key] as string | null) ?? '').toLowerCase();
+        }
+        if (av < bv) return dir === 'asc' ? -1 : 1;
+        if (av > bv) return dir === 'asc' ? 1 : -1;
+        return 0;
+    });
+
     const [pwModal, setPwModal] = useState<PasswordModal | null>(null);
     const [newPassword, setNewPassword] = useState('');
     const [pwError, setPwError] = useState('');
@@ -653,24 +701,95 @@ const Admin: React.FC = () => {
                             {loadingUsers ? (
                                 <div className="portfolio-loading">Loading users…</div>
                             ) : (
+                                <>
+                                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
+                                    {([
+                                        { field: 'username' as const, placeholder: 'Username' },
+                                        { field: 'name' as const, placeholder: 'Name' },
+                                        { field: 'email' as const, placeholder: 'Email' },
+                                    ]).map(({ field, placeholder }) => (
+                                        <input
+                                            key={field}
+                                            value={userFilters[field]}
+                                            onChange={e => setFilter(field, e.target.value)}
+                                            placeholder={placeholder}
+                                            style={{
+                                                background: 'var(--bg-dark)',
+                                                color: 'var(--text-primary)',
+                                                border: '1px solid var(--border)',
+                                                borderRadius: 6,
+                                                padding: '0.35rem 0.65rem',
+                                                fontSize: '0.85rem',
+                                                minWidth: 130,
+                                            }}
+                                        />
+                                    ))}
+                                    <select
+                                        value={userFilters.plan}
+                                        onChange={e => setFilter('plan', e.target.value)}
+                                        style={{ background: 'var(--bg-dark)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}
+                                    >
+                                        <option value="">All Plans</option>
+                                        <option value="FREE">Free</option>
+                                        <option value="BASIC">Basic</option>
+                                        <option value="PREMIUM">Premium</option>
+                                    </select>
+                                    <select
+                                        value={userFilters.type}
+                                        onChange={e => setFilter('type', e.target.value)}
+                                        style={{ background: 'var(--bg-dark)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}
+                                    >
+                                        <option value="">All Types</option>
+                                        <option value="10">Admin</option>
+                                        <option value="8">User</option>
+                                        <option value="6">Closed</option>
+                                        <option value="4">Suspended</option>
+                                        <option value="chargeback">Suspended – Chargebacks</option>
+                                    </select>
+                                    {(userFilters.username || userFilters.name || userFilters.email || userFilters.plan || userFilters.type) && (
+                                        <button
+                                            onClick={() => setUserFilters({ username: '', name: '', email: '', plan: '', type: '' })}
+                                            style={{ background: 'transparent', color: 'var(--text-gray)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.35rem 0.65rem', fontSize: '0.85rem', cursor: 'pointer' }}
+                                        >
+                                            Clear
+                                        </button>
+                                    )}
+                                    <span style={{ fontSize: '0.82rem', color: 'var(--text-gray)', marginLeft: '0.25rem' }}>
+                                        {sortedUsers.length} of {users.length}
+                                    </span>
+                                </div>
                                 <div style={{ overflowX: 'auto' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                         <thead>
                                             <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                                                <th style={thStyle}>Username</th>
-                                                <th style={thStyle}>Email</th>
-                                                <th style={thStyle}>Name</th>
-                                                <th style={thStyle}>Phone</th>
-                                                <th style={thStyle}>Member Since</th>
-                                                <th style={thStyle}>Last Active</th>
-                                                <th style={thStyle}>Plan</th>
-                                                <th style={thStyle}>Type</th>
+                                                {(
+                                                    [
+                                                        { label: 'Username', key: 'username' },
+                                                        { label: 'Email', key: 'email' },
+                                                        { label: 'Name', key: 'name' },
+                                                        { label: 'Phone', key: 'phone' },
+                                                        { label: 'Member Since', key: 'createdAt' },
+                                                        { label: 'Last Active', key: 'lastActiveAt' },
+                                                        { label: 'Plan', key: 'planName' },
+                                                        { label: 'Type', key: 'userTypeName' },
+                                                    ] as { label: string; key: UserSortKey }[]
+                                                ).map(col => (
+                                                    <th key={col.key}
+                                                        style={{ ...thStyle, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                                                        onClick={() => handleUserSort(col.key)}
+                                                    >
+                                                        {col.label}
+                                                        {userSort.key === col.key
+                                                            ? (userSort.dir === 'asc' ? ' ▲' : ' ▼')
+                                                            : ' ⇅'}
+                                                    </th>
+                                                ))}
                                                 <th style={thStyle}>Change Type</th>
                                                 <th style={thStyle}>Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {users.map(u => (
+                                            {sortedUsers.map(u => (
                                                 <tr key={u.id} style={{ borderBottom: '1px solid var(--border)' }}>
                                                     <td style={{ ...tdStyle, fontWeight: 600 }}>{u.username}</td>
                                                     <td style={tdStyle}>{u.email}</td>
@@ -823,14 +942,15 @@ const Admin: React.FC = () => {
                                                     </td>
                                                 </tr>
                                             ))}
-                                            {users.length === 0 && (
+                                            {sortedUsers.length === 0 && (
                                                 <tr>
-                                                    <td colSpan={9} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-gray)' }}>No users found.</td>
+                                                    <td colSpan={10} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-gray)' }}>{users.length === 0 ? 'No users found.' : 'No users match the current filters.'}</td>
                                                 </tr>
                                             )}
                                         </tbody>
                                     </table>
                                 </div>
+                                </>
                             )}
                         </>
                     )}
