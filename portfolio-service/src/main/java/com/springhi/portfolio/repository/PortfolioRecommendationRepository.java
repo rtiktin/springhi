@@ -44,4 +44,7 @@ public interface PortfolioRecommendationRepository extends JpaRepository<Portfol
 
     @Query("SELECT COUNT(DISTINCT r.generatedAt) FROM PortfolioRecommendation r WHERE r.userId = :userId AND r.generatedAt >= :since")
     long countOptimizationRunsSince(@Param("userId") Long userId, @Param("since") LocalDateTime since);
+
+    @Query("SELECT r.generatedAt FROM PortfolioRecommendation r WHERE r.portfolioId = :portfolioId GROUP BY r.generatedAt ORDER BY r.generatedAt DESC")
+    List<LocalDateTime> findDistinctGeneratedAtByPortfolioIdOrderByDesc(@Param("portfolioId") Long portfolioId);
 }

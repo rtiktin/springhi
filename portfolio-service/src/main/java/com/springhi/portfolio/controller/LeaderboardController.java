@@ -97,6 +97,17 @@ public class LeaderboardController {
         return ResponseEntity.ok(portfolioService.getPnlSummary(portfolioId));
     }
 
+    @GetMapping("/portfolio/{portfolioId}/recommendations/runs")
+    public ResponseEntity<List<String>> getAiRunTimestamps(
+            @PathVariable Long portfolioId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) return ResponseEntity.status(403).build();
+        List<String> timestamps = recommendationRepository
+                .findDistinctGeneratedAtByPortfolioIdOrderByDesc(portfolioId)
+                .stream().map(LocalDateTime::toString).toList();
+        return ResponseEntity.ok(timestamps);
+    }
+
     @GetMapping("/portfolio/{portfolioId}/recommendations/run")
     public ResponseEntity<AiRunDetailsDto> getAiRunDetails(
             @PathVariable Long portfolioId,

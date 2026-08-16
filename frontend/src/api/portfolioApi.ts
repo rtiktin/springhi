@@ -271,6 +271,13 @@ export const getLeaderboard = async (range: string, scope: 'mine' | 'all' = 'all
     return response.data;
 };
 
+export const getLeaderboardPortfolioAiRunTimestamps = async (portfolioId: number): Promise<string[]> => {
+    const response = await axios.get(`${API_GATEWAY}/api/v1/leaderboard/portfolio/${portfolioId}/recommendations/runs`, {
+        headers: authHeader(),
+    });
+    return response.data;
+};
+
 export const getLeaderboardAiRunDetails = async (portfolioId: number, generatedAt: string): Promise<AiRunDetails> => {
     const response = await axios.get(`${API_GATEWAY}/api/v1/leaderboard/portfolio/${portfolioId}/recommendations/run`, {
         headers: authHeader(),
