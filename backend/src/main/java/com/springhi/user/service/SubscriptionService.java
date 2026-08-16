@@ -59,10 +59,14 @@ public class SubscriptionService {
         UserSubscription sub = getOrCreateSubscription(userId);
         SubscriptionConfig config = configRepository.findByPlanName(sub.getPlanName())
                 .orElseGet(() -> configRepository.findByPlanName("FREE").orElseThrow());
+        int premiumMax = configRepository.findByPlanName("PREMIUM")
+                .map(SubscriptionConfig::getMaxOptimizationsPerMonth)
+                .orElse(config.getMaxOptimizationsPerMonth());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("planName", sub.getPlanName());
         result.put("maxPortfolios", config.getMaxPortfolios());
         result.put("maxOptimizationsPerMonth", config.getMaxOptimizationsPerMonth());
+        result.put("premiumMaxOptimizationsPerMonth", premiumMax);
         return result;
     }
 

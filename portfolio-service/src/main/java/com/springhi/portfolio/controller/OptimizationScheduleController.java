@@ -37,6 +37,13 @@ public class OptimizationScheduleController {
         return ResponseEntity.ok(scheduleRepository.findByPortfolioId(portfolioId));
     }
 
+    @GetMapping("/all")
+    public ResponseEntity<List<OptimizationSchedule>> getAllSchedulesForUser(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) return ResponseEntity.status(403).build();
+        return ResponseEntity.ok(scheduleRepository.findByUserId(principal.getId()));
+    }
+
     @PostMapping
     public ResponseEntity<OptimizationSchedule> createSchedule(
             @RequestParam Long portfolioId,

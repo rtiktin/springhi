@@ -348,6 +348,11 @@ export const getOptimizationSchedules = async (portfolioId: number): Promise<Opt
     return response.data;
 };
 
+export const getAllOptimizationSchedules = async (): Promise<OptimizationSchedule[]> => {
+    const response = await axios.get(`${BASE_URL}/schedules/all`, { headers: authHeader() });
+    return response.data;
+};
+
 export const createOptimizationSchedule = async (portfolioId: number, body: {
     frequency: string; aiProvider: string; dayOfWeek?: number | null; dayOfMonth?: number | null;
 }): Promise<OptimizationSchedule> => {

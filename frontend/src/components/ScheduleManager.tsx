@@ -4,6 +4,7 @@ import API_GATEWAY from '../api/apiBase';
 import type { OptimizationSchedule } from '../api/portfolioApi';
 import {
     getOptimizationSchedules,
+    getAllOptimizationSchedules,
     createOptimizationSchedule,
     updateOptimizationSchedule,
     deleteOptimizationSchedule,
@@ -34,6 +35,14 @@ const describeSchedule = (s: OptimizationSchedule): string => {
 
 const blank = { frequency: 'MONTHLY' as const, aiProvider: 'gemini', dayOfWeek: 1, dayOfMonth: 1 };
 
+const MONTHLY_RUNS: Record<string, number> = {
+    DAILY: 22,
+    WEEKLY: 4.33,
+    MONTHLY: 1,
+    QUARTERLY: 0.33,
+    YEARLY: 0.083,
+};
+
 const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
 
 const ScheduleManager: React.FC<Props> = ({ portfolioId, onUpgradeRequired }) => {
@@ -46,6 +55,15 @@ const ScheduleManager: React.FC<Props> = ({ portfolioId, onUpgradeRequired }) =>
     const [error, setError] = useState('');
     const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
     const [isFree, setIsFree] = useState(false);
+    const [quotaInfo, setQuotaInfo] = useState<{
+        usedThisMonth: number;
+        planMax: number;
+        premiumMax: number;
+        planName: string;
+        isFreeLimit: boolean;
+        existingScheduledMonthly: number;
+    } | null>(null);
+    const [quotaChecking, setQuotaChecking] = useState(false);
 
     const load = () => {
         setLoading(true);
@@ -62,12 +80,53 @@ const ScheduleManager: React.FC<Props> = ({ portfolioId, onUpgradeRequired }) =>
             .catch(() => setIsFree(true));
     }, [portfolioId]);
 
-    const openNew = () => {
+    const loadQuota = async (editingScheduleId?: number): Promise<typeof quotaInfo> => {
+        const [limitsRes, usageRes, allSchedules] = await Promise.all([
+            axios.get(`${API_GATEWAY}/api/v1/subscription/limits`, { headers: authHeader() }),
+            axios.get(`${API_GATEWAY}/api/v1/portfolios/usage-stats`, { headers: authHeader() }),
+            getAllOptimizationSchedules(),
+        ]);
+        const planMax: number = limitsRes.data.maxOptimizationsPerMonth ?? 0;
+        const premiumMax: number = limitsRes.data.premiumMaxOptimizationsPerMonth ?? planMax;
+        const planName: string = limitsRes.data.planName ?? 'FREE';
+        const isFreeLimit: boolean = usageRes.data.isFreeLimit ?? true;
+        const usedThisMonth: number = usageRes.data.optimizationsThisMonth ?? 0;
+        const existingScheduledMonthly = allSchedules
+            .filter(s => s.enabled && s.id !== editingScheduleId)
+            .reduce((sum, s) => sum + (MONTHLY_RUNS[s.frequency] ?? 0), 0);
+        const info = { usedThisMonth, planMax, premiumMax, planName, isFreeLimit, existingScheduledMonthly };
+        setQuotaInfo(info);
+        return info;
+    };
+
+    const checkScheduleCapacity = (frequency: string, info: NonNullable<typeof quotaInfo>): 'ok' | 'upgrade' | 'exceeded' => {
+        const newMonthly = MONTHLY_RUNS[frequency] ?? 1;
+        const projected = info.usedThisMonth + info.existingScheduledMonthly + newMonthly;
+        if (projected > info.premiumMax) return 'exceeded';
+        if (projected > info.planMax) return 'upgrade';
+        return 'ok';
+    };
+
+    const openNew = async () => {
         if (isFree) {
             if (onUpgradeRequired) {
                 onUpgradeRequired('Scheduled optimizations are not available on the Free plan. Please upgrade to enable automatic portfolio re-optimization.');
             }
             return;
+        }
+        setQuotaChecking(true);
+        try {
+            const info = await loadQuota();
+            if (info) {
+                const worstCase = checkScheduleCapacity('MONTHLY', info);
+                if (worstCase === 'exceeded') {
+                    setError(`Adding even a monthly schedule would exceed the maximum allowed optimizations (${info.premiumMax}) on the Premium plan. This schedule cannot be created.`);
+                    return;
+                }
+            }
+        } catch {
+        } finally {
+            setQuotaChecking(false);
         }
         setEditing(null);
         setForm(blank);
@@ -91,6 +150,22 @@ const ScheduleManager: React.FC<Props> = ({ portfolioId, onUpgradeRequired }) =>
         setSaving(true);
         setError('');
         try {
+            if (!editing) {
+                const info = await loadQuota();
+                if (info) {
+                    const result = checkScheduleCapacity(form.frequency, info);
+                    if (result === 'exceeded') {
+                        setError(`This schedule would exceed the maximum allowed optimizations (${info.premiumMax}) even on the Premium plan. It cannot be created.`);
+                        return;
+                    }
+                    if (result === 'upgrade') {
+                        if (onUpgradeRequired) {
+                            onUpgradeRequired(`This schedule would exceed your ${info.planName} plan's optimization limit (${info.planMax}/month). Please upgrade to add more schedules.`);
+                        }
+                        return;
+                    }
+                }
+            }
             const body = {
                 frequency: form.frequency,
                 aiProvider: form.aiProvider,
@@ -152,7 +227,9 @@ const ScheduleManager: React.FC<Props> = ({ portfolioId, onUpgradeRequired }) =>
                 <h3 style={{ margin: 0, fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>
                     Scheduled Optimizations
                 </h3>
-                <button style={btnPrimary} onClick={openNew}>+ Add Schedule</button>
+                <button style={{ ...btnPrimary, opacity: quotaChecking ? 0.6 : 1 }} onClick={openNew} disabled={quotaChecking}>
+                    {quotaChecking ? 'Checking…' : '+ Add Schedule'}
+                </button>
             </div>
 
             {error && <p style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{error}</p>}
@@ -260,6 +337,19 @@ const ScheduleManager: React.FC<Props> = ({ portfolioId, onUpgradeRequired }) =>
                                     {PROVIDERS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
                                 </select>
                             </div>
+
+                            {!editing && quotaInfo && (() => {
+                                const newMonthly = MONTHLY_RUNS[form.frequency] ?? 1;
+                                const projected = quotaInfo.usedThisMonth + quotaInfo.existingScheduledMonthly + newMonthly;
+                                const status = checkScheduleCapacity(form.frequency, quotaInfo);
+                                return (
+                                    <p style={{ margin: 0, fontSize: '0.82rem', color: status === 'ok' ? 'var(--text-gray)' : status === 'upgrade' ? '#f59e0b' : '#ef4444' }}>
+                                        Projected monthly runs: ~{projected.toFixed(1)} / {quotaInfo.planMax} allowed
+                                        {status === 'upgrade' && ' — upgrade required'}
+                                        {status === 'exceeded' && ' — exceeds Premium limit'}
+                                    </p>
+                                );
+                            })()}
 
                             {error && <p style={{ color: '#ef4444', fontSize: '0.85rem', margin: 0 }}>{error}</p>}
 
