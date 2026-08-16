@@ -225,6 +225,15 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
     }, [pendingOptimize]);
 
     const handleOptimize = () => {
+        if (optimizationQuota) {
+            const { used, max, scheduled, isFree } = optimizationQuota;
+            if (used + scheduled >= max) {
+                const limitLabel = isFree ? 'ever' : 'for this month';
+                const planLabel = isFree ? 'FREE' : 'current';
+                setUpgradeModal({ message: `You have used all ${max} AI optimization(s) ${limitLabel} on your ${planLabel} plan (including ~${Math.round(scheduled * 10) / 10} reserved by schedules). Please upgrade to run more.` });
+                return;
+            }
+        }
         if (!isEmailVerified()) {
             openVerifyModal('email');
             return;
@@ -609,21 +618,32 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                         <span style={{ fontSize: '0.78rem', color: 'var(--text-gray)', display: 'block' }}>Total Portfolio Value</span>
                         <strong style={{ fontSize: '1rem' }}>{fmt(cashBalance + holdingsMarketValue)}</strong>
                     </div>
-                    {optimizationQuota && (
-                        <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '1.5rem' }}>
-                            <span style={{ fontSize: '0.78rem', color: 'var(--text-gray)', display: 'block' }}>
-                                AI Optimizations {optimizationQuota.isFree ? '(Lifetime)' : '(This Month)'}
-                            </span>
-                            <strong style={{ fontSize: '1rem', color: optimizationQuota.used >= optimizationQuota.max ? '#ef4444' : 'var(--text-primary)' }}>
-                                {optimizationQuota.used} / {optimizationQuota.max}
-                            </strong>
-                            <span style={{ fontSize: '0.75rem', color: optimizationQuota.used >= optimizationQuota.max ? '#ef4444' : '#22c55e', display: 'block' }}>
-                                {optimizationQuota.used >= optimizationQuota.max
-                                    ? 'Limit reached — upgrade to run more'
-                                    : `${optimizationQuota.max - optimizationQuota.used} remaining`}
-                            </span>
-                        </div>
-                    )}
+                    {optimizationQuota && (() => {
+                        const { used, max, isFree, scheduled } = optimizationQuota;
+                        const reserved = Math.round(scheduled * 10) / 10;
+                        const remaining = Math.max(0, max - used - scheduled);
+                        const atLimit = used + scheduled >= max;
+                        return (
+                            <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '1.5rem' }}>
+                                <span style={{ fontSize: '0.78rem', color: 'var(--text-gray)', display: 'block' }}>
+                                    AI Optimizations {isFree ? '(Lifetime)' : '(This Month)'}
+                                </span>
+                                <strong style={{ fontSize: '1rem', color: atLimit ? '#ef4444' : 'var(--text-primary)' }}>
+                                    {used} / {max}
+                                </strong>
+                                {scheduled > 0 && (
+                                    <span style={{ fontSize: '0.72rem', color: '#f59e0b', display: 'block' }}>
+                                        ~{reserved} reserved by schedules
+                                    </span>
+                                )}
+                                <span style={{ fontSize: '0.75rem', color: atLimit ? '#ef4444' : '#22c55e', display: 'block' }}>
+                                    {atLimit
+                                        ? 'Limit reached — upgrade to run more'
+                                        : `~${Math.floor(remaining)} remaining`}
+                                </span>
+                            </div>
+                        );
+                    })()}
                 </div>
             )}
 

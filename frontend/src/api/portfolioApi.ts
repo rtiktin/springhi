@@ -383,14 +383,23 @@ export const getPortfolioQuota = async (): Promise<{ used: number; max: number; 
     };
 };
 
-export const getOptimizationQuota = async (): Promise<{ used: number; max: number; isFree: boolean }> => {
-    const [usageRes, limitsRes] = await Promise.all([
+const SCHEDULE_MONTHLY_RUNS: Record<string, number> = {
+    DAILY: 22, WEEKLY: 4.33, MONTHLY: 1, QUARTERLY: 0.33, YEARLY: 0.083,
+};
+
+export const getOptimizationQuota = async (): Promise<{ used: number; max: number; isFree: boolean; scheduled: number }> => {
+    const [usageRes, limitsRes, schedulesRes] = await Promise.all([
         axios.get(`${PORTFOLIOS_URL}/usage-stats`, { headers: authHeader() }),
         axios.get(`${API_GATEWAY}/api/v1/subscription/limits`, { headers: authHeader() }),
+        axios.get(`${BASE_URL}/schedules/all`, { headers: authHeader() }).catch(() => ({ data: [] })),
     ]);
+    const scheduled = (schedulesRes.data as Array<{ enabled: boolean; frequency: string }>)
+        .filter(s => s.enabled)
+        .reduce((sum, s) => sum + (SCHEDULE_MONTHLY_RUNS[s.frequency] ?? 0), 0);
     return {
         used: usageRes.data.optimizationsThisMonth ?? 0,
         max: limitsRes.data.maxOptimizationsPerMonth ?? 0,
         isFree: usageRes.data.isFreeLimit ?? true,
+        scheduled,
     };
 };

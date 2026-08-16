@@ -181,11 +181,12 @@ const Portfolio: React.FC = () => {
         setWizardQuotaChecking(true);
         try {
             const quota = await getOptimizationQuota();
-            if (quota.used >= quota.max) {
+            if (quota.used + quota.scheduled >= quota.max) {
                 const limitLabel = quota.isFree ? 'ever' : 'for this month';
                 const planLabel = quota.isFree ? 'FREE' : 'current';
+                const scheduledNote = quota.scheduled > 0 ? ` (including ~${Math.round(quota.scheduled * 10) / 10} reserved by schedules)` : '';
                 closeWizard();
-                setUpgradeModal({ message: `You have used all ${quota.max} AI optimization(s) ${limitLabel} on your ${planLabel} plan. Please upgrade to run more.` });
+                setUpgradeModal({ message: `You have used all ${quota.max} AI optimization(s) ${limitLabel} on your ${planLabel} plan${scheduledNote}. Please upgrade to run more.` });
                 return;
             }
             setWizardStep('ai-name-profile');
