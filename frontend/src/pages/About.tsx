@@ -1,165 +1,206 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Cpu, TrendingUp, ShieldCheck, BarChart2, DollarSign, RefreshCw } from 'lucide-react';
+import { Trophy, Eye, Cpu, TrendingUp, BarChart2, CalendarClock, ShieldCheck } from 'lucide-react';
 
 const isLoggedIn = () => !!localStorage.getItem('token');
 
 const About: React.FC = () => {
     return (
-        <div className="home-container">
+        <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: '#0a0a0b', color: '#fff', minHeight: '100vh' }}>
+
             <header className="navbar">
                 <div className="logo">SpringHi.ai</div>
-                <nav>
+                <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Link to="/" className="nav-link">Home</Link>
                     {isLoggedIn() ? (
                         <Link to="/portfolio" className="btn-primary">My Portfolio</Link>
                     ) : (
                         <>
                             <Link to="/login" className="nav-link">Login</Link>
-                            <Link to="/signup" className="btn-primary">Get Started</Link>
+                            <Link to="/signup" className="btn-primary">Get Started Free</Link>
                         </>
                     )}
                 </nav>
             </header>
 
             <main style={{ padding: '5rem 10%' }}>
-                <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
+
+                <div style={{ textAlign: 'center', marginBottom: '5rem' }}>
                     <h1 style={{
-                        fontSize: '3rem',
-                        fontWeight: 800,
-                        background: 'linear-gradient(90deg, #fff 0%, #0066ff 100%)',
+                        fontSize: 'clamp(2rem, 5vw, 3.5rem)',
+                        fontWeight: 900,
+                        lineHeight: 1.15,
+                        background: 'linear-gradient(100deg, #fff 0%, #60a5fa 60%, #a78bfa 100%)',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
-                        marginBottom: '1rem',
+                        marginBottom: '1.25rem',
                     }}>
                         About SpringHi.ai
                     </h1>
-                    <p style={{ fontSize: '1.2rem', color: 'var(--text-gray)', maxWidth: '700px', margin: '0 auto' }}>
-                        A modern, AI-driven portfolio management platform that helps investors make smarter decisions,
-                        rebalance their holdings, and track performance — all in one place.
+                    <p style={{ fontSize: '1.15rem', color: '#a0a0a0', maxWidth: 700, margin: '0 auto', lineHeight: 1.75 }}>
+                        SpringHi.ai is a risk-free investment competition and learning platform. You build
+                        AI-powered portfolios using real market data, compete against peers and the S&P 500,
+                        and learn from every top performer's strategy — completely in the open.
+                        No real money. No regulatory complexity. Just skill, strategy, and AI.
                     </p>
                 </div>
 
-                <section className="features" style={{ padding: '0 0 4rem' }}>
-                    <div className="feature-card">
-                        <Cpu size={40} className="icon" />
-                        <h3>AI Portfolio Optimization</h3>
-                        <p>
-                            Powered by Google Gemini, SpringHi.ai analyzes your risk profile, investment goals,
-                            time horizon, and current holdings to generate a personalized rebalancing plan with
-                            specific buy and sell recommendations.
-                        </p>
+                <section style={{
+                    background: '#161618',
+                    border: '1px solid #2a2a2c',
+                    borderRadius: 16,
+                    padding: '2.5rem 3rem',
+                    marginBottom: '4rem',
+                }}>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.5rem' }}>What makes this different</h2>
+                    <p style={{ color: '#a0a0a0', marginBottom: '2rem', lineHeight: 1.7 }}>
+                        Most investment platforms are black boxes. You see someone's returns on a leaderboard
+                        but have no idea how they got there. SpringHi.ai is the opposite.
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
+                        {[
+                            {
+                                icon: <Eye size={24} color="#a78bfa" />,
+                                point: 'Full strategy visibility',
+                                desc: 'See the exact AI prompt, every recommendation, and every trade behind any portfolio on the leaderboard.',
+                            },
+                            {
+                                icon: <Cpu size={24} color="#60a5fa" />,
+                                point: 'Three AI models to choose from',
+                                desc: 'Claude, ChatGPT, and Gemini each bring different reasoning styles. Pick one — or run all three and compare.',
+                            },
+                            {
+                                icon: <Trophy size={24} color="#f59e0b" />,
+                                point: 'Real competition, zero risk',
+                                desc: 'Monthly leaderboards with S&P 500 as the benchmark. Paper trading means no real money changes hands.',
+                            },
+                            {
+                                icon: <TrendingUp size={24} color="#22c55e" />,
+                                point: 'Institutional-grade measurement',
+                                desc: 'Time-Weighted Return (TWR) — the same methodology used by professional fund managers — so performance is always meaningful.',
+                            },
+                        ].map(item => (
+                            <div key={item.point} style={{
+                                background: '#0e0e10',
+                                border: '1px solid #2a2a2c',
+                                borderRadius: 12,
+                                padding: '1.25rem',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.5rem',
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                    {item.icon}
+                                    <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{item.point}</span>
+                                </div>
+                                <p style={{ color: '#a0a0a0', fontSize: '0.875rem', lineHeight: 1.65, margin: 0 }}>{item.desc}</p>
+                            </div>
+                        ))}
                     </div>
-                    <div className="feature-card">
-                        <TrendingUp size={40} className="icon" />
-                        <h3>Real-Time Market Data</h3>
-                        <p>
-                            Market quotes are sourced in real time, giving you
-                            accurate pricing for your holdings and trade decisions whenever you need it.
-                        </p>
-                    </div>
-                    <div className="feature-card">
-                        <RefreshCw size={40} className="icon" />
-                        <h3>Portfolio Rebalancing</h3>
-                        <p>
-                            The optimizer accounts for your existing positions and suggests targeted sells
-                            and buys to bring your portfolio in line with your stated goals. Sells are
-                            executed first to free up cash for new positions.
-                        </p>
-                    </div>
-                    <div className="feature-card">
-                        <BarChart2 size={40} className="icon" />
-                        <h3>Performance History</h3>
-                        <p>
-                            Daily portfolio snapshots capture your total value over time, letting you
-                            visualize growth trends through an interactive chart on your dashboard.
-                        </p>
-                    </div>
-                    <div className="feature-card">
-                        <DollarSign size={40} className="icon" />
-                        <h3>Cash Management</h3>
-                        <p>
-                            Track your available investment cash with deposit and withdrawal transactions.
-                            The platform enforces cash availability before executing any buy trades,
-                            keeping your account in balance.
-                        </p>
-                    </div>
-                    <div className="feature-card">
-                        <ShieldCheck size={40} className="icon" />
-                        <h3>Secure & Private</h3>
-                        <p>
-                            All data is protected with JWT-based authentication and enterprise-grade
-                            security. Your financial information stays yours — never shared or sold.
-                        </p>
+                </section>
+
+                <section style={{ marginBottom: '4rem' }}>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '2rem', textAlign: 'center' }}>Everything included</h2>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '1.25rem' }}>
+                        {[
+                            {
+                                icon: <CalendarClock size={28} color="#34d399" />,
+                                title: 'Scheduled Auto-Optimization',
+                                body: 'Set a daily, weekly, monthly, quarterly, or yearly schedule and the AI rebalances your portfolio automatically on market-open days — no action needed.',
+                            },
+                            {
+                                icon: <BarChart2 size={28} color="#f472b6" />,
+                                title: 'Real Market Data & Price History',
+                                body: 'Live prices update throughout the trading day. Click any holding to see a full year of price history. Your paper portfolio tracks real market movements in real time.',
+                            },
+                            {
+                                icon: <Trophy size={28} color="#f59e0b" />,
+                                title: 'Monthly & All-Time Leaderboards',
+                                body: 'Every portfolio automatically enters monthly and all-time leaderboards. Benchmark margin (your return vs. SPY) is shown alongside raw TWR for every timeframe.',
+                            },
+                            {
+                                icon: <Eye size={28} color="#a78bfa" />,
+                                title: 'Open AI Optimization History',
+                                body: "Every AI run is permanently recorded and publicly visible — the profile used, the model chosen, the recommendations generated, and which trades were executed.",
+                            },
+                            {
+                                icon: <Cpu size={28} color="#60a5fa" />,
+                                title: 'Profile-Driven Recommendations',
+                                body: 'Set your risk tolerance, investment goal, time horizon, liquidity needs, and preferred sectors. The AI tailors every recommendation to your specific profile.',
+                            },
+                            {
+                                icon: <ShieldCheck size={28} color="#22c55e" />,
+                                title: 'Secure & Private',
+                                body: 'Email and phone verification on account creation. JWT-based authentication. Your data is never shared or sold.',
+                            },
+                        ].map(card => (
+                            <div key={card.title} style={{
+                                background: '#161618',
+                                border: '1px solid #2a2a2c',
+                                borderRadius: 14,
+                                padding: '1.75rem',
+                            }}>
+                                <div style={{ marginBottom: '0.75rem' }}>{card.icon}</div>
+                                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.5rem' }}>{card.title}</h3>
+                                <p style={{ color: '#a0a0a0', fontSize: '0.875rem', lineHeight: 1.65, margin: 0 }}>{card.body}</p>
+                            </div>
+                        ))}
                     </div>
                 </section>
 
                 <section style={{
-                    background: 'var(--card-bg)',
+                    background: '#161618',
                     border: '1px solid #2a2a2c',
-                    borderRadius: '16px',
-                    padding: '3rem',
+                    borderRadius: 16,
+                    padding: '2.5rem 3rem',
                     marginBottom: '4rem',
                 }}>
-                    <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '1.5rem' }}>How It Works</h2>
-                    <ol style={{ paddingLeft: '1.5rem', lineHeight: '2.2rem', color: 'var(--text-gray)', fontSize: '1rem' }}>
-                        <li><strong style={{ color: 'white' }}>Create an account</strong> — sign up and complete your investor profile with your risk tolerance, goals, and time horizon.</li>
-                        <li><strong style={{ color: 'white' }}>Deposit cash</strong> — add funds to your investment account to get started.</li>
-                        <li><strong style={{ color: 'white' }}>Run the optimizer</strong> — click Optimize on the portfolio page to get AI-generated buy and sell recommendations tailored to your profile.</li>
-                        <li><strong style={{ color: 'white' }}>Execute sells first</strong> — sell recommended positions to free up cash, then review updated buy estimates.</li>
-                        <li><strong style={{ color: 'white' }}>Execute buys</strong> — purchase recommended securities using your available cash balance.</li>
-                        <li><strong style={{ color: 'white' }}>Track performance</strong> — monitor your holdings, gains/losses, and portfolio growth over time.</li>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '1.75rem' }}>How it works</h2>
+                    <ol style={{ margin: 0, paddingLeft: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        {[
+                            ['Create an account', 'Sign up for free — no credit card required.'],
+                            ['Build your investor profile', 'Set your risk tolerance, goals, time horizon, and sector preferences.'],
+                            ['Create a portfolio & add cash', 'Name your portfolio and deposit paper money to invest with.'],
+                            ['Run AI optimization', 'Choose Claude, ChatGPT, or Gemini. The AI generates a personalized buy/sell plan.'],
+                            ['Execute trades', 'Execute recommendations individually or all at once. Sells run first to free up cash for buys.'],
+                            ['Compete & study', 'See your TWR vs. the S&P 500 on the leaderboard — and explore any competitor\'s full strategy.'],
+                        ].map(([title, desc]) => (
+                            <li key={title} style={{ lineHeight: 1.6 }}>
+                                <strong style={{ color: '#fff' }}>{title}</strong>
+                                <span style={{ color: '#a0a0a0' }}> — {desc}</span>
+                            </li>
+                        ))}
                     </ol>
                 </section>
 
                 <section style={{
-                    background: 'var(--card-bg)',
-                    border: '1px solid #2a2a2c',
-                    borderRadius: '16px',
+                    background: 'linear-gradient(135deg, rgba(0,102,255,0.12) 0%, rgba(167,139,250,0.1) 100%)',
+                    border: '1px solid rgba(0,102,255,0.25)',
+                    borderRadius: 16,
                     padding: '3rem',
                     marginBottom: '4rem',
+                    textAlign: 'center',
                 }}>
-                    <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginBottom: '1.5rem' }}>Technology Stack</h2>
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                        gap: '1.5rem',
-                        color: 'var(--text-gray)',
-                    }}>
-                        {[
-                            { label: 'Frontend', value: 'React 19, TypeScript, Vite' },
-                            { label: 'Backend', value: 'Spring Boot 3, Spring Security, JWT' },
-                            { label: 'Portfolio Service', value: 'Spring Boot WebFlux, Reactive' },
-                            { label: 'API Gateway', value: 'Spring Cloud Gateway' },
-                            { label: 'Database', value: 'PostgreSQL' },
-                            { label: 'AI Engine', value: 'Google Gemini' },
-                            { label: 'Market Data', value: 'Alpaca Markets API' },
-                            { label: 'Charts', value: 'Lightweight Charts' },
-                        ].map(({ label, value }) => (
-                            <div key={label} style={{
-                                background: '#1a1a1c',
-                                borderRadius: '10px',
-                                padding: '1rem 1.25rem',
-                                border: '1px solid #2a2a2c',
-                            }}>
-                                <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.4rem' }}>{label}</div>
-                                <div style={{ color: 'white', fontWeight: 600 }}>{value}</div>
-                            </div>
-                        ))}
-                    </div>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.75rem' }}>Paper trading — by design</h2>
+                    <p style={{ color: '#a0a0a0', maxWidth: 640, margin: '0 auto', lineHeight: 1.75 }}>
+                        SpringHi.ai is an education and competition platform. No real money is ever invested.
+                        This means you can experiment freely — try aggressive strategies, compare AI models,
+                        stress-test ideas — without any financial consequence. It's the only honest way to
+                        evaluate AI-driven investing before committing real capital.
+                    </p>
                 </section>
 
                 <div style={{ textAlign: 'center' }}>
                     {isLoggedIn() ? (
                         <Link to="/portfolio" className="btn-primary-large">Go to My Portfolio</Link>
                     ) : (
-                        <Link to="/signup" className="btn-primary-large">Start Investing Now</Link>
+                        <Link to="/signup" className="btn-primary-large">Create Your First Portfolio</Link>
                     )}
                 </div>
             </main>
 
-            <footer className="footer">
-                <p>&copy; 2025 SpringHi.ai. All rights reserved.</p>
+            <footer style={{ textAlign: 'center', padding: '2.5rem', color: '#4a4a4c', borderTop: '1px solid #1e1e20', fontSize: '0.85rem', marginTop: '4rem' }}>
+                &copy; {new Date().getFullYear()} SpringHi.ai — Paper trading for education and competition purposes only. Not investment advice.
             </footer>
         </div>
     );

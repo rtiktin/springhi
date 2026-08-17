@@ -84,7 +84,7 @@ const ScheduleManager: React.FC<Props> = ({ portfolioId, onUpgradeRequired }) =>
         const [limitsRes, usageRes, allSchedules] = await Promise.all([
             axios.get(`${API_GATEWAY}/api/v1/subscription/limits`, { headers: authHeader() }),
             axios.get(`${API_GATEWAY}/api/v1/portfolios/usage-stats`, { headers: authHeader() }),
-            getAllOptimizationSchedules(),
+            getAllOptimizationSchedules().catch(() => [] as OptimizationSchedule[]),
         ]);
         const planMax: number = limitsRes.data.maxOptimizationsPerMonth ?? 0;
         const premiumMax: number = limitsRes.data.premiumMaxOptimizationsPerMonth ?? planMax;
@@ -151,7 +151,7 @@ const ScheduleManager: React.FC<Props> = ({ portfolioId, onUpgradeRequired }) =>
         setError('');
         try {
             if (!editing) {
-                const info = await loadQuota();
+                const info = quotaInfo;
                 if (info) {
                     const result = checkScheduleCapacity(form.frequency, info);
                     if (result === 'exceeded') {

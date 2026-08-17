@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getHoldings, getPortfolioSnapshots, takePortfolioSnapshot, getCashBalance, getCompanyName, getTwr, getPnlSummary } from '../api/portfolioApi';
 import type { AssetWithPrice, PortfolioSnapshot, TwrResult, TwrRange, PnlSummary } from '../api/portfolioApi';
-import { getQuoteHistory } from '../api/marketApi';
+import { getPriceHistory } from '../api/marketApi';
 import type { QuoteResponse } from '../api/marketApi';
 import StockChart from './StockChart';
 import PortfolioChart from './PortfolioChart';
@@ -76,7 +76,7 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId, onTradeSuccess }) =>
     const selectHolding = (holding: AssetWithPrice) => {
         setSelectedHolding(holding);
         setChartLoading(true);
-        getQuoteHistory(holding.symbol)
+        getPriceHistory(holding.symbol)
             .then(setChartData)
             .catch(() => setChartData([]))
             .finally(() => setChartLoading(false));

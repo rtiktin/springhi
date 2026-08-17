@@ -34,6 +34,15 @@ public class MarketDataController {
         return ResponseEntity.ok(history);
     }
 
+    @GetMapping("/price-history/{symbol}")
+    public ResponseEntity<List<QuoteResponse>> getPriceHistory(@PathVariable String symbol) {
+        List<QuoteResponse> history = marketDataService.getOrBackfillPriceHistory(symbol.toUpperCase())
+                .stream()
+                .map(this::toResponse)
+                .toList();
+        return ResponseEntity.ok(history);
+    }
+
     private QuoteResponse toResponse(MarketQuote q) {
         return new QuoteResponse(
                 q.getSymbol(),

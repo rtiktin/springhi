@@ -74,7 +74,7 @@ const StockChart: React.FC<Props> = ({ symbol, companyName, data }) => {
             </h3>
             {data.length === 0 ? (
                 <div className="chart-empty">
-                    No price history yet. Data accumulates each scheduled refresh (9am &amp; 3pm ET on weekdays).
+                    No price history available for this symbol.
                 </div>
             ) : (
                 <div ref={containerRef} />

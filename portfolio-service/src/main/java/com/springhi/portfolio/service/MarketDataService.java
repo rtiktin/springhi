@@ -2,7 +2,9 @@ package com.springhi.portfolio.service;
 
 import com.springhi.portfolio.dto.AlpacaSnapshotResponse;
 import com.springhi.portfolio.model.MarketQuote;
+import com.springhi.portfolio.model.SymbolHistoryStatus;
 import com.springhi.portfolio.repository.MarketQuoteRepository;
+import com.springhi.portfolio.repository.SymbolHistoryStatusRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,12 +25,15 @@ public class MarketDataService {
 
     private static final Logger log = LoggerFactory.getLogger(MarketDataService.class);
     private final MarketQuoteRepository marketQuoteRepository;
+    private final SymbolHistoryStatusRepository symbolHistoryStatusRepository;
     private final AlpacaService alpacaService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public MarketDataService(MarketQuoteRepository marketQuoteRepository,
+                             SymbolHistoryStatusRepository symbolHistoryStatusRepository,
                              AlpacaService alpacaService) {
         this.marketQuoteRepository = marketQuoteRepository;
+        this.symbolHistoryStatusRepository = symbolHistoryStatusRepository;
         this.alpacaService = alpacaService;
     }
 
@@ -58,6 +63,38 @@ public class MarketDataService {
 
     public List<MarketQuote> getQuoteHistory(String symbol) {
         return marketQuoteRepository.findBySymbolAndQuoteTypeOrderByFetchedAtDesc(symbol, "REALTIME");
+    }
+
+    public List<MarketQuote> getOrBackfillPriceHistory(String symbol) {
+        boolean flagExists = symbolHistoryStatusRepository.existsById(symbol);
+        if (flagExists && marketQuoteRepository.countBySymbolAndQuoteType(symbol, "DAILY") == 0) {
+            symbolHistoryStatusRepository.deleteById(symbol);
+            flagExists = false;
+            log.info("Removed stale backfill flag for {} (no DAILY data found) — will retry", symbol);
+        }
+        if (!flagExists) {
+            LocalDate end = LocalDate.now();
+            LocalDate start = end.minusYears(1).minusMonths(1);
+            Map<LocalDate, java.math.BigDecimal> bars = alpacaService.fetchHistoricalDailyCloses(symbol, start, end);
+            if (!bars.isEmpty()) {
+                for (Map.Entry<LocalDate, java.math.BigDecimal> entry : bars.entrySet()) {
+                    MarketQuote q = marketQuoteRepository
+                            .findBySymbolAndQuoteTypeAndTradingDay(symbol, "DAILY", entry.getKey())
+                            .orElse(new MarketQuote());
+                    q.setSymbol(symbol);
+                    q.setQuoteType("DAILY");
+                    q.setTradingDay(entry.getKey());
+                    q.setPrice(entry.getValue());
+                    q.setFetchedAt(LocalDateTime.now());
+                    marketQuoteRepository.save(q);
+                }
+                symbolHistoryStatusRepository.save(new SymbolHistoryStatus(symbol, LocalDateTime.now()));
+                log.info("Backfilled {} historical daily bars for {}", bars.size(), symbol);
+            } else {
+                log.warn("Alpaca returned no historical bars for {} — backfill skipped, will retry on next request", symbol);
+            }
+        }
+        return marketQuoteRepository.findBySymbolAndQuoteTypeOrderByTradingDayAsc(symbol, "DAILY");
     }
 
     private MarketQuote save(String symbol, AlpacaSnapshotResponse.Snapshot snapshot) {

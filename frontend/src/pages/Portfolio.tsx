@@ -27,6 +27,7 @@ const Portfolio: React.FC = () => {
     const [showTradeForm, setShowTradeForm] = useState(false);
     const [showCashForm, setShowCashForm] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
+    const [optimizeKey, setOptimizeKey] = useState(0);
 
     const [portfolios, setPortfolios] = useState<PortfolioType[]>([]);
     const [activePortfolioId, setActivePortfolioId] = useState<number | null>(null);
@@ -390,6 +391,7 @@ const Portfolio: React.FC = () => {
             await optimizePortfolio(wizardCreatedId, wizardAiModel);
             closeWizard();
             setActiveTab('optimize');
+            setOptimizeKey(k => k + 1);
             setRefreshKey(k => k + 1);
         } catch (err: unknown) {
             const data = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data;
@@ -589,7 +591,7 @@ const Portfolio: React.FC = () => {
                         )}
                         {activeTab === 'optimize' && (
                             <>
-                                <OptimizePanel key={`opt-${activePortfolioId}`} portfolioId={activePortfolioId} onTradeSuccess={handleTradeSuccess} onNavigateToProfile={() => setActiveTab('profile')} cashRefreshSignal={refreshKey} />
+                                <OptimizePanel key={`opt-${activePortfolioId}-${optimizeKey}`} portfolioId={activePortfolioId} onTradeSuccess={handleTradeSuccess} onNavigateToProfile={() => setActiveTab('profile')} cashRefreshSignal={refreshKey} />
                                 <ScheduleManager portfolioId={activePortfolioId} onUpgradeRequired={msg => setUpgradeModal({ message: msg })} />
                             </>
                         )}

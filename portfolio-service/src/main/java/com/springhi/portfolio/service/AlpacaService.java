@@ -200,6 +200,7 @@ public class AlpacaService {
                             .queryParam("end", endStr)
                             .queryParam("limit", 400)
                             .queryParam("adjustment", "raw")
+                            .queryParam("feed", "iex")
                             .build())
                     .header("APCA-API-KEY-ID", apiKeyId)
                     .header("APCA-API-SECRET-KEY", apiSecretKey)

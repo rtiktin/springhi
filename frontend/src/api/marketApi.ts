@@ -28,3 +28,8 @@ export const getQuoteHistory = async (symbol: string): Promise<QuoteResponse[]> 
     const response = await axios.get(`${BASE_URL}/history/${symbol}`, { headers: authHeader() });
     return response.data;
 };
+
+export const getPriceHistory = async (symbol: string): Promise<QuoteResponse[]> => {
+    const response = await axios.get(`${BASE_URL}/price-history/${symbol}`, { headers: authHeader() });
+    return response.data;
+};

@@ -20,4 +20,8 @@ public interface MarketQuoteRepository extends JpaRepository<MarketQuote, Long> 
             String symbol, String quoteType, LocalDate date);
 
     boolean existsByTradingDay(LocalDate tradingDay);
+
+    long countBySymbolAndQuoteType(String symbol, String quoteType);
+
+    List<MarketQuote> findBySymbolAndQuoteTypeOrderByTradingDayAsc(String symbol, String quoteType);
 }

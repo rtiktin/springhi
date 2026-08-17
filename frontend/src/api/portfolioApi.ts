@@ -391,7 +391,7 @@ export const getOptimizationQuota = async (): Promise<{ used: number; max: numbe
     const [usageRes, limitsRes, schedulesRes] = await Promise.all([
         axios.get(`${PORTFOLIOS_URL}/usage-stats`, { headers: authHeader() }),
         axios.get(`${API_GATEWAY}/api/v1/subscription/limits`, { headers: authHeader() }),
-        axios.get(`${BASE_URL}/schedules/all`, { headers: authHeader() }).catch(() => ({ data: [] })),
+        axios.get(`${BASE_URL}/schedules/all`, { headers: authHeader() }).catch(() => ({ data: [] as Array<{ enabled: boolean; frequency: string }> })),
     ]);
     const scheduled = (schedulesRes.data as Array<{ enabled: boolean; frequency: string }>)
         .filter(s => s.enabled)
