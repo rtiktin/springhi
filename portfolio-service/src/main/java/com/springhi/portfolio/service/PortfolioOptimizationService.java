@@ -196,6 +196,14 @@ public class PortfolioOptimizationService {
             sb.append("Risk Tolerance: Moderate\nPrimary Objective: Growth\nTime Horizon: 10+ years\n");
         }
 
+        boolean taxMode = profile != null && profile.taxOptimization();
+        if (taxMode) {
+            sb.append("Tax Optimization: ENABLED — minimize taxable events where possible.\n");
+            sb.append("  - Prefer holding positions held >= 365 days (long-term capital gains) over those held < 365 days.\n");
+            sb.append("  - Prefer selling positions with unrealized losses (tax-loss harvesting) before selling gainers.\n");
+            sb.append("  - Avoid selling short-term winners unless the profile goal strongly requires it.\n");
+        }
+
         sb.append("\nCurrent Portfolio:\n");
         sb.append("Available Cash: $").append(cashBalance.setScale(2, RoundingMode.HALF_UP).toPlainString()).append("\n");
         sb.append("Total Holdings Market Value: $").append(portfolioMarketValue.setScale(2, RoundingMode.HALF_UP).toPlainString()).append("\n");
@@ -203,16 +211,36 @@ public class PortfolioOptimizationService {
         if (holdings.isEmpty()) {
             sb.append("No existing holdings. This is a fresh portfolio.\n");
         } else {
-            sb.append("Holdings (symbol | quantity | avg cost | current price | market value):\n");
-            for (AssetWithPrice h : holdings) {
-                BigDecimal currentPrice = h.getCurrentPrice() != null ? h.getCurrentPrice() : h.getAveragePrice();
-                BigDecimal marketValue = h.getMarketValue() != null ? h.getMarketValue() : BigDecimal.ZERO;
-                sb.append(String.format("  %s | qty=%.4f | avgCost=$%.4f | price=$%.4f | value=$%.2f\n",
-                        h.getSymbol(),
-                        h.getQuantity(),
-                        h.getAveragePrice(),
-                        currentPrice,
-                        marketValue));
+            if (taxMode) {
+                sb.append("Holdings (symbol | quantity | avg cost | current price | market value | unrealized gain/loss | holding days | tax status):\n");
+                for (AssetWithPrice h : holdings) {
+                    BigDecimal currentPrice = h.getCurrentPrice() != null ? h.getCurrentPrice() : h.getAveragePrice();
+                    BigDecimal marketValue = h.getMarketValue() != null ? h.getMarketValue() : BigDecimal.ZERO;
+                    BigDecimal gainLoss = h.getGainLoss() != null ? h.getGainLoss() : BigDecimal.ZERO;
+                    long days = h.getHoldingDays() != null ? h.getHoldingDays() : 0;
+                    String taxStatus = days >= 365 ? "LONG_TERM" : "SHORT_TERM";
+                    sb.append(String.format("  %s | qty=%.4f | avgCost=$%.4f | price=$%.4f | value=$%.2f | gl=$%.2f | days=%d | %s\n",
+                            h.getSymbol(),
+                            h.getQuantity(),
+                            h.getAveragePrice(),
+                            currentPrice,
+                            marketValue,
+                            gainLoss,
+                            days,
+                            taxStatus));
+                }
+            } else {
+                sb.append("Holdings (symbol | quantity | avg cost | current price | market value):\n");
+                for (AssetWithPrice h : holdings) {
+                    BigDecimal currentPrice = h.getCurrentPrice() != null ? h.getCurrentPrice() : h.getAveragePrice();
+                    BigDecimal marketValue = h.getMarketValue() != null ? h.getMarketValue() : BigDecimal.ZERO;
+                    sb.append(String.format("  %s | qty=%.4f | avgCost=$%.4f | price=$%.4f | value=$%.2f\n",
+                            h.getSymbol(),
+                            h.getQuantity(),
+                            h.getAveragePrice(),
+                            currentPrice,
+                            marketValue));
+                }
             }
         }
 

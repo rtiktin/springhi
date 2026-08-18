@@ -37,6 +37,9 @@ public class PortfolioProfile {
     @Column(length = 1000)
     private String sectorConstraints;
 
+    @Column(columnDefinition = "boolean default false")
+    private boolean taxOptimization = false;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -65,6 +68,8 @@ public class PortfolioProfile {
     public void setCurrency(String currency) { this.currency = currency; }
     public String getSectorConstraints() { return sectorConstraints; }
     public void setSectorConstraints(String sectorConstraints) { this.sectorConstraints = sectorConstraints; }
+    public boolean isTaxOptimization() { return taxOptimization; }
+    public void setTaxOptimization(boolean taxOptimization) { this.taxOptimization = taxOptimization; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

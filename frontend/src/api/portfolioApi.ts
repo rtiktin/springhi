@@ -177,6 +177,7 @@ export interface PortfolioProfile {
     additionalComments: string | null;
     currency: string;
     sectorConstraints: string[];
+    taxOptimization: boolean;
 }
 
 export const getPortfolioProfile = async (portfolioId: number): Promise<PortfolioProfile> => {
@@ -239,6 +240,14 @@ export const getTwr = async (portfolioId: number, range: TwrRange = 'ALL'): Prom
     const response = await axios.get(`${BASE_URL}/performance/twr`, {
         headers: authHeader(),
         params: { portfolioId, range },
+    });
+    return response.data;
+};
+
+export const getAiRunTimestamps = async (portfolioId: number): Promise<string[]> => {
+    const response = await axios.get(`${BASE_URL}/recommendations/runs`, {
+        headers: authHeader(),
+        params: { portfolioId },
     });
     return response.data;
 };

@@ -4,6 +4,8 @@ import com.springhi.portfolio.model.Asset;
 import com.springhi.portfolio.model.MarketQuote;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 
 public class AssetWithPrice {
 
@@ -18,6 +20,7 @@ public class AssetWithPrice {
     private BigDecimal costBasis;
     private BigDecimal gainLoss;
     private BigDecimal gainLossPercent;
+    private Long holdingDays;
 
     public static AssetWithPrice from(Asset asset, MarketQuote quote) {
         AssetWithPrice awp = new AssetWithPrice();
@@ -27,6 +30,9 @@ public class AssetWithPrice {
         awp.setAssetType(asset.getAssetType());
         awp.setQuantity(asset.getQuantity());
         awp.setAveragePrice(asset.getAveragePrice());
+        if (asset.getCreatedAt() != null) {
+            awp.setHoldingDays(ChronoUnit.DAYS.between(asset.getCreatedAt().toLocalDate(), LocalDate.now()));
+        }
 
         if (quote != null && quote.getPrice() != null) {
             awp.setCurrentPrice(quote.getPrice());
@@ -69,4 +75,6 @@ public class AssetWithPrice {
     public void setGainLoss(BigDecimal gainLoss) { this.gainLoss = gainLoss; }
     public BigDecimal getGainLossPercent() { return gainLossPercent; }
     public void setGainLossPercent(BigDecimal gainLossPercent) { this.gainLossPercent = gainLossPercent; }
+    public Long getHoldingDays() { return holdingDays; }
+    public void setHoldingDays(Long holdingDays) { this.holdingDays = holdingDays; }
 }

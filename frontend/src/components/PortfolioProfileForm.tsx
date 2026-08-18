@@ -28,7 +28,7 @@ const PortfolioProfileForm: React.FC<Props> = ({ portfolioId, bannerMessage, onS
         setSaved(false);
         getPortfolioProfile(portfolioId)
             .then(p => {
-                setProfile(p);
+                setProfile({ ...p, taxOptimization: p.taxOptimization ?? false });
                 setSectorInput((p.sectorConstraints ?? []).join(', '));
                 setHorizonStr(p.horizonYears != null ? String(p.horizonYears) : '');
             })
@@ -158,6 +158,18 @@ const PortfolioProfileForm: React.FC<Props> = ({ portfolioId, bannerMessage, onS
                 onChange={e => setSectorInput(e.target.value)}
                 style={{ marginBottom: '1rem' }}
             />
+
+            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', marginBottom: '1rem' }}>
+                <input
+                    type="checkbox"
+                    checked={profile.taxOptimization ?? false}
+                    onChange={e => set('taxOptimization', e.target.checked)}
+                />
+                <span>Tax Optimization</span>
+                <span style={{ color: 'var(--text-gray)', fontSize: '0.82rem', fontWeight: 400 }}>
+                    — prefer long-term holdings (&gt;1 year) and tax-loss harvesting when recommending sells
+                </span>
+            </label>
 
             <label className="form-label">Additional Notes (optional)</label>
             <textarea

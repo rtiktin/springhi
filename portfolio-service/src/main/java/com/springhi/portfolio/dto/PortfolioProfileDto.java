@@ -12,7 +12,8 @@ public record PortfolioProfileDto(
         String liquidityNeeds,
         String additionalComments,
         String currency,
-        List<String> sectorConstraints
+        List<String> sectorConstraints,
+        boolean taxOptimization
 ) {
     public static PortfolioProfileDto from(PortfolioProfile p) {
         List<String> sectors = (p.getSectorConstraints() != null && !p.getSectorConstraints().isBlank())
@@ -27,7 +28,8 @@ public record PortfolioProfileDto(
                 p.getLiquidityNeeds(),
                 p.getAdditionalComments(),
                 p.getCurrency() != null ? p.getCurrency() : "USD",
-                sectors
+                sectors,
+                p.isTaxOptimization()
         );
     }
 }

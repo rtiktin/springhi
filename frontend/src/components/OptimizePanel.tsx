@@ -686,6 +686,9 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                             <strong>{portfolioProfile.currency}</strong></div>
                         <div><span style={{ color: 'var(--text-gray)' }}>Preferred Sectors: </span>
                             <strong>{portfolioProfile.sectorConstraints?.length ? portfolioProfile.sectorConstraints.join(', ') : 'None'}</strong></div>
+                        {portfolioProfile.taxOptimization && (
+                            <div><span style={{ color: 'var(--text-gray)' }}>Tax Optimization: </span><strong style={{ color: '#22c55e' }}>Enabled</strong></div>
+                        )}
                         <div style={{ gridColumn: '1 / -1' }}>
                             <span style={{ color: 'var(--text-gray)' }}>Additional Notes: </span>
                             <span>{portfolioProfile.additionalComments ?? 'None'}</span>

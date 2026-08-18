@@ -9,13 +9,13 @@ import CashForm from '../components/CashForm';
 import OptimizePanel from '../components/OptimizePanel';
 import ScheduleManager from '../components/ScheduleManager';
 import PortfolioProfileForm from '../components/PortfolioProfileForm';
-import { listPortfolios, createPortfolio, updatePortfolio, deletePortfolio, savePortfolioProfile, getCashBalance, submitTransaction, getPortfoliosCreatedCount, getOptimizationQuota, getPortfolioQuota } from '../api/portfolioApi';
-import type { Portfolio as PortfolioType } from '../api/portfolioApi';
+import { listPortfolios, createPortfolio, updatePortfolio, deletePortfolio, savePortfolioProfile, getCashBalance, submitTransaction, getPortfoliosCreatedCount, getOptimizationQuota, getPortfolioQuota, getAiRunTimestamps, getAiRunDetails } from '../api/portfolioApi';
+import type { Portfolio as PortfolioType, AiRunDetails } from '../api/portfolioApi';
 import { getProfile, saveProfile, optimizePortfolio } from '../api/profileApi';
 import { getAccountProfile, sendEmailVerification, verifyEmail, sendPhoneVerification, verifyPhone } from '../api/accountApi';
 import { isPhoneVerified } from '../utils/auth';
 
-type Tab = 'holdings' | 'transactions' | 'optimize' | 'profile';
+type Tab = 'holdings' | 'transactions' | 'aiOptimizations' | 'optimize' | 'profile';
 
 
 
@@ -28,6 +28,15 @@ const Portfolio: React.FC = () => {
     const [showCashForm, setShowCashForm] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
     const [optimizeKey, setOptimizeKey] = useState(0);
+
+    const [aiRunTimestamps, setAiRunTimestamps] = useState<string[]>([]);
+    const [aiRunsLoaded, setAiRunsLoaded] = useState(false);
+    const [aiRunsLoading, setAiRunsLoading] = useState(false);
+    const [aiRunsError, setAiRunsError] = useState('');
+    const [aiRunsPage, setAiRunsPage] = useState(0);
+    const AI_RUNS_PAGE_SIZE = 5;
+    const [expandedRunDetails, setExpandedRunDetails] = useState<Record<string, AiRunDetails>>({});
+    const [expandedRunLoading, setExpandedRunLoading] = useState<Record<string, boolean>>({});
 
     const [portfolios, setPortfolios] = useState<PortfolioType[]>([]);
     const [activePortfolioId, setActivePortfolioId] = useState<number | null>(null);
@@ -491,6 +500,11 @@ const Portfolio: React.FC = () => {
                                     setActivePortfolioId(id);
                                     localStorage.setItem('activePortfolioId', String(id));
                                     setRefreshKey(k => k + 1);
+                                    setAiRunTimestamps([]);
+                                    setAiRunsLoaded(false);
+                                    setAiRunsPage(0);
+                                    setExpandedRunDetails({});
+                                    setExpandedRunLoading({});
                                 }}
                                 style={{
                                     padding: '0.4rem 0.75rem',
@@ -562,6 +576,23 @@ const Portfolio: React.FC = () => {
                                 Transactions
                             </button>
                             <button
+                                className={`tab-btn ${activeTab === 'aiOptimizations' ? 'tab-active' : ''}`}
+                                onClick={() => {
+                                    setActiveTab('aiOptimizations');
+                                    setProfileBannerMsg('');
+                                    if (activePortfolioId && !aiRunsLoaded) {
+                                        setAiRunsLoading(true);
+                                        setAiRunsError('');
+                                        getAiRunTimestamps(activePortfolioId)
+                                            .then(ts => { setAiRunTimestamps(ts); setAiRunsLoaded(true); })
+                                            .catch(() => setAiRunsError('Failed to load AI optimization runs.'))
+                                            .finally(() => setAiRunsLoading(false));
+                                    }
+                                }}
+                            >
+                                AI Optimizations
+                            </button>
+                            <button
                                 className={`tab-btn ${activeTab === 'optimize' ? 'tab-active' : ''}`}
                                 onClick={() => {
                                     if (activePortfolioId && !reviewedPortfolioIds.has(activePortfolioId)) {
@@ -588,6 +619,151 @@ const Portfolio: React.FC = () => {
                         )}
                         {activeTab === 'transactions' && (
                             <TransactionHistory key={`tx-${activePortfolioId}-${refreshKey}`} portfolioId={activePortfolioId} />
+                        )}
+                        {activeTab === 'aiOptimizations' && (
+                            <div style={{ marginTop: '1rem' }}>
+                                {aiRunsLoading && (
+                                    <div style={{ textAlign: 'center', color: 'var(--text-gray)', padding: '2rem' }}>Loading AI runs…</div>
+                                )}
+                                {!aiRunsLoading && aiRunsError && (
+                                    <div style={{ textAlign: 'center', color: '#f87171', padding: '2rem' }}>{aiRunsError}</div>
+                                )}
+                                {!aiRunsLoading && !aiRunsError && aiRunsLoaded && aiRunTimestamps.length === 0 && (
+                                    <div style={{ textAlign: 'center', color: 'var(--text-gray)', padding: '2rem' }}>No AI optimization runs found.</div>
+                                )}
+                                {!aiRunsLoading && aiRunTimestamps.length > 0 && (() => {
+                                    const totalPages = Math.ceil(aiRunTimestamps.length / AI_RUNS_PAGE_SIZE);
+                                    const pageTs = aiRunTimestamps.slice(aiRunsPage * AI_RUNS_PAGE_SIZE, (aiRunsPage + 1) * AI_RUNS_PAGE_SIZE);
+                                    const aiBadgeLabel = (provider: string | null) => {
+                                        const p = provider?.toLowerCase();
+                                        if (p === 'claude') return 'Claude';
+                                        if (p === 'chatgpt') return 'ChatGPT';
+                                        if (p === 'gemini') return 'Gemini';
+                                        return 'AI';
+                                    };
+                                    const fmt = (n: number | null) =>
+                                        n != null ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
+                                    return (
+                                        <>
+                                            {pageTs.map(ts => {
+                                                const details = expandedRunDetails[ts];
+                                                const isLoading = expandedRunLoading[ts];
+                                                const isExpanded = !!details;
+                                                const profile = details?.profile;
+                                                return (
+                                                    <div key={ts} style={{ border: '1px solid var(--border)', borderRadius: 8, marginBottom: '1rem', overflow: 'hidden' }}>
+                                                        <div
+                                                            onClick={() => {
+                                                                if (isExpanded) {
+                                                                    setExpandedRunDetails(prev => { const n = { ...prev }; delete n[ts]; return n; });
+                                                                } else if (!isLoading && activePortfolioId) {
+                                                                    setExpandedRunLoading(prev => ({ ...prev, [ts]: true }));
+                                                                    getAiRunDetails(activePortfolioId, ts)
+                                                                        .then(d => setExpandedRunDetails(prev => ({ ...prev, [ts]: d })))
+                                                                        .finally(() => setExpandedRunLoading(prev => { const n = { ...prev }; delete n[ts]; return n; }));
+                                                                }
+                                                            }}
+                                                            style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', cursor: 'pointer', background: 'var(--bg-card)', userSelect: 'none' }}
+                                                        >
+                                                            <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>
+                                                                {new Date(ts).toLocaleString()}
+                                                            </span>
+                                                            {details?.recommendations[0]?.aiProvider && (
+                                                                <span style={{ background: 'var(--bg-dark)', border: '1px solid var(--border)', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.8rem', color: 'var(--accent)', fontWeight: 600 }}>
+                                                                    via {aiBadgeLabel(details.recommendations[0].aiProvider)}
+                                                                </span>
+                                                            )}
+                                                            {details?.scheduleFrequency && (
+                                                                <span style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.4)', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.8rem', color: '#22c55e', fontWeight: 600 }}>
+                                                                    🗓 {details.scheduleFrequency.charAt(0) + details.scheduleFrequency.slice(1).toLowerCase()}
+                                                                </span>
+                                                            )}
+                                                            <span style={{ marginLeft: 'auto', color: 'var(--text-gray)', fontSize: '0.8rem' }}>
+                                                                {isLoading ? 'Loading…' : isExpanded ? '▲' : '▼'}
+                                                            </span>
+                                                        </div>
+                                                        {isExpanded && (
+                                                            <div style={{ padding: '1rem' }}>
+                                                                {profile && (
+                                                                    <>
+                                                                        <h3 style={{ color: 'var(--text-light)', marginBottom: '0.75rem', fontSize: '0.95rem' }}>
+                                                                            Portfolio Profile used for this optimization
+                                                                        </h3>
+                                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 1.5rem', background: 'var(--bg-dark)', borderRadius: 8, padding: '1rem', fontSize: '0.88rem', marginBottom: '1.5rem' }}>
+                                                                            <div><span style={{ color: 'var(--text-gray)' }}>Risk Tolerance: </span><strong>{profile.riskLevel?.replace('_', ' ') ?? 'N/A'}</strong></div>
+                                                                            <div><span style={{ color: 'var(--text-gray)' }}>Primary Goal: </span><strong>{profile.goal ?? 'N/A'}</strong></div>
+                                                                            <div><span style={{ color: 'var(--text-gray)' }}>Time Horizon: </span><strong>{profile.horizonYears != null ? `${profile.horizonYears} years` : 'N/A'}</strong></div>
+                                                                            <div><span style={{ color: 'var(--text-gray)' }}>Liquidity Needs: </span><strong>{profile.liquidityNeeds ?? 'N/A'}</strong></div>
+                                                                            <div><span style={{ color: 'var(--text-gray)' }}>Currency: </span><strong>{profile.currency}</strong></div>
+                                                                            <div><span style={{ color: 'var(--text-gray)' }}>Preferred Sectors: </span><strong>{profile.sectorConstraints?.length ? profile.sectorConstraints.join(', ') : 'None'}</strong></div>
+                                                                            {profile.taxOptimization && (
+                                                                                <div><span style={{ color: 'var(--text-gray)' }}>Tax Optimization: </span><strong style={{ color: '#22c55e' }}>Enabled</strong></div>
+                                                                            )}
+                                                                            <div style={{ gridColumn: '1 / -1' }}>
+                                                                                <span style={{ color: 'var(--text-gray)' }}>Additional Notes: </span>
+                                                                                <span>{profile.additionalComments ?? 'None'}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                                <h3 style={{ color: 'var(--text-light)', marginBottom: '0.5rem', fontSize: '0.95rem' }}>Trades in this run</h3>
+                                                                <div className="holdings-table-wrap" style={{ marginBottom: '0.5rem' }}>
+                                                                    <table className="holdings-table">
+                                                                        <thead>
+                                                                            <tr>
+                                                                                <th>Action</th>
+                                                                                <th>Symbol</th>
+                                                                                <th>Name</th>
+                                                                                <th>Weight</th>
+                                                                                <th>Est. Amount</th>
+                                                                                <th>Status</th>
+                                                                                <th>Rationale</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {details.recommendations.map(rec => (
+                                                                                <tr key={rec.id}>
+                                                                                    <td className={rec.action === 'BUY' ? 'positive' : 'negative'} style={{ fontWeight: 600 }}>{rec.action}</td>
+                                                                                    <td className="symbol-cell">{rec.t}</td>
+                                                                                    <td style={{ fontSize: '0.82rem', color: 'var(--text-gray)' }}>{rec.n}</td>
+                                                                                    <td>{rec.w.toFixed(1)}%</td>
+                                                                                    <td>{fmt(rec.estimatedValue)}</td>
+                                                                                    <td style={{
+                                                                                        color: rec.status === 'EXECUTED' ? '#22c55e' : rec.status === 'SKIPPED' ? '#f59e0b' : 'var(--text-gray)',
+                                                                                        fontWeight: 600, fontSize: '0.82rem',
+                                                                                    }}>{rec.status}</td>
+                                                                                    <td style={{ fontSize: '0.78rem', color: 'var(--text-gray)', maxWidth: 200 }}>{rec.r}</td>
+                                                                                </tr>
+                                                                            ))}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                            {totalPages > 1 && (
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                                                    <button
+                                                        onClick={() => setAiRunsPage(p => Math.max(0, p - 1))}
+                                                        disabled={aiRunsPage === 0}
+                                                        style={{ padding: '0.3rem 0.75rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', cursor: aiRunsPage === 0 ? 'not-allowed' : 'pointer', opacity: aiRunsPage === 0 ? 0.4 : 1 }}
+                                                    >&#8592;</button>
+                                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-gray)' }}>
+                                                        {aiRunsPage + 1} / {totalPages}
+                                                    </span>
+                                                    <button
+                                                        onClick={() => setAiRunsPage(p => Math.min(totalPages - 1, p + 1))}
+                                                        disabled={aiRunsPage === totalPages - 1}
+                                                        style={{ padding: '0.3rem 0.75rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', cursor: aiRunsPage === totalPages - 1 ? 'not-allowed' : 'pointer', opacity: aiRunsPage === totalPages - 1 ? 0.4 : 1 }}
+                                                    >&#8594;</button>
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
+                            </div>
                         )}
                         {activeTab === 'optimize' && (
                             <>

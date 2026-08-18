@@ -204,6 +204,9 @@ const TransactionHistory: React.FC<Props> = ({ portfolioId }) => {
                                             <strong>{p.currency}</strong></div>
                                         <div><span style={{ color: 'var(--text-gray)' }}>Preferred Sectors: </span>
                                             <strong>{p.sectorConstraints?.length ? p.sectorConstraints.join(', ') : 'None'}</strong></div>
+                                        {p.taxOptimization && (
+                                            <div><span style={{ color: 'var(--text-gray)' }}>Tax Optimization: </span><strong style={{ color: '#22c55e' }}>Enabled</strong></div>
+                                        )}
                                         <div style={{ gridColumn: '1 / -1' }}>
                                             <span style={{ color: 'var(--text-gray)' }}>Additional Notes: </span>
                                             <span>{p.additionalComments ?? 'None'}</span>

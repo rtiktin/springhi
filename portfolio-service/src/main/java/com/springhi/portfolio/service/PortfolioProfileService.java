@@ -55,6 +55,7 @@ public class PortfolioProfileService {
         p.setCurrency(dto.currency() != null ? dto.currency() : "USD");
         p.setSectorConstraints(dto.sectorConstraints() != null && !dto.sectorConstraints().isEmpty()
                 ? String.join(",", dto.sectorConstraints()) : null);
+        p.setTaxOptimization(dto.taxOptimization());
         return PortfolioProfileDto.from(profileRepository.save(p));
     }
 

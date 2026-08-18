@@ -136,6 +136,18 @@ public class PortfolioOptimizationController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/recommendations/runs")
+    public ResponseEntity<List<String>> getAiRunTimestamps(
+            @RequestParam Long portfolioId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) return ResponseEntity.status(403).build();
+        portfolioService.validatePortfolioOwnership(principal.getId(), portfolioId);
+        List<String> timestamps = recommendationRepository
+                .findDistinctGeneratedAtByPortfolioIdOrderByDesc(portfolioId)
+                .stream().map(java.time.LocalDateTime::toString).toList();
+        return ResponseEntity.ok(timestamps);
+    }
+
     @GetMapping("/recommendations/run")
     public ResponseEntity<AiRunDetailsDto> getAiRunDetails(
             @RequestParam Long portfolioId,
@@ -168,7 +180,8 @@ public class PortfolioOptimizationController {
                             r.getSnapshotLiquidityNeeds() != null ? r.getSnapshotLiquidityNeeds() : (currentProfile != null ? currentProfile.liquidityNeeds() : null),
                             r.getSnapshotAdditionalComments() != null ? r.getSnapshotAdditionalComments() : (currentProfile != null ? currentProfile.additionalComments() : null),
                             r.getSnapshotCurrency() != null ? r.getSnapshotCurrency() : "USD",
-                            sectors);
+                            sectors,
+                            currentProfile != null && currentProfile.taxOptimization());
                 })
                 .orElse(currentProfile);
         Long scheduleId = runRecs.stream()

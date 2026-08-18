@@ -369,6 +369,9 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                                                                     <div><span style={{ color: 'var(--text-gray)' }}>Liquidity Needs: </span><strong>{profile.liquidityNeeds ?? 'N/A'}</strong></div>
                                                                     <div><span style={{ color: 'var(--text-gray)' }}>Currency: </span><strong>{profile.currency}</strong></div>
                                                                     <div><span style={{ color: 'var(--text-gray)' }}>Preferred Sectors: </span><strong>{profile.sectorConstraints?.length ? profile.sectorConstraints.join(', ') : 'None'}</strong></div>
+                                                                    {profile.taxOptimization && (
+                                                                        <div><span style={{ color: 'var(--text-gray)' }}>Tax Optimization: </span><strong style={{ color: '#22c55e' }}>Enabled</strong></div>
+                                                                    )}
                                                                     <div style={{ gridColumn: '1 / -1' }}>
                                                                         <span style={{ color: 'var(--text-gray)' }}>Additional Notes: </span>
                                                                         <span>{profile.additionalComments ?? 'None'}</span>
@@ -492,6 +495,9 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                                         <strong>{profile.currency}</strong></div>
                                     <div><span style={{ color: 'var(--text-gray)' }}>Preferred Sectors: </span>
                                         <strong>{profile.sectorConstraints?.length ? profile.sectorConstraints.join(', ') : 'None'}</strong></div>
+                                    {profile.taxOptimization && (
+                                        <div><span style={{ color: 'var(--text-gray)' }}>Tax Optimization: </span><strong style={{ color: '#22c55e' }}>Enabled</strong></div>
+                                    )}
                                     <div style={{ gridColumn: '1 / -1' }}>
                                         <span style={{ color: 'var(--text-gray)' }}>Additional Notes: </span>
                                         <span>{profile.additionalComments ?? 'None'}</span>

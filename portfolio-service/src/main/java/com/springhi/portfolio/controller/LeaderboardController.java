@@ -136,7 +136,8 @@ public class LeaderboardController {
                             r.getSnapshotLiquidityNeeds(),
                             r.getSnapshotAdditionalComments(),
                             r.getSnapshotCurrency() != null ? r.getSnapshotCurrency() : "USD",
-                            sectors);
+                            sectors,
+                            false);
                 })
                 .orElseGet(() -> profileRepository.findByPortfolioId(portfolioId)
                         .map(PortfolioProfileDto::from).orElse(null));

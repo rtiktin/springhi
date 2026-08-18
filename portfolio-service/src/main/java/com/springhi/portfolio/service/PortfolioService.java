@@ -148,6 +148,9 @@ public class PortfolioService {
             pp.setSectorConstraints(null);
         }
 
+        Object taxOpt = body.get("taxOptimization");
+        pp.setTaxOptimization(taxOpt != null && Boolean.TRUE.equals(taxOpt));
+
         return PortfolioProfileDto.from(portfolioProfileRepository.save(pp));
     }
 
