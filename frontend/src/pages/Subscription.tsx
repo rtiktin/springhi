@@ -394,7 +394,7 @@ const Subscription: React.FC = () => {
                                         )}
                                         <ul style={{ listStyle: 'none', padding: 0, margin: '0.75rem 0 1rem', fontSize: '0.88rem', color: 'var(--text-gray)' }}>
                                             <li style={{ marginBottom: 4 }}>✓ {plan.maxPortfolios} portfolios</li>
-                                            <li style={{ marginBottom: 4 }}>✓ {plan.maxOptimizationsPerMonth} AI optimizations/month</li>
+                                            <li style={{ marginBottom: 4 }}>✓ {plan.maxOptimizationsPerMonth} AI optimizations{plan.planName === 'FREE' ? ' (lifetime total)' : '/month'}</li>
                                         </ul>
                                         <button
                                             style={{

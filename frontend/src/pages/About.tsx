@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Trophy, Eye, Cpu, TrendingUp, BarChart2, CalendarClock, ShieldCheck } from 'lucide-react';
+import { Trophy, Eye, Cpu, TrendingUp, BarChart2, CalendarClock, ShieldCheck, BookOpen, FlaskConical, GitCompare, ShieldAlert } from 'lucide-react';
 
 const isLoggedIn = () => !!localStorage.getItem('token');
 
@@ -38,10 +38,10 @@ const About: React.FC = () => {
                         About SpringHi.ai
                     </h1>
                     <p style={{ fontSize: '1.15rem', color: '#a0a0a0', maxWidth: 700, margin: '0 auto', lineHeight: 1.75 }}>
-                        SpringHi.ai is a risk-free investment competition and learning platform. You build
-                        AI-powered portfolios using real market data, compete against peers and the S&P 500,
-                        and learn from every top performer's strategy — completely in the open.
-                        No real money. No regulatory complexity. Just skill, strategy, and AI.
+                        SpringHi.ai is a risk-free investment learning and competition platform. You build
+                        AI-powered portfolios with real market data, study every top performer's exact strategy,
+                        and run experiments you could never safely run with real money — all in the open.
+                        No real money. No regulatory complexity. Just learning, strategy, and AI.
                     </p>
                 </div>
 
@@ -94,6 +94,53 @@ const About: React.FC = () => {
                                     <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{item.point}</span>
                                 </div>
                                 <p style={{ color: '#a0a0a0', fontSize: '0.875rem', lineHeight: 1.65, margin: 0 }}>{item.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+
+                <section style={{ marginBottom: '4rem' }}>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.5rem', textAlign: 'center' }}>Four things you'll actually learn</h2>
+                    <p style={{ color: '#a0a0a0', textAlign: 'center', marginBottom: '2rem', fontSize: '0.95rem' }}>
+                        SpringHi.ai is built around questions most investors never get to answer safely.
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem', marginBottom: '4rem' }}>
+                        {[
+                            {
+                                icon: <BookOpen size={26} color="#a78bfa" />,
+                                heading: 'What does the winning strategy actually look like?',
+                                body: 'Every portfolio on the leaderboard is fully transparent. Open the #1 portfolio and read the exact AI prompt used, the risk profile, every recommendation generated, and every trade executed. Then replicate it, modify it, and try to beat it.',
+                            },
+                            {
+                                icon: <ShieldAlert size={26} color="#f87171" />,
+                                heading: 'How does risk tolerance actually shape a portfolio?',
+                                body: 'Build an aggressive portfolio and a conservative one with the same starting cash. Watch how the AI responds to each — different sectors, different concentration, different conviction. Feel the difference in volatility over time, all without real consequences.',
+                            },
+                            {
+                                icon: <CalendarClock size={26} color="#34d399" />,
+                                heading: 'Does rebalancing frequency matter?',
+                                body: 'Run daily, weekly, and monthly auto-optimizations in parallel and compare their Time-Weighted Returns side by side. There\'s no safer way to answer a question that professional fund managers debate constantly.',
+                            },
+                            {
+                                icon: <GitCompare size={26} color="#60a5fa" />,
+                                heading: 'Do different AI models pick differently?',
+                                body: 'Claude, ChatGPT, and Gemini each have distinct reasoning styles. Give them the same profile and cash amount and study how they diverge in sector allocation, concentration, and the rationale behind each pick.',
+                            },
+                        ].map(item => (
+                            <div key={item.heading} style={{
+                                background: '#0e0e10',
+                                border: '1px solid #2a2a2c',
+                                borderRadius: 14,
+                                padding: '1.5rem',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.6rem',
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                    {item.icon}
+                                    <span style={{ fontWeight: 700, fontSize: '0.92rem', color: '#fff' }}>{item.heading}</span>
+                                </div>
+                                <p style={{ color: '#a0a0a0', fontSize: '0.875rem', lineHeight: 1.65, margin: 0 }}>{item.body}</p>
                             </div>
                         ))}
                     </div>
@@ -182,11 +229,12 @@ const About: React.FC = () => {
                     textAlign: 'center',
                 }}>
                     <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.75rem' }}>Paper trading — by design</h2>
-                    <p style={{ color: '#a0a0a0', maxWidth: 640, margin: '0 auto', lineHeight: 1.75 }}>
-                        SpringHi.ai is an education and competition platform. No real money is ever invested.
-                        This means you can experiment freely — try aggressive strategies, compare AI models,
-                        stress-test ideas — without any financial consequence. It's the only honest way to
-                        evaluate AI-driven investing before committing real capital.
+                    <p style={{ color: '#a0a0a0', maxWidth: 660, margin: '0 auto', lineHeight: 1.75 }}>
+                        Real investing doesn't let you run controlled experiments. SpringHi.ai does.
+                        Want to know if an aggressive AI-managed portfolio beats a conservative one over six months?
+                        Run both. Want to know if daily rebalancing beats monthly? Run both. Want to know which AI model
+                        picks better for a growth-focused, high-risk profile? Run all three simultaneously.
+                        No financial consequence. No regulatory friction. Just clean data and honest answers.
                     </p>
                 </section>
 

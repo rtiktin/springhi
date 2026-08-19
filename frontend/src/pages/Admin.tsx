@@ -1067,7 +1067,7 @@ const Admin: React.FC = () => {
                                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '1rem' }}>
                                                     {[
                                                         { label: 'Max Portfolios', field: 'maxPortfolios' as keyof SubscriptionPlan },
-                                                        { label: 'Max Optimizations/Month', field: 'maxOptimizationsPerMonth' as keyof SubscriptionPlan },
+                                                        { label: 'Max Optimizations (FREE: lifetime, paid: /month)', field: 'maxOptimizationsPerMonth' as keyof SubscriptionPlan },
                                                         { label: 'Monthly Price ($)', field: 'monthlyPrice' as keyof SubscriptionPlan },
                                                         { label: 'Annual Price ($)', field: 'annualPrice' as keyof SubscriptionPlan },
                                                     ].map(({ label, field }) => (
