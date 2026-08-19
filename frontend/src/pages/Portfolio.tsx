@@ -464,6 +464,7 @@ const Portfolio: React.FC = () => {
                     <Link to="/account" className="btn-logout">Account</Link>
                     <Link to="/profile" className="btn-logout">Default Profile</Link>
                     <Link to="/leaderboard" className="btn-logout">Leaderboard</Link>
+                    <Link to="/support" className="btn-logout">Support</Link>
                     {isAdmin() && <Link to="/admin" className="btn-logout">Admin</Link>}
                     <button className="btn-trade" onClick={() => setShowCashForm(true)}>
                         $ Cash

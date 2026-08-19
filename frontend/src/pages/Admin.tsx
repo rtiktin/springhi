@@ -3,6 +3,32 @@ import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import API_GATEWAY from '../api/apiBase';
 import { getLoggedInUsername, isAdmin, startImpersonation } from '../utils/auth';
+import {
+    adminGetTickets, adminGetTicketDetail, adminAddReply, adminUpdateStatus, adminGetTicketCounts,
+} from '../api/supportApi';
+
+interface SupportTicketSummary {
+    id: number;
+    subject: string;
+    category: string;
+    status: string;
+    username: string;
+    createdAt: string;
+    updatedAt: string;
+    replyCount: number;
+}
+interface SupportTicketReply {
+    id: number;
+    responderName: string;
+    adminReply: boolean;
+    message: string;
+    createdAt: string;
+}
+interface SupportTicketDetail extends SupportTicketSummary {
+    userId: number;
+    message: string;
+    replies: SupportTicketReply[];
+}
 
 interface AdminUser {
     id: number;
@@ -53,7 +79,7 @@ const TYPE_BADGE_COLOR: Record<number, string> = {
     3: '#b91c1c',
 };
 
-type AdminTab = 'users' | 'portfolios' | 'stats' | 'config';
+type AdminTab = 'users' | 'portfolios' | 'stats' | 'config' | 'support';
 
 interface SubscriptionPlan {
     id: number;
@@ -322,6 +348,198 @@ const StatsPanel: React.FC<{
             <div style={{ background: 'var(--bg-dark)', borderRadius: 8, padding: '1rem' }}>
                 <PortfoliosChart portfolioDaily={portfolioStats.daily} />
             </div>
+        </div>
+    );
+};
+
+const STATUS_COLORS: Record<string, string> = {
+    OPEN: '#60a5fa', IN_PROGRESS: '#f59e0b', RESOLVED: '#22c55e', CLOSED: '#6b7280',
+};
+const CATEGORY_LABELS: Record<string, string> = {
+    GENERAL: 'General', BILLING: 'Billing', BUG: 'Bug Report', FEATURE_REQUEST: 'Feature Request', ACCOUNT: 'Account',
+};
+const ALL_STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
+
+const AdminSupportPanel: React.FC = () => {
+    const [tickets, setTickets] = useState<SupportTicketSummary[]>([]);
+    const [totalPages, setTotalPages] = useState(0);
+    const [page, setPage] = useState(0);
+    const [statusFilter, setStatusFilter] = useState('');
+    const [counts, setCounts] = useState<Record<string, number>>({});
+    const [loading, setLoading] = useState(true);
+    const [expandedId, setExpandedId] = useState<number | null>(null);
+    const [expandedDetail, setExpandedDetail] = useState<SupportTicketDetail | null>(null);
+    const [expandedLoading, setExpandedLoading] = useState(false);
+    const [replyText, setReplyText] = useState('');
+    const [replying, setReplying] = useState(false);
+
+    const loadTickets = (p = 0, sf = statusFilter) => {
+        setLoading(true);
+        adminGetTickets(sf || undefined, p, 20)
+            .then((r: { content: SupportTicketSummary[]; totalPages: number }) => {
+                setTickets(r.content);
+                setTotalPages(r.totalPages);
+                setPage(p);
+            })
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        loadTickets();
+        adminGetTicketCounts().then(setCounts).catch(() => {});
+    }, []);
+
+    const changeFilter = (sf: string) => {
+        setStatusFilter(sf);
+        loadTickets(0, sf);
+    };
+
+    const toggleExpand = (id: number) => {
+        if (expandedId === id) { setExpandedId(null); setExpandedDetail(null); return; }
+        setExpandedId(id);
+        setExpandedDetail(null);
+        setExpandedLoading(true);
+        adminGetTicketDetail(id)
+            .then(setExpandedDetail)
+            .catch(() => {})
+            .finally(() => setExpandedLoading(false));
+    };
+
+    const handleReply = async () => {
+        if (!replyText.trim() || !expandedId) return;
+        setReplying(true);
+        try {
+            const updated = await adminAddReply(expandedId, replyText.trim());
+            setExpandedDetail(updated);
+            setReplyText('');
+            setTickets(ts => ts.map(t => t.id === expandedId ? { ...t, status: updated.status, replyCount: updated.replies.length } : t));
+            adminGetTicketCounts().then(setCounts).catch(() => {});
+        } catch (e) {} finally { setReplying(false); }
+    };
+
+    const handleStatusChange = async (id: number, status: string) => {
+        try {
+            const updated = await adminUpdateStatus(id, status);
+            setTickets(ts => ts.map(t => t.id === id ? { ...t, status: updated.status } : t));
+            if (expandedId === id && expandedDetail) {
+                setExpandedDetail({ ...expandedDetail, status: updated.status });
+            }
+            adminGetTicketCounts().then(setCounts).catch(() => {});
+        } catch (e) {}
+    };
+
+    const fmtDate = (s: string) => new Date(s).toLocaleString();
+
+    return (
+        <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Support Tickets</h2>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <button
+                        onClick={() => changeFilter('')}
+                        style={{ padding: '0.3rem 0.75rem', borderRadius: 6, border: `1px solid ${statusFilter === '' ? '#6366f1' : 'var(--border)'}`, background: statusFilter === '' ? 'rgba(99,102,241,0.15)' : 'transparent', color: statusFilter === '' ? '#a78bfa' : 'var(--text-gray)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                    >All ({Object.values(counts).reduce((a, b) => a + b, 0)})</button>
+                    {ALL_STATUSES.map(s => (
+                        <button key={s} onClick={() => changeFilter(s)}
+                            style={{ padding: '0.3rem 0.75rem', borderRadius: 6, border: `1px solid ${statusFilter === s ? STATUS_COLORS[s] : 'var(--border)'}`, background: statusFilter === s ? `${STATUS_COLORS[s]}22` : 'transparent', color: statusFilter === s ? STATUS_COLORS[s] : 'var(--text-gray)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                        >{s.replace('_', ' ')} ({counts[s] ?? 0})</button>
+                    ))}
+                </div>
+            </div>
+
+            {loading ? (
+                <div className="portfolio-loading">Loading tickets…</div>
+            ) : tickets.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--text-gray)', padding: '2.5rem' }}>No tickets found.</div>
+            ) : (
+                <>
+                    {tickets.map(t => {
+                        const isOpen = expandedId === t.id;
+                        return (
+                            <div key={t.id} style={{ background: 'var(--bg-input, #1e2035)', border: '1px solid var(--border)', borderRadius: 10, marginBottom: '0.75rem', overflow: 'hidden' }}>
+                                <div onClick={() => toggleExpand(t.id)} style={{ display: 'flex', alignItems: 'center', padding: '0.9rem 1.1rem', cursor: 'pointer', gap: '0.75rem', userSelect: 'none' }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.2rem', color: 'var(--text-primary)' }}>{t.subject}</div>
+                                        <div style={{ fontSize: '0.77rem', color: 'var(--text-gray)' }}>
+                                            <strong>{t.username}</strong> · {CATEGORY_LABELS[t.category] ?? t.category} · {fmtDate(t.createdAt)}
+                                            {t.replyCount > 0 && ` · ${t.replyCount} ${t.replyCount === 1 ? 'reply' : 'replies'}`}
+                                        </div>
+                                    </div>
+                                    <select
+                                        value={t.status}
+                                        onClick={e => e.stopPropagation()}
+                                        onChange={e => { e.stopPropagation(); handleStatusChange(t.id, e.target.value); }}
+                                        style={{ background: 'var(--bg-card)', border: `1px solid ${STATUS_COLORS[t.status] ?? '#6b7280'}`, borderRadius: 6, padding: '0.25rem 0.5rem', color: STATUS_COLORS[t.status] ?? '#6b7280', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
+                                    >
+                                        {ALL_STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                                    </select>
+                                </div>
+
+                                {isOpen && (
+                                    <div style={{ borderTop: '1px solid var(--border)', padding: '1rem 1.1rem' }}>
+                                        {expandedLoading ? (
+                                            <div style={{ color: 'var(--text-gray)', fontSize: '0.875rem' }}>Loading…</div>
+                                        ) : expandedDetail ? (
+                                            <>
+                                                <div style={{ background: 'var(--bg-card)', borderRadius: 7, padding: '0.85rem', fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.65, marginBottom: '1rem', whiteSpace: 'pre-wrap' }}>
+                                                    {expandedDetail.message}
+                                                </div>
+
+                                                {expandedDetail.replies.length > 0 && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1rem' }}>
+                                                        {expandedDetail.replies.map(r => (
+                                                            <div key={r.id} style={{
+                                                                background: r.adminReply ? 'rgba(99,102,241,0.1)' : 'var(--bg-card)',
+                                                                border: `1px solid ${r.adminReply ? 'rgba(99,102,241,0.3)' : 'var(--border)'}`,
+                                                                borderRadius: 7, padding: '0.75rem',
+                                                            }}>
+                                                                <div style={{ fontSize: '0.77rem', color: r.adminReply ? '#a78bfa' : 'var(--text-gray)', marginBottom: '0.35rem', fontWeight: 600 }}>
+                                                                    {r.adminReply ? '🛡 ' : ''}{r.responderName} · {fmtDate(r.createdAt)}
+                                                                </div>
+                                                                <div style={{ fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>{r.message}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                <div style={{ display: 'flex', gap: '0.6rem' }}>
+                                                    <textarea
+                                                        value={replyText}
+                                                        onChange={e => setReplyText(e.target.value)}
+                                                        rows={3}
+                                                        placeholder="Reply to this ticket…"
+                                                        style={{ flex: 1, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 7, padding: '0.5rem 0.75rem', color: 'var(--text-primary)', fontSize: '0.875rem', resize: 'vertical' }}
+                                                    />
+                                                    <button
+                                                        onClick={handleReply}
+                                                        disabled={replying || !replyText.trim()}
+                                                        style={{ background: '#6366f1', color: '#fff', border: 'none', borderRadius: 7, padding: '0 1rem', cursor: 'pointer', fontWeight: 700, fontSize: '0.875rem', opacity: replying || !replyText.trim() ? 0.5 : 1 }}
+                                                    >
+                                                        {replying ? '…' : 'Reply'}
+                                                    </button>
+                                                </div>
+                                            </>
+                                        ) : null}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+
+                    {totalPages > 1 && (
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem' }}>
+                            <button onClick={() => loadTickets(page - 1)} disabled={page === 0} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: page === 0 ? 'var(--text-gray)' : 'var(--text-primary)', borderRadius: 7, padding: '0.35rem 0.85rem', cursor: page === 0 ? 'default' : 'pointer', fontSize: '0.875rem' }}>
+                                ← Prev
+                            </button>
+                            <span style={{ alignSelf: 'center', color: 'var(--text-gray)', fontSize: '0.875rem' }}>Page {page + 1} of {totalPages}</span>
+                            <button onClick={() => loadTickets(page + 1)} disabled={page >= totalPages - 1} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: page >= totalPages - 1 ? 'var(--text-gray)' : 'var(--text-primary)', borderRadius: 7, padding: '0.35rem 0.85rem', cursor: page >= totalPages - 1 ? 'default' : 'pointer', fontSize: '0.875rem' }}>
+                                Next →
+                            </button>
+                        </div>
+                    )}
+                </>
+            )}
         </div>
     );
 };
@@ -701,6 +919,7 @@ const Admin: React.FC = () => {
                     <button style={tabStyle('portfolios')} onClick={() => setTab('portfolios')}>Portfolios</button>
                     <button style={tabStyle('stats')} onClick={() => setTab('stats')}>Statistics</button>
                     <button style={tabStyle('config')} onClick={() => setTab('config')}>Config</button>
+                    <button style={tabStyle('support')} onClick={() => setTab('support')}>Support</button>
                 </div>
 
                 <div style={{ background: 'var(--bg-card)', borderRadius: '0 8px 8px 8px', border: '1px solid var(--border)', borderTop: 'none', padding: '1.5rem' }}>
@@ -1044,6 +1263,8 @@ const Admin: React.FC = () => {
                             )}
                         </>
                     )}
+
+                    {tab === 'support' && <AdminSupportPanel />}
 
                     {tab === 'config' && (
                         <>

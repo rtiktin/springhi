@@ -13,6 +13,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import Admin from './pages/Admin';
 import Subscription from './pages/Subscription';
 import Pricing from './pages/Pricing';
+import Support from './pages/Support';
 import { isLoggedIn } from './utils/auth';
 import API_GATEWAY from './api/apiBase';
 import './App.css';
@@ -55,6 +56,7 @@ function App() {
           <Route path="/admin" element={<RequireAuth><Admin /></RequireAuth>} />
           <Route path="/subscription" element={<RequireAuth><Subscription /></RequireAuth>} />
           <Route path="/pricing" element={<Pricing />} />
+          <Route path="/support" element={<RequireAuth><Support /></RequireAuth>} />
         </Routes>
       </div>
     </Router>

@@ -75,3 +75,11 @@ spring:
           uri: ${BACKEND_URL:http://localhost:8080}
           predicates:
             - Path=/api/v1/subscription/**
+        - id: support-service
+          uri: ${PORTFOLIO_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/support/**
+        - id: admin-support
+          uri: ${PORTFOLIO_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/admin/support/**
