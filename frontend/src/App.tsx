@@ -12,6 +12,7 @@ import Leaderboard from './pages/Leaderboard';
 import ForgotPassword from './pages/ForgotPassword';
 import Admin from './pages/Admin';
 import Subscription from './pages/Subscription';
+import Pricing from './pages/Pricing';
 import { isLoggedIn } from './utils/auth';
 import API_GATEWAY from './api/apiBase';
 import './App.css';
@@ -53,6 +54,7 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/admin" element={<RequireAuth><Admin /></RequireAuth>} />
           <Route path="/subscription" element={<RequireAuth><Subscription /></RequireAuth>} />
+          <Route path="/pricing" element={<Pricing />} />
         </Routes>
       </div>
     </Router>

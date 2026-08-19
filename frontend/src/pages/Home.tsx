@@ -147,6 +147,7 @@ const Home: React.FC = () => {
                 <div className="logo">SpringHi.ai</div>
                 <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Link to="/about" className="nav-link">About</Link>
+                    <Link to="/pricing" className="nav-link">Pricing</Link>
                     {isLoggedIn() ? (
                         <Link to="/portfolio" className="btn-primary">My Portfolio</Link>
                     ) : (
