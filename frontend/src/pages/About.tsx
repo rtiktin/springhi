@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Trophy, Eye, Cpu, TrendingUp, BarChart2, CalendarClock, ShieldCheck, BookOpen, FlaskConical, GitCompare, ShieldAlert } from 'lucide-react';
+import { Trophy, Eye, Cpu, TrendingUp, BarChart2, CalendarClock, ShieldCheck, BookOpen, GitCompare, ShieldAlert } from 'lucide-react';
 
 const isLoggedIn = () => !!localStorage.getItem('token');
 
@@ -12,6 +12,7 @@ const About: React.FC = () => {
                 <div className="logo">SpringHi.ai</div>
                 <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Link to="/" className="nav-link">Home</Link>
+                    <Link to="/getting-started" className="nav-link">Getting Started</Link>
                     <Link to="/pricing" className="nav-link">Pricing</Link>
                     {isLoggedIn() ? (
                         <Link to="/portfolio" className="btn-primary">My Portfolio</Link>

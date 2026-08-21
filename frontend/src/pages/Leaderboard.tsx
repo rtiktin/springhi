@@ -88,7 +88,6 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
     const [expandedRunLoading, setExpandedRunLoading] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
-        setLoading(true);
         Promise.all([
             getLeaderboardPortfolioHoldings(entry.portfolioId),
             getLeaderboardPortfolioTransactions(entry.portfolioId),
@@ -659,12 +658,10 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
 
 const LeaderboardPane: React.FC<{ scope: LeaderboardScope; range: LeaderboardRange }> = ({ scope, range }) => {
     const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
     useEffect(() => {
-        setLoading(true);
-        setError('');
         getLeaderboard(range, scope)
             .then(setEntries)
             .catch(() => setError('Failed to load leaderboard. Please try again.'))
@@ -679,13 +676,11 @@ const LeaderboardPane: React.FC<{ scope: LeaderboardScope; range: LeaderboardRan
 
 const MonthlyLeaderboardPane: React.FC<{ month: string }> = ({ month }) => {
     const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
     useEffect(() => {
         if (!month) return;
-        setLoading(true);
-        setError('');
         getMonthlyLeaderboard(month)
             .then(setEntries)
             .catch(() => setError('Failed to load monthly leaderboard.'))
@@ -745,6 +740,7 @@ const Leaderboard: React.FC = () => {
                     {username && <span className="nav-welcome">Welcome back, {username}</span>}
                 </div>
                 <nav className="portfolio-nav">
+                    <Link to="/getting-started" className={isLoggedIn() ? "btn-logout" : "nav-link"}>Getting Started</Link>
                     {isLoggedIn() ? (
                         <>
                             <Link to="/account" className="btn-logout">Account</Link>

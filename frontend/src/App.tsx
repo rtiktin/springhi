@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Home from './pages/Home';
+import GettingStarted from './pages/GettingStarted';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Portfolio from './pages/Portfolio';
@@ -45,6 +46,7 @@ function App() {
         <ActivityTracker />
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/getting-started" element={<GettingStarted />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/portfolio" element={<RequireAuth><Portfolio /></RequireAuth>} />

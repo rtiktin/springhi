@@ -41,7 +41,6 @@ const Portfolio: React.FC = () => {
     const [portfolios, setPortfolios] = useState<PortfolioType[]>([]);
     const [activePortfolioId, setActivePortfolioId] = useState<number | null>(null);
     const [portfolioLoading, setPortfolioLoading] = useState(true);
-    const [showNewPortfolioForm, setShowNewPortfolioForm] = useState(false);
     const [newPortfolioName, setNewPortfolioName] = useState('');
     const [newPortfolioDesc, setNewPortfolioDesc] = useState('');
 
@@ -82,7 +81,8 @@ const Portfolio: React.FC = () => {
                 setUpgradeModal({ message: `You have reached the maximum number of portfolios (${quota.max}) for your ${quota.planName} plan. Please upgrade to create more.` });
                 return;
             }
-        } catch {
+        } catch (err) {
+            console.error('Failed to fetch portfolio quota:', err);
         }
         setWizardStep('ai-choice');
         setWizardName('');
@@ -461,6 +461,7 @@ const Portfolio: React.FC = () => {
                     {username && <span className="nav-welcome">Welcome back, {username}</span>}
                 </div>
                 <nav className="portfolio-nav">
+                    <Link to="/getting-started" className="btn-logout">Getting Started</Link>
                     <Link to="/account" className="btn-logout">Account</Link>
                     <Link to="/profile" className="btn-logout">Default Profile</Link>
                     <Link to="/leaderboard" className="btn-logout">Leaderboard</Link>

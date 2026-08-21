@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { MessageSquare, ChevronDown, ChevronUp, Plus, Send } from 'lucide-react';
+import { getLoggedInUsername } from '../utils/auth';
 import {
     createTicket, getMyTickets, getTicketDetail, addUserReply,
 } from '../api/supportApi';
@@ -100,7 +101,9 @@ const Support: React.FC = () => {
             const updated = await addUserReply(expandedId, replyText.trim());
             setExpandedDetail(updated);
             setReplyText('');
-        } catch (e) {} finally { setReplying(false); }
+        } catch (err) {
+            console.error('Failed to add user reply:', err);
+        } finally { setReplying(false); }
     };
 
     const handleSubmit = async () => {
@@ -112,16 +115,25 @@ const Support: React.FC = () => {
             setShowNew(false);
             setNewSubject(''); setNewCategory('GENERAL'); setNewMessage('');
             loadTickets(0);
-        } catch (e) { setSubmitError('Failed to submit ticket.'); } finally { setSubmitting(false); }
+        } catch (err) {
+            console.error('Failed to submit ticket:', err);
+            setSubmitError('Failed to submit ticket.');
+        } finally { setSubmitting(false); }
     };
 
     const fmtDate = (s: string) => new Date(s).toLocaleString();
 
+    const username = getLoggedInUsername();
+
     return (
         <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: '#0a0a0b', color: '#fff', minHeight: '100vh' }}>
             <header className="navbar">
-                <div className="logo">SpringHi.ai</div>
+                <div className="navbar-brand">
+                    <Link to="/" className="logo">SpringHi.ai</Link>
+                    {username && <span className="nav-welcome">Welcome back, {username}</span>}
+                </div>
                 <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Link to="/getting-started" className="nav-link">Getting Started</Link>
                     <Link to="/portfolio" className="nav-link">My Portfolio</Link>
                     <Link to="/subscription" className="nav-link">Subscription</Link>
                 </nav>

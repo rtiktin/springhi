@@ -195,7 +195,7 @@ const AccountMaintenance: React.FC = () => {
         try {
             const resp = await verifyPhone(updatePhoneCode.trim());
             if (resp.token) localStorage.setItem('token', resp.token);
-            const normalized = updateNewPhone.trim().replace(/[\s\-\(\)]/g, '');
+            const normalized = updateNewPhone.trim().replace(/[\s\-()]/g, '');
             setForm(prev => ({ ...prev, phone: normalized.startsWith('+') ? normalized : '+1' + normalized }));
             setUpdatePhoneStep(null);
         } catch (err: unknown) {
@@ -222,6 +222,7 @@ const AccountMaintenance: React.FC = () => {
                     {username && <span className="nav-welcome">Welcome back, {username}</span>}
                 </div>
                 <nav className="portfolio-nav">
+                    <Link to="/getting-started" className="btn-logout">Getting Started</Link>
                     <Link to="/portfolio" className="btn-logout">Portfolios</Link>
                     <Link to="/profile" className="btn-logout">Default Profile</Link>
                     <Link to="/leaderboard" className="btn-logout">Leaderboard</Link>

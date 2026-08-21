@@ -84,7 +84,7 @@ const Pricing: React.FC = () => {
         ];
     };
 
-    const handleCta = (planName: string) => {
+    const handleCta = () => {
         if (!isLoggedIn()) {
             navigate('/signup');
             return;
@@ -99,6 +99,7 @@ const Pricing: React.FC = () => {
                 <div className="logo">SpringHi.ai</div>
                 <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Link to="/" className="nav-link">Home</Link>
+                    <Link to="/getting-started" className="nav-link">Getting Started</Link>
                     <Link to="/about" className="nav-link">About</Link>
                     {isLoggedIn() ? (
                         <Link to="/portfolio" className="btn-primary">My Portfolio</Link>
@@ -226,7 +227,7 @@ const Pricing: React.FC = () => {
                                         </ul>
 
                                         <button
-                                            onClick={() => handleCta(plan.planName)}
+                                            onClick={() => handleCta()}
                                             style={{
                                                 marginTop: 'auto',
                                                 padding: '0.75rem',

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Trophy, Eye, Cpu, BarChart2, CalendarClock, BookOpen, FlaskConical, GitCompare, ShieldAlert, ChevronLeft, ChevronRight } from 'lucide-react';
-import leaderboard from "./Leaderboard.tsx";
+import { TrendingUp, Trophy, CalendarClock, BookOpen, GitCompare, ShieldAlert, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const isLoggedIn = () => !!localStorage.getItem('token');
 
@@ -146,6 +145,7 @@ const Home: React.FC = () => {
             <header className="navbar">
                 <div className="logo">SpringHi.ai</div>
                 <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Link to="/getting-started" className="nav-link">Getting Started</Link>
                     <Link to="/about" className="nav-link">About</Link>
                     <Link to="/pricing" className="nav-link">Pricing</Link>
                     {isLoggedIn() ? (

@@ -119,6 +119,7 @@ const ProfileEdit: React.FC = () => {
                     {username && <span className="nav-welcome">Welcome back, {username}</span>}
                 </div>
                 <nav className="portfolio-nav">
+                    <Link to="/getting-started" className="btn-logout">Getting Started</Link>
                     <Link to="/portfolio" className="btn-logout">Portfolio</Link>
                     <Link to="/account" className="btn-logout">Account</Link>
                     {isAdmin() && <Link to="/admin" className="btn-logout">Admin</Link>}
