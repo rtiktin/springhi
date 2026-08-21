@@ -892,9 +892,9 @@ const Admin: React.FC = () => {
     return (
         <div className="portfolio-page">
             <header className="navbar">
-                <div className="navbar-brand">
-                    <Link to="/portfolio" className="logo">SpringHi.ai</Link>
-                    {username && <span className="nav-welcome">Welcome back, {username}</span>}
+                <div className="navbar-brand" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <Link to="/" className="logo">SpringHi.ai</Link>
+                    {username && <span className="nav-welcome" style={{ fontSize: '0.75rem', marginTop: '-0.2rem', opacity: 0.8 }}>Welcome back, {username}</span>}
                 </div>
                 <nav className="portfolio-nav">
                     <Link to="/portfolio" className="btn-logout">Portfolios</Link>

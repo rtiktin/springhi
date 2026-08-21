@@ -55,6 +55,7 @@ export interface AiRunRec {
     transactionId: number | null;
     generatedAt: string;
     aiProvider: string | null;
+    confidenceScore: number | null;
 }
 
 export interface AiRunDetails {
@@ -62,6 +63,7 @@ export interface AiRunDetails {
     profile: PortfolioProfile | null;
     scheduleId: number | null;
     scheduleFrequency: string | null;
+    confidenceScore: number | null;
 }
 
 export interface TransactionRequest {

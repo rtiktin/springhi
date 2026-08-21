@@ -128,9 +128,9 @@ const Support: React.FC = () => {
     return (
         <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: '#0a0a0b', color: '#fff', minHeight: '100vh' }}>
             <header className="navbar">
-                <div className="navbar-brand">
+                <div className="navbar-brand" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                     <Link to="/" className="logo">SpringHi.ai</Link>
-                    {username && <span className="nav-welcome">Welcome back, {username}</span>}
+                    {username && <span className="nav-welcome" style={{ fontSize: '0.75rem', marginTop: '-0.2rem', opacity: 0.8 }}>Welcome back, {username}</span>}
                 </div>
                 <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Link to="/getting-started" className="nav-link">Getting Started</Link>

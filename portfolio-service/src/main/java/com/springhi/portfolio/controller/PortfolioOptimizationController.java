@@ -191,6 +191,10 @@ public class PortfolioOptimizationController {
         String scheduleFrequency = scheduleId != null
                 ? scheduleRepository.findById(scheduleId).map(s -> s.getFrequency()).orElse(null)
                 : null;
-        return ResponseEntity.ok(new AiRunDetailsDto(recs, profileDto, scheduleId, scheduleFrequency));
+        Integer confidenceScore = runRecs.stream()
+                .map(PortfolioRecommendation::getConfidenceScore)
+                .filter(java.util.Objects::nonNull)
+                .findFirst().orElse(null);
+        return ResponseEntity.ok(new AiRunDetailsDto(recs, profileDto, scheduleId, scheduleFrequency, confidenceScore));
     }
 }

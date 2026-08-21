@@ -1,15 +1,20 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Trophy, Eye, Cpu, TrendingUp, BarChart2, CalendarClock, ShieldCheck, BookOpen, GitCompare, ShieldAlert } from 'lucide-react';
+import { getLoggedInUsername } from '../utils/auth';
 
 const isLoggedIn = () => !!localStorage.getItem('token');
 
 const About: React.FC = () => {
+    const username = getLoggedInUsername();
     return (
         <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: '#0a0a0b', color: '#fff', minHeight: '100vh' }}>
 
             <header className="navbar">
-                <div className="logo">SpringHi.ai</div>
+                <div className="navbar-brand" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <Link to="/" className="logo">SpringHi.ai</Link>
+                    {username && <span className="nav-welcome" style={{ fontSize: '0.75rem', marginTop: '-0.2rem', opacity: 0.8 }}>Welcome back, {username}</span>}
+                </div>
                 <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Link to="/" className="nav-link">Home</Link>
                     <Link to="/getting-started" className="nav-link">Getting Started</Link>

@@ -6,5 +6,6 @@ public record AiRunDetailsDto(
         List<RecommendationDto> recommendations,
         PortfolioProfileDto profile,
         Long scheduleId,
-        String scheduleFrequency
+        String scheduleFrequency,
+        Integer confidenceScore
 ) {}

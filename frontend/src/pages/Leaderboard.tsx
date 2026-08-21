@@ -350,6 +350,11 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                                                             🗓 {details.scheduleFrequency.charAt(0) + details.scheduleFrequency.slice(1).toLowerCase()}
                                                         </span>
                                                     )}
+                                                    {details?.confidenceScore != null && (
+                                                        <span style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.8rem', color: '#a78bfa', fontWeight: 600 }}>
+                                                            🎯 {details.confidenceScore}%
+                                                        </span>
+                                                    )}
                                                     <span style={{ marginLeft: 'auto', color: 'var(--text-gray)', fontSize: '0.8rem' }}>
                                                         {isLoading ? 'Loading…' : isExpanded ? '▲' : '▼'}
                                                     </span>
@@ -463,6 +468,11 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                             {aiRunModal.details.scheduleFrequency && (
                                 <span style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.4)', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.8rem', color: '#22c55e', fontWeight: 600 }}>
                                     🗓 Scheduled — {aiRunModal.details.scheduleFrequency.charAt(0) + aiRunModal.details.scheduleFrequency.slice(1).toLowerCase()}
+                                </span>
+                            )}
+                            {aiRunModal.details.confidenceScore != null && (
+                                <span style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.8rem', color: '#a78bfa', fontWeight: 600 }}>
+                                    🎯 AI Confidence: {aiRunModal.details.confidenceScore}%
                                 </span>
                             )}
                         </p>
@@ -735,9 +745,9 @@ const Leaderboard: React.FC = () => {
         <div className="home-container">
             <ImpersonationBanner />
             <header className="navbar">
-                <div className="navbar-brand">
-                    <Link to="/portfolio" className="logo">SpringHi.ai</Link>
-                    {username && <span className="nav-welcome">Welcome back, {username}</span>}
+                <div className="navbar-brand" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <Link to="/" className="logo">SpringHi.ai</Link>
+                    {username && <span className="nav-welcome" style={{ fontSize: '0.75rem', marginTop: '-0.2rem', opacity: 0.8 }}>Welcome back, {username}</span>}
                 </div>
                 <nav className="portfolio-nav">
                     <Link to="/getting-started" className={isLoggedIn() ? "btn-logout" : "nav-link"}>Getting Started</Link>

@@ -456,9 +456,9 @@ const Portfolio: React.FC = () => {
         <div className="portfolio-page">
             <ImpersonationBanner />
             <header className="navbar">
-                <div className="navbar-brand">
+                <div className="navbar-brand" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                     <Link to="/" className="logo">SpringHi.ai</Link>
-                    {username && <span className="nav-welcome">Welcome back, {username}</span>}
+                    {username && <span className="nav-welcome" style={{ fontSize: '0.75rem', marginTop: '-0.2rem', opacity: 0.8 }}>Welcome back, {username}</span>}
                 </div>
                 <nav className="portfolio-nav">
                     <Link to="/getting-started" className="btn-logout">Getting Started</Link>
@@ -557,10 +557,15 @@ const Portfolio: React.FC = () => {
                 {!activePortfolioId ? (
                     <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-gray)' }}>
                         <p>No portfolio found. Create your first portfolio to get started.</p>
-                        <button className="btn-primary-full" style={{ marginTop: '1rem', maxWidth: 240 }}
-                            onClick={openWizard}>
-                            Create Portfolio
-                        </button>
+                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '1rem' }}>
+                            <button className="btn-primary-full" style={{ maxWidth: 240 }}
+                                onClick={openWizard}>
+                                Create Portfolio
+                            </button>
+                            <Link to="/getting-started" className="btn-logout" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', padding: '0.6rem 1.2rem', borderRadius: 8 }}>
+                                View Getting Started Guide
+                            </Link>
+                        </div>
                     </div>
                 ) : (
                     <>
@@ -678,6 +683,11 @@ const Portfolio: React.FC = () => {
                                                             {details?.scheduleFrequency && (
                                                                 <span style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.4)', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.8rem', color: '#22c55e', fontWeight: 600 }}>
                                                                     🗓 {details.scheduleFrequency.charAt(0) + details.scheduleFrequency.slice(1).toLowerCase()}
+                                                                </span>
+                                                            )}
+                                                            {details?.confidenceScore != null && (
+                                                                <span style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.8rem', color: '#a78bfa', fontWeight: 600 }}>
+                                                                    🎯 {details.confidenceScore}%
                                                                 </span>
                                                             )}
                                                             <span style={{ marginLeft: 'auto', color: 'var(--text-gray)', fontSize: '0.8rem' }}>

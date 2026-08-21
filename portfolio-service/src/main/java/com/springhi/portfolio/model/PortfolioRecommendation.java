@@ -77,6 +77,9 @@ public class PortfolioRecommendation {
     @Column(name = "schedule_id")
     private Long scheduleId;
 
+    @Column(name = "confidence_score")
+    private Integer confidenceScore;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -133,6 +136,8 @@ public class PortfolioRecommendation {
     public void setAiProvider(String aiProvider) { this.aiProvider = aiProvider; }
     public Long getScheduleId() { return scheduleId; }
     public void setScheduleId(Long scheduleId) { this.scheduleId = scheduleId; }
+    public Integer getConfidenceScore() { return confidenceScore; }
+    public void setConfidenceScore(Integer confidenceScore) { this.confidenceScore = confidenceScore; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

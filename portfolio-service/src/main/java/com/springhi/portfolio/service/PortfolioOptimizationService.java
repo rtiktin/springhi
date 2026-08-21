@@ -22,6 +22,8 @@ import java.time.LocalTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -86,8 +88,9 @@ public class PortfolioOptimizationService {
                     new TypeReference<List<SecurityRecommendation>>() {});
 
             recs = normalizeBuyWeights(recs);
+            Integer confidence = extractConfidence(rawText);
 
-            List<RecommendationDto> saved = persistRecommendations(userId, portfolioId, recs, holdings, cashBalance, portfolioMarketValue, portfolioProfile, provider);
+            List<RecommendationDto> saved = persistRecommendations(userId, portfolioId, recs, holdings, cashBalance, portfolioMarketValue, portfolioProfile, provider, confidence);
             return new OptimizationResponse(saved, null);
         } catch (Exception e) {
             log.error("Optimization failed for portfolioId={}: {}", portfolioId, e.getMessage(), e);
@@ -102,7 +105,8 @@ public class PortfolioOptimizationService {
                                                             BigDecimal cashBalance,
                                                             BigDecimal portfolioMarketValue,
                                                             PortfolioProfileDto profile,
-                                                            String provider) {
+                                                            String provider,
+                                                            Integer confidence) {
         recommendationRepository.deletePendingForPortfolio(portfolioId);
 
         Map<String, AssetWithPrice> holdingMap = holdings.stream()
@@ -125,6 +129,7 @@ public class PortfolioOptimizationService {
             entity.setRationale(rec.r());
             entity.setStatus("PENDING");
             entity.setAiProvider(provider);
+            entity.setConfidenceScore(confidence);
             if (profile != null) {
                 entity.setSnapshotRiskLevel(profile.riskLevel());
                 entity.setSnapshotGoal(profile.goal());
@@ -169,7 +174,8 @@ public class PortfolioOptimizationService {
         sb.append("Task: Produce a portfolio rebalancing plan. Return SELL recommendations for positions to exit or trim, and BUY recommendations for new or underweight positions.\n");
         sb.append("Output: Minified JSON array only. No prose. No markdown. No code blocks.\n");
         sb.append("Keys: t (ticker), n (full name), s (sector), action (\"BUY\" or \"SELL\"), w (weight as number, see rules below), r (rationale max 8 words).\n");
-        sb.append("Weight rules: For BUY entries, w = % of available cash to deploy (all BUY weights must sum to 100). For SELL entries, w = 0.\n\n");
+        sb.append("Weight rules: For BUY entries, w = % of available cash to deploy (all BUY weights must sum to 100). For SELL entries, w = 0.\n");
+        sb.append("After the JSON array on a new line output exactly: confidence=N where N is your overall confidence (0-100) that this plan fits the client profile and market conditions.\n\n");
 
         sb.append("Client Profile:\n");
         boolean hasNotes = profile != null && profile.additionalComments() != null && !profile.additionalComments().isBlank();
@@ -281,6 +287,16 @@ public class PortfolioOptimizationService {
             throw new RuntimeException("No JSON array found in Gemini response: " + text.substring(0, Math.min(200, text.length())));
         }
         return text.substring(start, end + 1);
+    }
+
+    Integer extractConfidence(String rawText) {
+        if (rawText == null) return null;
+        Matcher m = Pattern.compile("confidence\\s*=\\s*(\\d{1,3})").matcher(rawText);
+        if (m.find()) {
+            int v = Integer.parseInt(m.group(1));
+            return Math.min(100, Math.max(0, v));
+        }
+        return null;
     }
 
     private String nvl(String val, String def) {

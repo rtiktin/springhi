@@ -182,6 +182,11 @@ const TransactionHistory: React.FC<Props> = ({ portfolioId }) => {
                                     🗓 Scheduled — {aiRunModal.details.scheduleFrequency.charAt(0) + aiRunModal.details.scheduleFrequency.slice(1).toLowerCase()}
                                 </span>
                             )}
+                            {aiRunModal.details.confidenceScore != null && (
+                                <span style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.8rem', color: '#a78bfa', fontWeight: 600 }}>
+                                    🎯 AI Confidence: {aiRunModal.details.confidenceScore}%
+                                </span>
+                            )}
                         </p>
 
                         {aiRunModal.details.profile && (() => {

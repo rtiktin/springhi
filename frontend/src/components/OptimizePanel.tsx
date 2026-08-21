@@ -713,6 +713,19 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                             }}>
                                 {PROVIDER_LABELS[recommendations[0].aiProvider as AiProvider] ?? recommendations[0].aiProvider}
                             </span>
+                            {recommendations[0].confidenceScore != null && (
+                                <span style={{
+                                    background: 'rgba(99,102,241,0.12)',
+                                    border: '1px solid rgba(99,102,241,0.4)',
+                                    borderRadius: 5,
+                                    padding: '0.2rem 0.7rem',
+                                    fontSize: '0.85rem',
+                                    color: '#a78bfa',
+                                    fontWeight: 700,
+                                }}>
+                                    🎯 AI Confidence: {recommendations[0].confidenceScore}%
+                                </span>
+                            )}
                         </div>
                     )}
                     {execMsg && (
