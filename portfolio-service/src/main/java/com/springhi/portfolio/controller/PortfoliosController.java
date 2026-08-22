@@ -41,10 +41,19 @@ public class PortfoliosController {
     public ResponseEntity<Map<String, Object>> getUsageStats(@AuthenticationPrincipal UserPrincipal principal,
                                                               HttpServletRequest request) {
         if (principal == null) return ResponseEntity.status(403).build();
-        int portfolioCount = portfolioService.listPortfolios(principal.getId()).size();
 
         Map<String, Object> limits = userServiceClient.getSubscriptionLimits(
                 principal.getId(), request.getHeader("Authorization")).orElse(null);
+        
+        if (limits != null) {
+            int maxPortfolios = limits.get("maxPortfolios") instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
+            portfolioService.enforceLimits(principal.getId(), maxPortfolios);
+        }
+
+        int portfolioCount = (int) portfolioService.listPortfolios(principal.getId()).stream()
+                .filter(Portfolio::isEnabled)
+                .count();
+
         String planName = limits != null ? (String) limits.getOrDefault("planName", "FREE") : "FREE";
         boolean isFree = "FREE".equalsIgnoreCase(planName);
         LocalDateTime countSince = isFree
@@ -67,8 +76,17 @@ public class PortfoliosController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Portfolio>> list(@AuthenticationPrincipal UserPrincipal principal) {
+    public ResponseEntity<List<Portfolio>> list(@AuthenticationPrincipal UserPrincipal principal,
+                                               HttpServletRequest request) {
         if (principal == null) return ResponseEntity.status(403).build();
+        
+        // Proactively enforce limits on list
+        userServiceClient.getSubscriptionLimits(principal.getId(), request.getHeader("Authorization"))
+                .ifPresent(limits -> {
+                    int maxPortfolios = limits.get("maxPortfolios") instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
+                    portfolioService.enforceLimits(principal.getId(), maxPortfolios);
+                });
+
         return ResponseEntity.ok(portfolioService.listPortfolios(principal.getId()));
     }
 
@@ -83,7 +101,10 @@ public class PortfoliosController {
         Map<String, Object> limits = userServiceClient.getSubscriptionLimits(principal.getId(), authHeader).orElse(null);
         if (limits != null) {
             int maxPortfolios = limits.get("maxPortfolios") instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
-            int currentCount = portfolioService.listPortfolios(principal.getId()).size();
+            portfolioService.enforceLimits(principal.getId(), maxPortfolios);
+            int currentCount = (int) portfolioService.listPortfolios(principal.getId()).stream()
+                    .filter(Portfolio::isEnabled)
+                    .count();
             if (currentCount >= maxPortfolios) {
                 String planName = (String) limits.getOrDefault("planName", "FREE");
                 return ResponseEntity.status(429).body(Map.of(

@@ -41,6 +41,8 @@ const Portfolio: React.FC = () => {
     const [portfolios, setPortfolios] = useState<PortfolioType[]>([]);
     const [activePortfolioId, setActivePortfolioId] = useState<number | null>(null);
     const [portfolioLoading, setPortfolioLoading] = useState(true);
+    const [portfolioQuota, setPortfolioQuota] = useState<{ used: number; max: number; planName: string } | null>(null);
+    const [optimizationQuota, setOptimizationQuota] = useState<{ used: number; scheduled: number; max: number; isFree: boolean } | null>(null);
     const [newPortfolioName, setNewPortfolioName] = useState('');
     const [newPortfolioDesc, setNewPortfolioDesc] = useState('');
 
@@ -126,16 +128,23 @@ const Portfolio: React.FC = () => {
 
     useEffect(() => {
         const savedId = localStorage.getItem('activePortfolioId');
-        listPortfolios()
-            .then(ps => {
+        Promise.all([listPortfolios(), getPortfolioQuota(), getOptimizationQuota()])
+            .then(([ps, quota, optQuota]) => {
                 setPortfolios(ps);
+                setPortfolioQuota(quota);
+                setOptimizationQuota(optQuota);
                 if (ps.length === 0) return;
+                
+                const firstEnabled = ps.find(p => p.enabled);
                 const saved = savedId ? ps.find(p => p.id === Number(savedId)) : null;
-                if (saved) {
+                
+                if (saved && saved.enabled) {
                     setActivePortfolioId(saved.id);
+                } else if (firstEnabled) {
+                    setActivePortfolioId(firstEnabled.id);
+                    localStorage.setItem('activePortfolioId', String(firstEnabled.id));
                 } else {
                     setActivePortfolioId(ps[0].id);
-                    localStorage.setItem('activePortfolioId', String(ps[0].id));
                 }
             })
             .catch(() => {})
@@ -354,8 +363,10 @@ const Portfolio: React.FC = () => {
                     sectorConstraints: sectors,
                 }).catch(() => {});
             }
-            const updated = await listPortfolios();
+            const [updated, quota, optQuota] = await Promise.all([listPortfolios(), getPortfolioQuota(), getOptimizationQuota()]);
             setPortfolios(updated);
+            setPortfolioQuota(quota);
+            setOptimizationQuota(optQuota);
             setActivePortfolioId(created.id);
             localStorage.setItem('activePortfolioId', String(created.id));
             markPortfolioReviewed(created.id);
@@ -434,9 +445,21 @@ const Portfolio: React.FC = () => {
         setPortfolioError('');
         try {
             await deletePortfolio(activePortfolioId);
-            const updated = await listPortfolios();
+            const [updated, quota, optQuota] = await Promise.all([listPortfolios(), getPortfolioQuota(), getOptimizationQuota()]);
             setPortfolios(updated);
-            setActivePortfolioId(updated.length > 0 ? updated[0].id : null);
+            setPortfolioQuota(quota);
+            setOptimizationQuota(optQuota);
+            if (updated.length > 0) {
+                const firstEnabled = updated.find(p => p.enabled);
+                if (firstEnabled) {
+                    setActivePortfolioId(firstEnabled.id);
+                    localStorage.setItem('activePortfolioId', String(firstEnabled.id));
+                } else {
+                    setActivePortfolioId(updated[0].id);
+                }
+            } else {
+                setActivePortfolioId(null);
+            }
         } catch {
             setPortfolioError('Failed to delete portfolio.');
         }
@@ -478,10 +501,51 @@ const Portfolio: React.FC = () => {
             </header>
 
             <main className="portfolio-main">
-                <div className="portfolio-header-row">
+                <div className="portfolio-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
                     <div>
                         <h1 className="portfolio-heading">My Portfolio</h1>
                         <p className="portfolio-sub">Prices updated at 9am &amp; 3pm ET on market days.</p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'stretch' }}>
+                        {portfolioQuota && (
+                            <div style={{ textAlign: 'right', background: 'var(--bg-card)', padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid var(--border)', minWidth: 120 }}>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-gray)', marginBottom: 2 }}>Portfolios</div>
+                                <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                    {portfolioQuota.used} <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-gray)' }}>/ {portfolioQuota.max}</span>
+                                </div>
+                                <div style={{ fontSize: '0.65rem', color: portfolioQuota.used >= portfolioQuota.max ? '#ef4444' : '#22c55e', marginTop: 2 }}>
+                                    {Math.max(0, portfolioQuota.max - portfolioQuota.used)} left
+                                </div>
+                            </div>
+                        )}
+                        {optimizationQuota && (
+                            <div style={{ textAlign: 'right', background: 'var(--bg-card)', padding: '0.5rem 1rem', borderRadius: 8, border: '1px solid var(--border)', minWidth: 120 }}>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-gray)', marginBottom: 2 }}>AI Optimizations</div>
+                                <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                    {optimizationQuota.used} <span style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-gray)' }}>/ {optimizationQuota.max}</span>
+                                </div>
+                                <div style={{ fontSize: '0.65rem', color: (optimizationQuota.used + optimizationQuota.scheduled) >= optimizationQuota.max ? '#ef4444' : '#22c55e', marginTop: 2 }}>
+                                    {Math.max(0, optimizationQuota.max - optimizationQuota.used - optimizationQuota.scheduled)} left
+                                </div>
+                            </div>
+                        )}
+                        {((portfolioQuota && portfolioQuota.used >= portfolioQuota.max) || 
+                          (optimizationQuota && (optimizationQuota.used + optimizationQuota.scheduled) >= optimizationQuota.max)) && (
+                            <Link to="/subscription" style={{
+                                background: '#6c47ff',
+                                color: '#fff',
+                                textDecoration: 'none',
+                                padding: '0 1.25rem',
+                                borderRadius: 8,
+                                display: 'flex',
+                                alignItems: 'center',
+                                fontWeight: 700,
+                                fontSize: '0.9rem',
+                                boxShadow: '0 4px 12px rgba(108, 71, 255, 0.3)'
+                            }}>
+                                Upgrade
+                            </Link>
+                        )}
                     </div>
                 </div>
 
@@ -499,6 +563,11 @@ const Portfolio: React.FC = () => {
                                 value={activePortfolioId ?? ''}
                                 onChange={e => {
                                     const id = Number(e.target.value);
+                                    const p = portfolios.find(x => x.id === id);
+                                    if (p && !p.enabled) {
+                                        setUpgradeModal({ message: `Portfolio "${p.name}" is disabled because it exceeds your current plan limits. Please upgrade to reactivate it.` });
+                                        return;
+                                    }
                                     setActivePortfolioId(id);
                                     localStorage.setItem('activePortfolioId', String(id));
                                     setRefreshKey(k => k + 1);
@@ -518,7 +587,9 @@ const Portfolio: React.FC = () => {
                                 }}
                             >
                                 {portfolios.map(p => (
-                                    <option key={p.id} value={p.id} style={{ background: '#1e2030', color: '#e2e8f0' }}>{p.name}</option>
+                                    <option key={p.id} value={p.id} style={{ background: '#1e2030', color: p.enabled ? '#e2e8f0' : '#888' }}>
+                                        {p.name} {!p.enabled ? '(Disabled - Upgrade to access)' : ''}
+                                    </option>
                                 ))}
                             </select>
                             <button
@@ -556,16 +627,33 @@ const Portfolio: React.FC = () => {
 
                 {!activePortfolioId ? (
                     <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-gray)' }}>
-                        <p>No portfolio found. Create your first portfolio to get started.</p>
-                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '1rem' }}>
-                            <button className="btn-primary-full" style={{ maxWidth: 240 }}
-                                onClick={openWizard}>
-                                Create Portfolio
-                            </button>
-                            <Link to="/getting-started" className="btn-logout" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', padding: '0.6rem 1.2rem', borderRadius: 8 }}>
-                                View Getting Started Guide
-                            </Link>
-                        </div>
+                        {portfolios.length > 0 ? (
+                            <>
+                                <p style={{ fontSize: '1.1rem', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>All portfolios are currently disabled.</p>
+                                <p style={{ marginBottom: '1.5rem' }}>Your current plan limits have been exceeded. Please upgrade to reactivate your portfolios.</p>
+                                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                                    <Link to="/subscription" className="btn-primary-full" style={{ maxWidth: 240, textDecoration: 'none' }}>
+                                        Upgrade Plan
+                                    </Link>
+                                    <Link to="/getting-started" className="btn-logout" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', padding: '0.6rem 1.2rem', borderRadius: 8 }}>
+                                        View Getting Started Guide
+                                    </Link>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <p>No portfolio found. Create your first portfolio to get started.</p>
+                                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '1rem' }}>
+                                    <button className="btn-primary-full" style={{ maxWidth: 240 }}
+                                        onClick={openWizard}>
+                                        Create Portfolio
+                                    </button>
+                                    <Link to="/getting-started" className="btn-logout" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', padding: '0.6rem 1.2rem', borderRadius: 8 }}>
+                                        View Getting Started Guide
+                                    </Link>
+                                </div>
+                            </>
+                        )}
                     </div>
                 ) : (
                     <>

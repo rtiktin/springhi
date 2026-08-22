@@ -5,12 +5,14 @@ import com.springhi.portfolio.dto.PnlSummaryDto;
 import com.springhi.portfolio.dto.PortfolioProfileDto;
 import com.springhi.portfolio.dto.TransactionDto;
 import com.springhi.portfolio.model.Asset;
+import com.springhi.portfolio.model.OptimizationSchedule;
 import com.springhi.portfolio.model.Portfolio;
 import com.springhi.portfolio.model.PortfolioProfile;
 import com.springhi.portfolio.model.PortfolioRecommendation;
 import com.springhi.portfolio.model.Transaction;
 import com.springhi.portfolio.model.UserPortfolioStats;
 import com.springhi.portfolio.repository.AssetRepository;
+import com.springhi.portfolio.repository.OptimizationScheduleRepository;
 import com.springhi.portfolio.repository.PortfolioProfileRepository;
 import com.springhi.portfolio.repository.PortfolioRecommendationRepository;
 import com.springhi.portfolio.repository.PortfolioRepository;
@@ -41,6 +43,7 @@ public class PortfolioService {
     private final UserProfileService userProfileService;
     private final PortfolioRecommendationRepository recommendationRepository;
     private final UserPortfolioStatsRepository userPortfolioStatsRepository;
+    private final OptimizationScheduleRepository scheduleRepository;
 
     public PortfolioService(AssetRepository assetRepository,
                             TransactionRepository transactionRepository,
@@ -50,7 +53,8 @@ public class PortfolioService {
                             PortfolioProfileRepository portfolioProfileRepository,
                             UserProfileService userProfileService,
                             PortfolioRecommendationRepository recommendationRepository,
-                            UserPortfolioStatsRepository userPortfolioStatsRepository) {
+                            UserPortfolioStatsRepository userPortfolioStatsRepository,
+                            OptimizationScheduleRepository scheduleRepository) {
         this.assetRepository = assetRepository;
         this.transactionRepository = transactionRepository;
         this.marketDataService = marketDataService;
@@ -60,6 +64,7 @@ public class PortfolioService {
         this.userProfileService = userProfileService;
         this.recommendationRepository = recommendationRepository;
         this.userPortfolioStatsRepository = userPortfolioStatsRepository;
+        this.scheduleRepository = scheduleRepository;
     }
 
     public int getTotalPortfoliosCreated(Long userId) {
@@ -325,5 +330,29 @@ public class PortfolioService {
         }
 
         return transactionRepository.save(transaction);
+    }
+
+    @Transactional
+    public void enforceLimits(Long userId, int maxPortfolios) {
+        List<Portfolio> portfolios = portfolioRepository.findByUserIdOrderByCreatedAtAsc(userId);
+        
+        for (int i = 0; i < portfolios.size(); i++) {
+            Portfolio portfolio = portfolios.get(i);
+            boolean shouldBeEnabled = i < maxPortfolios;
+            
+            if (portfolio.isEnabled() != shouldBeEnabled) {
+                portfolio.setEnabled(shouldBeEnabled);
+                portfolioRepository.save(portfolio);
+            }
+            
+            // Sync schedules with portfolio status
+            List<OptimizationSchedule> schedules = scheduleRepository.findByPortfolioId(portfolio.getId());
+            for (OptimizationSchedule schedule : schedules) {
+                if (schedule.isEnabled() != shouldBeEnabled) {
+                    schedule.setEnabled(shouldBeEnabled);
+                    scheduleRepository.save(schedule);
+                }
+            }
+        }
     }
 }

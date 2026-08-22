@@ -8,8 +8,10 @@ import com.springhi.user.repository.PaymentHistoryRepository;
 import com.springhi.user.repository.PaymentMethodRepository;
 import com.springhi.user.repository.SubscriptionConfigRepository;
 import com.springhi.user.repository.UserSubscriptionRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -25,15 +27,21 @@ public class SubscriptionService {
     private final UserSubscriptionRepository subscriptionRepository;
     private final PaymentMethodRepository paymentMethodRepository;
     private final PaymentHistoryRepository paymentHistoryRepository;
+    private final WebClient.Builder webClientBuilder;
+
+    @Value("${app.portfolio-service.url:http://portfolio-service}")
+    private String portfolioServiceUrl;
 
     public SubscriptionService(SubscriptionConfigRepository configRepository,
                                UserSubscriptionRepository subscriptionRepository,
                                PaymentMethodRepository paymentMethodRepository,
-                               PaymentHistoryRepository paymentHistoryRepository) {
+                               PaymentHistoryRepository paymentHistoryRepository,
+                               WebClient.Builder webClientBuilder) {
         this.configRepository = configRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.paymentMethodRepository = paymentMethodRepository;
         this.paymentHistoryRepository = paymentHistoryRepository;
+        this.webClientBuilder = webClientBuilder;
     }
 
     public List<SubscriptionConfig> getAllPlans() {
@@ -128,6 +136,8 @@ public class SubscriptionService {
                 : LocalDateTime.now().plusMonths(1));
         subscriptionRepository.save(sub);
 
+        enforcePlanLimits(userId, plan);
+
         return buildStatusResponse(sub, config, savedPm);
     }
 
@@ -137,7 +147,23 @@ public class SubscriptionService {
             sub.setStatus("CANCELLED");
             sub.setEndDate(sub.getNextBillingDate() != null ? sub.getNextBillingDate() : LocalDateTime.now());
             subscriptionRepository.save(sub);
+            enforcePlanLimits(userId, "FREE");
         });
+    }
+
+    public void enforcePlanLimits(Long userId, String targetPlan) {
+        SubscriptionConfig config = getPlan(targetPlan);
+        int maxPortfolios = config.getMaxPortfolios();
+
+        webClientBuilder.build().post()
+                .uri(portfolioServiceUrl + "/api/v1/portfolio/internal/enforce-limits")
+                .bodyValue(Map.of("userId", userId, "maxPortfolios", maxPortfolios))
+                .retrieve()
+                .toBodilessEntity()
+                .subscribe(
+                        res -> {},
+                        err -> {} // Log error in real implementation
+                );
     }
 
     public Map<String, Object> getStatus(Long userId) {

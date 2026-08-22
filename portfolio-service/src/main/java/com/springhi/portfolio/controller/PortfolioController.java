@@ -149,4 +149,12 @@ public class PortfolioController {
     public ResponseEntity<String> test() {
         return ResponseEntity.ok("Portfolio service is reachable and secured");
     }
+
+    @PostMapping("/internal/enforce-limits")
+    public ResponseEntity<Void> enforceLimits(@RequestBody Map<String, Object> request) {
+        Long userId = ((Number) request.get("userId")).longValue();
+        int maxPortfolios = (Integer) request.get("maxPortfolios");
+        portfolioService.enforceLimits(userId, maxPortfolios);
+        return ResponseEntity.ok().build();
+    }
 }

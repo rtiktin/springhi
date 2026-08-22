@@ -12,6 +12,7 @@ export interface Portfolio {
     name: string;
     description?: string;
     competitionMonth?: string | null;
+    enabled: boolean;
     createdAt: string;
     updatedAt: string;
 }

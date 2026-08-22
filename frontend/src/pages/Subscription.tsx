@@ -217,6 +217,13 @@ const Subscription: React.FC = () => {
 
     const currentPlan = (status?.status === 'CANCELLED') ? 'FREE' : (status?.planName ?? 'FREE');
 
+    const selectedPlanDetails = plans.find(p => p.planName === selectedPlan);
+    const willLoseData = selectedPlanDetails && usageStats && usageStats.portfolioCount > selectedPlanDetails.maxPortfolios;
+    const isDowngrade = selectedPlanDetails && status && (
+        (status.planName === 'PREMIUM' && (selectedPlan === 'BASIC' || selectedPlan === 'FREE')) ||
+        (status.planName === 'BASIC' && selectedPlan === 'FREE')
+    );
+
     return (
         <div className="portfolio-page">
             <header className="navbar">
@@ -427,6 +434,16 @@ const Subscription: React.FC = () => {
                                 <p style={{ color: 'var(--text-primary)', marginBottom: '1rem' }}>
                                     Downgrading to the Free plan will take effect at the end of your current billing period.
                                 </p>
+                                {willLoseData && (
+                                    <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid #ef4444', borderRadius: 8, padding: '0.8rem 1rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                                        <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+                                        <div style={{ fontSize: '0.88rem', color: '#ef4444', lineHeight: 1.5 }}>
+                                            <strong>Data Loss Warning:</strong> You currently have {usageStats.portfolioCount} portfolios.
+                                            The Free plan only supports {selectedPlanDetails.maxPortfolios}.
+                                            Upon downgrade, your oldest {usageStats.portfolioCount - selectedPlanDetails.maxPortfolios} portfolios and their automated schedules will be <strong>disabled</strong>.
+                                        </div>
+                                    </div>
+                                )}
                                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                                     <button
                                         onClick={handleCancel}
@@ -473,6 +490,22 @@ const Subscription: React.FC = () => {
                                 >×</button>
                             </div>
                         </div>
+
+                        {isDowngrade && (
+                            <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid #f59e0b', borderRadius: 8, padding: '0.8rem 1rem', marginBottom: '1.25rem' }}>
+                                <div style={{ fontSize: '0.88rem', color: '#f59e0b', lineHeight: 1.5, fontWeight: 600 }}>
+                                    ⚠️ Plan Downgrade
+                                </div>
+                                <div style={{ fontSize: '0.82rem', color: 'rgba(245,158,11,0.9)', marginTop: 4, lineHeight: 1.4 }}>
+                                    You are moving to a lower plan. New limits will apply immediately upon successful subscription.
+                                    {willLoseData && (
+                                        <div style={{ marginTop: 8, color: '#ef4444', fontWeight: 600 }}>
+                                            Note: Your oldest {usageStats.portfolioCount - selectedPlanDetails.maxPortfolios} portfolios and their schedules will be disabled to fit the {selectedPlanDetails.displayName} limit ({selectedPlanDetails.maxPortfolios}).
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         {status?.paymentMethod && (
                             <div style={{ marginBottom: '1.25rem' }}>

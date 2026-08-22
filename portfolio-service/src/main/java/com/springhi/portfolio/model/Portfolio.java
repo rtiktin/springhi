@@ -26,6 +26,9 @@ public class Portfolio {
     @Column(name = "competition_month")
     private LocalDate competitionMonth;
 
+    @Column(nullable = false)
+    private boolean enabled = true;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -47,5 +50,9 @@ public class Portfolio {
     public LocalDate getCompetitionMonth() { return competitionMonth; }
     public void setCompetitionMonth(LocalDate competitionMonth) { this.competitionMonth = competitionMonth; }
     public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public boolean isEnabled() { return enabled; }
+    public void setEnabled(boolean enabled) { this.enabled = enabled; }
 }
