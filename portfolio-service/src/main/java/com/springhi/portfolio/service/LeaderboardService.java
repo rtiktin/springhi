@@ -80,6 +80,7 @@ public class LeaderboardService {
         final LocalDate finalAnchor = anchor;
         List<LeaderboardEntryDto> entries = new ArrayList<>();
         for (Portfolio portfolio : portfolios) {
+            if (!portfolio.isEnabled()) continue;
             try {
                 List<AssetWithPrice> holdings = portfolioService.getUserAssetsWithPrices(portfolio.getId());
                 if (holdings.size() < MIN_HOLDINGS) continue;
@@ -135,6 +136,7 @@ public class LeaderboardService {
         List<LeaderboardEntryDto> entries = new ArrayList<>();
 
         for (Portfolio portfolio : portfolios) {
+            if (!portfolio.isEnabled()) continue;
             if (competitionOnly && portfolio.getCompetitionMonth() == null) continue;
             try {
                 List<AssetWithPrice> holdings = portfolioService.getUserAssetsWithPrices(portfolio.getId());
