@@ -633,6 +633,7 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
                             <th style={{ ...thStyle, textAlign: 'center' }}>Share</th>
                             {showUser && <th style={thStyle}>Username</th>}
                             <th style={thStyle}>Portfolio</th>
+                            <th style={thStyle}>Goal</th>
                             <th style={{ ...thStyle, textAlign: 'right' }}>TWR{label ? ` (${label})` : ''}</th>
                             {hasMargin && <th style={{ ...thStyle, textAlign: 'right' }}>vs SPY</th>}
                             <th style={{ ...thStyle, textAlign: 'right' }}>Holdings</th>
@@ -704,6 +705,9 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
                                     {entry.competitionMonth && (
                                         <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', background: 'rgba(99,102,241,0.2)', color: '#818cf8', borderRadius: 4, padding: '1px 5px' }}>🏆</span>
                                     )}
+                                </td>
+                                <td style={{ padding: '1rem 1.25rem', color: 'var(--text-gray)', fontSize: '0.85rem', textTransform: 'capitalize' }}>
+                                    {entry.goal ?? '—'}
                                 </td>
                                 <td style={{
                                     padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700, fontSize: '1.05rem',
@@ -874,45 +878,81 @@ const Leaderboard: React.FC = () => {
                     </p>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--border)', marginBottom: '1.75rem' }}>
-                    <div style={{ display: 'flex', gap: '0' }}>
-                        {([['regular', 'All Portfolios / Mine'], ['monthly', '🏆 Monthly Leaderboards']] as [MainTab, string][]).map(([tab, label]) => (
+                <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1.5rem',
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 12,
+                    padding: '1.25rem',
+                    marginBottom: '2rem'
+                }}>
+                    <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--border)' }}>
+                        {([['regular', 'Global Leaderboard'], ['monthly', '🏆 Monthly League']] as [MainTab, string][]).map(([tab, label]) => (
                             <button key={tab} onClick={() => setMainTab(tab)} style={{
-                                padding: '0.65rem 1.5rem', border: 'none',
+                                padding: '0.75rem 1.75rem', border: 'none',
                                 borderBottom: mainTab === tab ? '2px solid var(--accent)' : '2px solid transparent',
                                 background: 'transparent',
                                 color: mainTab === tab ? 'var(--accent)' : 'var(--text-gray)',
                                 fontWeight: mainTab === tab ? 700 : 400, cursor: 'pointer',
-                                fontSize: '0.95rem', marginBottom: '-1px',
+                                fontSize: '1rem', marginBottom: '-1px',
+                                transition: 'all 0.2s'
                             }}>
                                 {label}
                             </button>
                         ))}
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-                        <label style={{ color: 'var(--text-gray)', fontSize: '0.85rem' }}>Filter by Goal:</label>
-                        <div style={{ display: 'flex', gap: '0.4rem' }}>
-                            {GOAL_OPTIONS.map(o => (
-                                <button
-                                    key={o.value}
-                                    onClick={() => setGoal(o.value)}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <span style={{ color: 'var(--text-gray)', fontSize: '0.9rem', fontWeight: 600 }}>Investment Goal:</span>
+                            <div style={{ display: 'flex', gap: '0.4rem' }}>
+                                {GOAL_OPTIONS.map(o => (
+                                    <button
+                                        key={o.value}
+                                        onClick={() => setGoal(o.value)}
+                                        style={{
+                                            padding: '0.4rem 1rem',
+                                            borderRadius: '8px',
+                                            border: '1px solid',
+                                            background: goal === o.value ? 'var(--accent)' : 'var(--bg-card)',
+                                            color: goal === o.value ? '#fff' : 'var(--text-gray)',
+                                            borderColor: goal === o.value ? 'var(--accent)' : 'var(--border)',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            fontSize: '0.85rem',
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        {o.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {mainTab === 'monthly' && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <span style={{ color: 'var(--text-gray)', fontSize: '0.9rem', fontWeight: 600 }}>League:</span>
+                                <select
+                                    value={monthlyMonth}
+                                    onChange={e => setMonthlyMonth(e.target.value)}
                                     style={{
-                                        padding: '0.3rem 0.7rem',
-                                        borderRadius: '6px',
+                                        background: '#1e2030',
+                                        color: '#e2e8f0',
                                         border: '1px solid var(--border)',
-                                        background: goal === o.value ? 'rgba(99,102,241,0.15)' : 'var(--bg-card)',
-                                        color: goal === o.value ? 'var(--accent)' : 'var(--text-gray)',
-                                        borderColor: goal === o.value ? 'var(--accent)' : 'var(--border)',
-                                        fontWeight: goal === o.value ? 700 : 400,
-                                        cursor: 'pointer',
-                                        fontSize: '0.75rem',
+                                        borderRadius: '8px',
+                                        padding: '0.4rem 0.75rem',
+                                        fontSize: '0.85rem',
+                                        cursor: 'pointer'
                                     }}
                                 >
-                                    {o.label}
-                                </button>
-                            ))}
-                        </div>
+                                    {getMonthlyMonthOptions().map(o => (
+                                        <option key={o.value} value={o.value}>{o.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                     </div>
                 </div>
 

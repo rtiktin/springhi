@@ -13,5 +13,6 @@ public record LeaderboardEntryDto(
         int holdingCount,
         double maxHoldingPct,
         LocalDate competitionMonth,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String goal
 ) {}
