@@ -79,7 +79,19 @@ const TYPE_BADGE_COLOR: Record<number, string> = {
     3: '#b91c1c',
 };
 
-type AdminTab = 'users' | 'portfolios' | 'stats' | 'config' | 'support';
+type AdminTab = 'users' | 'portfolios' | 'stats' | 'config' | 'support' | 'payments';
+
+interface AdminPaymentHistory {
+    id: number;
+    userId: number;
+    username: string;
+    email: string;
+    planName: string;
+    amount: number;
+    billingCycle: string;
+    status: string;
+    paymentDate: string;
+}
 
 interface SubscriptionPlan {
     id: number;
@@ -105,7 +117,9 @@ const tdStyle: React.CSSProperties = {
 };
 
 interface DailyCount { date: string; count: number; }
+interface DailyRevenue { date: string; amount: number; }
 interface StatsData { today: number; thisWeek: number; thisMonth: number; thisYear: number; daily: DailyCount[]; }
+interface RevenueData { today: number; thisWeek: number; thisMonth: number; thisYear: number; allTime: number; daily: DailyRevenue[]; }
 interface SubscriptionStats { totalUsers: number; free: number; basic: number; premium: number; }
 interface SubscriptionDailyStats { basicDaily: DailyCount[]; premiumDaily: DailyCount[]; }
 
@@ -239,6 +253,54 @@ const PortfoliosChart: React.FC<{ portfolioDaily: DailyCount[] }> = ({ portfolio
             <g>
                 <rect x={PAD_L + 4} y={PAD_T} width={10} height={10} fill="#22c55e" rx={2} />
                 <text x={PAD_L + 17} y={PAD_T + 9} fontSize={10} fill="var(--text-gray)">New Portfolios</text>
+            </g>
+        </svg>
+    );
+};
+
+const RevenueChart: React.FC<{ revenueDaily: DailyRevenue[] }> = ({ revenueDaily }) => {
+    const W = 700, H = 200, PAD_L = 40, PAD_R = 8, PAD_T = 12, PAD_B = 40;
+    const innerW = W - PAD_L - PAD_R;
+    const innerH = H - PAD_T - PAD_B;
+    const n = revenueDaily.length;
+    if (n === 0) return null;
+
+    const dataMax = Math.max(0, ...revenueDaily.map(d => d.amount));
+    const { ticks, chartMax } = niceTicks(Math.ceil(dataMax));
+    const groupW = innerW / n;
+    const barW = Math.max(2, groupW * 0.5);
+    const yPos = (v: number) => PAD_T + innerH - (v / chartMax) * innerH;
+    const labelEvery = Math.ceil(n / 8);
+
+    return (
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block' }}>
+            {ticks.map(val => {
+                const y = yPos(val);
+                return (
+                    <g key={val}>
+                        <line x1={PAD_L} x2={W - PAD_R} y1={y} y2={y} stroke="var(--border)" strokeWidth={0.5} />
+                        <text x={PAD_L - 4} y={y + 4} textAnchor="end" fontSize={9} fill="var(--text-gray)">${val}</text>
+                    </g>
+                );
+            })}
+            {revenueDaily.map((d, i) => {
+                const cx = PAD_L + i * groupW + groupW / 2;
+                const lastTick = Math.floor((n - 1) / labelEvery) * labelEvery;
+                const showLabel = i % labelEvery === 0 || (i === n - 1 && i - lastTick >= Math.ceil(labelEvery / 2));
+                return (
+                    <g key={d.date}>
+                        <rect x={cx - barW / 2} y={yPos(d.amount)} width={barW} height={(d.amount / chartMax) * innerH} fill="#22c55e" rx={2} opacity={0.85}>
+                            <title>{d.date}: ${d.amount.toFixed(2)}</title>
+                        </rect>
+                        {showLabel && (
+                            <text x={cx} y={H - 6} textAnchor="middle" fontSize={9} fill="var(--text-gray)">{d.date.slice(5)}</text>
+                        )}
+                    </g>
+                );
+            })}
+            <g>
+                <rect x={PAD_L + 4} y={PAD_T} width={10} height={10} fill="#22c55e" rx={2} />
+                <text x={PAD_L + 17} y={PAD_T + 9} fontSize={10} fill="var(--text-gray)">Daily Revenue</text>
             </g>
         </svg>
     );
@@ -552,6 +614,11 @@ const Admin: React.FC = () => {
     const [portfolios, setPortfolios] = useState<AdminPortfolio[]>([]);
     const [loadingUsers, setLoadingUsers] = useState(false);
     const [loadingPortfolios, setLoadingPortfolios] = useState(false);
+    const [payments, setPayments] = useState<AdminPaymentHistory[]>([]);
+    const [loadingPayments, setLoadingPayments] = useState(false);
+    const [revenueStats, setRevenueStats] = useState<RevenueData | null>(null);
+    const [loadingRevenue, setLoadingRevenue] = useState(false);
+    const [revenueChartOffset, setRevenueChartOffset] = useState(0);
     const [error, setError] = useState('');
     const [changingType, setChangingType] = useState<number | null>(null);
     const [impersonating, setImpersonating] = useState<number | null>(null);
@@ -574,6 +641,32 @@ const Admin: React.FC = () => {
         setUserFilters(prev => ({ ...prev, [field]: value }));
         setUserPage(0);
     };
+
+    const [paymentFilters, setPaymentFilters] = useState({ username: '', plan: '', startDate: '', endDate: '' });
+    const setPaymentFilter = (field: keyof typeof paymentFilters, value: string) => {
+        setPaymentFilters(prev => ({ ...prev, [field]: value }));
+        setPaymentPage(0);
+    };
+
+    const filteredPayments = payments.filter(p => {
+        if (paymentFilters.username && !p.username.toLowerCase().includes(paymentFilters.username.toLowerCase())) return false;
+        if (paymentFilters.plan && p.planName !== paymentFilters.plan) return false;
+        if (paymentFilters.startDate) {
+            const start = new Date(paymentFilters.startDate);
+            if (new Date(p.paymentDate) < start) return false;
+        }
+        if (paymentFilters.endDate) {
+            const end = new Date(paymentFilters.endDate);
+            end.setHours(23, 59, 59, 999);
+            if (new Date(p.paymentDate) > end) return false;
+        }
+        return true;
+    });
+
+    const PAYMENT_PAGE_SIZE = 20;
+    const [paymentPage, setPaymentPage] = useState(0);
+    const paymentPageCount = Math.max(1, Math.ceil(filteredPayments.length / PAYMENT_PAGE_SIZE));
+    const pagedPayments = filteredPayments.slice(paymentPage * PAYMENT_PAGE_SIZE, (paymentPage + 1) * PAYMENT_PAGE_SIZE);
 
     const filteredUsers = users.filter(u => {
         const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').toLowerCase();
@@ -667,8 +760,33 @@ const Admin: React.FC = () => {
             loadStats(chartOffset);
         } else if (tab === 'config') {
             loadSubscriptionConfig();
+        } else if (tab === 'payments') {
+            loadPayments();
         }
     }, [tab]);
+
+    const loadPayments = () => {
+        setLoadingPayments(true);
+        axios.get(`${API_GATEWAY}/api/v1/admin/payments`, { headers: authHeader() })
+            .then(res => setPayments(res.data))
+            .catch(() => setError('Failed to load payment history.'))
+            .finally(() => setLoadingPayments(false));
+        loadRevenueStats(revenueChartOffset);
+    };
+
+    const loadRevenueStats = (offset: number) => {
+        setLoadingRevenue(true);
+        axios.get(`${API_GATEWAY}/api/v1/admin/stats/revenue?daysOffset=${offset}`, { headers: authHeader() })
+            .then(res => setRevenueStats(res.data))
+            .catch(() => setError('Failed to load revenue statistics.'))
+            .finally(() => setLoadingRevenue(false));
+    };
+
+    useEffect(() => {
+        if (tab === 'payments') {
+            loadRevenueStats(revenueChartOffset);
+        }
+    }, [revenueChartOffset]);
 
     useEffect(() => {
         if (tab === 'stats') {
@@ -919,6 +1037,7 @@ const Admin: React.FC = () => {
                     <button style={tabStyle('portfolios')} onClick={() => setTab('portfolios')}>Portfolios</button>
                     <button style={tabStyle('stats')} onClick={() => setTab('stats')}>Statistics</button>
                     <button style={tabStyle('config')} onClick={() => setTab('config')}>Config</button>
+                    <button style={tabStyle('payments')} onClick={() => setTab('payments')}>Payments</button>
                     <button style={tabStyle('support')} onClick={() => setTab('support')}>Support</button>
                 </div>
 
@@ -1265,6 +1384,189 @@ const Admin: React.FC = () => {
                     )}
 
                     {tab === 'support' && <AdminSupportPanel />}
+
+                    {tab === 'payments' && (
+                        <>
+                            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1.25rem', color: 'var(--text-primary)' }}>Revenue Summary</h2>
+                            {loadingRevenue ? (
+                                <div className="portfolio-loading">Loading revenue stats…</div>
+                            ) : revenueStats ? (
+                                <>
+                                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
+                                        <StatCard label="Today" value={Number(revenueStats.today)} color="#22c55e" />
+                                        <StatCard label="This Week" value={Number(revenueStats.thisWeek)} color="#22c55e" />
+                                        <StatCard label="This Month" value={Number(revenueStats.thisMonth)} color="#22c55e" />
+                                        <StatCard label="This Year" value={Number(revenueStats.thisYear)} color="#22c55e" />
+                                        <StatCard label="All Time" value={Number(revenueStats.allTime)} color="#10b981" />
+                                    </div>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                                        <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1rem', fontWeight: 700 }}>
+                                            {revenueChartOffset === 0 ? 'Last 30 Days' : `${revenueChartOffset + 30} – ${revenueChartOffset + 1} Days Ago`} — Revenue
+                                        </h3>
+                                        <button 
+                                            style={{ padding: '0.3rem 0.8rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem' }} 
+                                            onClick={() => setRevenueChartOffset(revenueChartOffset + 30)}
+                                        >← Back</button>
+                                        <button 
+                                            style={{ padding: '0.3rem 0.8rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', cursor: revenueChartOffset === 0 ? 'default' : 'pointer', fontSize: '0.85rem', opacity: revenueChartOffset === 0 ? 0.4 : 1 }}
+                                            onClick={() => setRevenueChartOffset(Math.max(0, revenueChartOffset - 30))}
+                                            disabled={revenueChartOffset === 0}
+                                        >Forward →</button>
+                                    </div>
+                                    <div style={{ background: 'var(--bg-dark)', borderRadius: 8, padding: '1rem', marginBottom: '2.5rem' }}>
+                                        <RevenueChart revenueDaily={revenueStats.daily} />
+                                    </div>
+                                </>
+                            ) : null}
+
+                            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1.25rem', color: 'var(--text-primary)' }}>Payment History</h2>
+                            
+                            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1.25rem', alignItems: 'flex-end' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <label style={{ fontSize: '0.75rem', color: 'var(--text-gray)' }}>Username</label>
+                                    <input
+                                        value={paymentFilters.username}
+                                        onChange={e => setPaymentFilter('username', e.target.value)}
+                                        placeholder="Filter by username..."
+                                        style={{ background: 'var(--bg-dark)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.35rem 0.65rem', fontSize: '0.85rem', width: 150 }}
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <label style={{ fontSize: '0.75rem', color: 'var(--text-gray)' }}>Plan</label>
+                                    <select
+                                        value={paymentFilters.plan}
+                                        onChange={e => setPaymentFilter('plan', e.target.value)}
+                                        style={{ background: 'var(--bg-dark)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.35rem 0.65rem', fontSize: '0.85rem', height: '32px' }}
+                                    >
+                                        <option value="">All Plans</option>
+                                        <option value="FREE">Free</option>
+                                        <option value="BASIC">Basic</option>
+                                        <option value="PREMIUM">Premium</option>
+                                    </select>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <label style={{ fontSize: '0.75rem', color: 'var(--text-gray)' }}>From</label>
+                                    <input
+                                        type="date"
+                                        value={paymentFilters.startDate}
+                                        onChange={e => setPaymentFilter('startDate', e.target.value)}
+                                        style={{ background: 'var(--bg-dark)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    <label style={{ fontSize: '0.75rem', color: 'var(--text-gray)' }}>To</label>
+                                    <input
+                                        type="date"
+                                        value={paymentFilters.endDate}
+                                        onChange={e => setPaymentFilter('endDate', e.target.value)}
+                                        style={{ background: 'var(--bg-dark)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.35rem 0.65rem', fontSize: '0.85rem' }}
+                                    />
+                                </div>
+                                {(paymentFilters.username || paymentFilters.plan || paymentFilters.startDate || paymentFilters.endDate) && (
+                                    <button
+                                        onClick={() => setPaymentFilters({ username: '', plan: '', startDate: '', endDate: '' })}
+                                        style={{ background: 'transparent', color: 'var(--text-gray)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.35rem 0.65rem', fontSize: '0.85rem', cursor: 'pointer', height: '32px' }}
+                                    >
+                                        Clear
+                                    </button>
+                                )}
+                                <span style={{ fontSize: '0.82rem', color: 'var(--text-gray)', marginLeft: 'auto', alignSelf: 'center' }}>
+                                    {filteredPayments.length} records found
+                                </span>
+                            </div>
+
+                            {loadingPayments ? (
+                                <div className="portfolio-loading">Loading payments…</div>
+                            ) : (
+                                <>
+                                    <div style={{ overflowX: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                                            <thead>
+                                                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                                    <th style={thStyle}>Date</th>
+                                                    <th style={thStyle}>User</th>
+                                                    <th style={thStyle}>Email</th>
+                                                    <th style={thStyle}>Plan</th>
+                                                    <th style={thStyle}>Amount</th>
+                                                    <th style={thStyle}>Billing</th>
+                                                    <th style={thStyle}>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {pagedPayments.map(p => (
+                                                    <tr key={p.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                        <td style={tdStyle}>{new Date(p.paymentDate).toLocaleString()}</td>
+                                                        <td style={{ ...tdStyle, fontWeight: 600 }}>{p.username}</td>
+                                                        <td style={tdStyle}>{p.email}</td>
+                                                        <td style={tdStyle}>
+                                                            <span style={{
+                                                                background: p.planName === 'PREMIUM' ? '#6c47ff' : p.planName === 'BASIC' ? '#f59e0b' : '#6b7280',
+                                                                color: '#fff', borderRadius: 4, padding: '0.15rem 0.4rem', fontSize: '0.75rem', fontWeight: 700
+                                                            }}>
+                                                                {p.planName}
+                                                            </span>
+                                                        </td>
+                                                        <td style={tdStyle}>${p.amount.toFixed(2)}</td>
+                                                        <td style={tdStyle}>{p.billingCycle}</td>
+                                                        <td style={tdStyle}>
+                                                            <span style={{
+                                                                color: p.status === 'COMPLETED' ? '#22c55e' : p.status === 'FAILED' ? '#ef4444' : '#f59e0b',
+                                                                fontWeight: 700, fontSize: '0.85rem'
+                                                            }}>
+                                                                {p.status}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {filteredPayments.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-gray)' }}>No payments found.</td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {paymentPageCount > 1 && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                                            <button
+                                                onClick={() => setPaymentPage(0)}
+                                                disabled={paymentPage === 0}
+                                                style={{ padding: '0.3rem 0.6rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', cursor: paymentPage === 0 ? 'default' : 'pointer', opacity: paymentPage === 0 ? 0.4 : 1 }}
+                                            >«</button>
+                                            <button
+                                                onClick={() => setPaymentPage(p => Math.max(0, p - 1))}
+                                                disabled={paymentPage === 0}
+                                                style={{ padding: '0.3rem 0.6rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', cursor: paymentPage === 0 ? 'default' : 'pointer', opacity: paymentPage === 0 ? 0.4 : 1 }}
+                                            >‹</button>
+                                            {Array.from({ length: paymentPageCount }, (_, i) => i)
+                                                .filter(i => Math.abs(i - paymentPage) <= 2)
+                                                .map(i => (
+                                                    <button
+                                                        key={i}
+                                                        onClick={() => setPaymentPage(i)}
+                                                        style={{ padding: '0.3rem 0.65rem', borderRadius: 6, border: '1px solid var(--border)', background: i === paymentPage ? '#6c47ff' : 'var(--bg-dark)', color: '#fff', cursor: 'pointer', fontWeight: i === paymentPage ? 700 : 400 }}
+                                                    >{i + 1}</button>
+                                                ))}
+                                            <button
+                                                onClick={() => setPaymentPage(p => Math.min(paymentPageCount - 1, p + 1))}
+                                                disabled={paymentPage === paymentPageCount - 1}
+                                                style={{ padding: '0.3rem 0.6rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', cursor: paymentPage === paymentPageCount - 1 ? 'default' : 'pointer', opacity: paymentPage === paymentPageCount - 1 ? 0.4 : 1 }}
+                                            >›</button>
+                                            <button
+                                                onClick={() => setPaymentPage(paymentPageCount - 1)}
+                                                disabled={paymentPage === paymentPageCount - 1}
+                                                style={{ padding: '0.3rem 0.6rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', cursor: paymentPage === paymentPageCount - 1 ? 'default' : 'pointer', opacity: paymentPage === paymentPageCount - 1 ? 0.4 : 1 }}
+                                            >»</button>
+                                            <span style={{ fontSize: '0.82rem', color: 'var(--text-gray)' }}>
+                                                {paymentPage * PAYMENT_PAGE_SIZE + 1}–{Math.min((paymentPage + 1) * PAYMENT_PAGE_SIZE, filteredPayments.length)} of {filteredPayments.length}
+                                            </span>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </>
+                    )}
 
                     {tab === 'config' && (
                         <>

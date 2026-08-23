@@ -43,6 +43,10 @@ spring:
           uri: ${BACKEND_URL:http://localhost:8080}
           predicates:
             - Path=/api/v1/admin/users/**
+        - id: admin-payments
+          uri: ${BACKEND_URL:http://localhost:8080}
+          predicates:
+            - Path=/api/v1/admin/payments
         - id: admin-portfolios
           uri: ${PORTFOLIO_URL:http://localhost:8081}
           predicates:
@@ -63,6 +67,10 @@ spring:
           uri: ${BACKEND_URL:http://localhost:8080}
           predicates:
             - Path=/api/v1/admin/stats/subscriptions/daily
+        - id: admin-stats-revenue
+          uri: ${BACKEND_URL:http://localhost:8080}
+          predicates:
+            - Path=/api/v1/admin/stats/revenue
         - id: portfolios-usage-stats
           uri: ${PORTFOLIO_URL:http://localhost:8081}
           predicates:

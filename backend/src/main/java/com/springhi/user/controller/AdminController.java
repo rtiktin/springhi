@@ -1,9 +1,12 @@
 package com.springhi.user.controller;
 
+import com.springhi.user.dto.AdminPaymentHistoryDto;
+import com.springhi.user.dto.AdminRevenueDto;
 import com.springhi.user.dto.AdminUserDto;
 import com.springhi.user.model.SubscriptionConfig;
 import com.springhi.user.model.User;
 import com.springhi.user.model.UserIpAddress;
+import com.springhi.user.repository.PaymentHistoryRepository;
 import com.springhi.user.repository.UserEmailHistoryRepository;
 import com.springhi.user.repository.UserIpAddressRepository;
 import com.springhi.user.repository.UserPhoneHistoryRepository;
@@ -35,6 +38,7 @@ public class AdminController {
     private final UserIpAddressRepository userIpAddressRepository;
     private final SubscriptionService subscriptionService;
     private final UserSubscriptionRepository userSubscriptionRepository;
+    private final PaymentHistoryRepository paymentHistoryRepository;
 
     public AdminController(UserService userService, UserRepository userRepository,
                            UserIpAddressService userIpAddressService,
@@ -42,7 +46,8 @@ public class AdminController {
                            UserPhoneHistoryRepository phoneHistoryRepository,
                            UserIpAddressRepository userIpAddressRepository,
                            SubscriptionService subscriptionService,
-                           UserSubscriptionRepository userSubscriptionRepository) {
+                           UserSubscriptionRepository userSubscriptionRepository,
+                           PaymentHistoryRepository paymentHistoryRepository) {
         this.userService = userService;
         this.userRepository = userRepository;
         this.userIpAddressService = userIpAddressService;
@@ -51,6 +56,7 @@ public class AdminController {
         this.userIpAddressRepository = userIpAddressRepository;
         this.subscriptionService = subscriptionService;
         this.userSubscriptionRepository = userSubscriptionRepository;
+        this.paymentHistoryRepository = paymentHistoryRepository;
     }
 
     private boolean isAdmin(UserDetails userDetails) {
@@ -58,6 +64,31 @@ public class AdminController {
             return u.getUserType() == 10;
         }
         return false;
+    }
+
+    @GetMapping("/payments")
+    public ResponseEntity<List<AdminPaymentHistoryDto>> getPaymentHistory(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null || !isAdmin(userDetails)) {
+            return ResponseEntity.status(403).build();
+        }
+        
+        List<com.springhi.user.model.PaymentHistory> payments = paymentHistoryRepository.findAllByOrderByPaymentDateDesc();
+        Set<Long> userIds = payments.stream().map(com.springhi.user.model.PaymentHistory::getUserId).collect(Collectors.toSet());
+        
+        Map<Long, User> userMap = userRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(User::getId, u -> u));
+        
+        List<AdminPaymentHistoryDto> dtos = payments.stream()
+                .map(p -> {
+                    User u = userMap.get(p.getUserId());
+                    String username = u != null ? u.getUsername() : "Unknown";
+                    String email = u != null ? u.getEmail() : "Unknown";
+                    return AdminPaymentHistoryDto.from(p, username, email);
+                })
+                .collect(Collectors.toList());
+        
+        return ResponseEntity.ok(dtos);
     }
 
     @GetMapping("/users")
@@ -168,12 +199,69 @@ public class AdminController {
             }
         }
 
-        List<Map<String, Object>> basicDaily = new ArrayList<>();
-        basicByDay.forEach((date, count) -> basicDaily.add(Map.of("date", date, "count", count)));
-        List<Map<String, Object>> premiumDaily = new ArrayList<>();
-        premiumByDay.forEach((date, count) -> premiumDaily.add(Map.of("date", date, "count", count)));
+        return ResponseEntity.ok(Map.of("basicDaily", dailyToMapList(basicByDay), "premiumDaily", dailyToMapList(premiumByDay)));
+    }
 
-        return ResponseEntity.ok(Map.of("basicDaily", basicDaily, "premiumDaily", premiumDaily));
+    private List<Map<String, Object>> dailyToMapList(Map<String, Long> dailyCounts) {
+        List<Map<String, Object>> list = new ArrayList<>();
+        dailyCounts.forEach((date, count) -> list.add(Map.of("date", date, "count", count)));
+        return list;
+    }
+
+    @GetMapping("/stats/revenue")
+    public ResponseEntity<AdminRevenueDto> getRevenueStats(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(defaultValue = "0") int daysOffset) {
+        if (userDetails == null || !isAdmin(userDetails)) {
+            return ResponseEntity.status(403).build();
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startOfToday = now.toLocalDate().atStartOfDay();
+        LocalDateTime startOfWeek = now.toLocalDate().with(java.time.DayOfWeek.MONDAY).atStartOfDay();
+        LocalDateTime startOfMonth = now.toLocalDate().withDayOfMonth(1).atStartOfDay();
+        LocalDateTime startOfYear = now.toLocalDate().withDayOfYear(1).atStartOfDay();
+
+        List<com.springhi.user.model.PaymentHistory> all = paymentHistoryRepository.findAll();
+        
+        java.math.BigDecimal todaySum = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal weekSum = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal monthSum = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal yearSum = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal allTimeSum = java.math.BigDecimal.ZERO;
+
+        for (com.springhi.user.model.PaymentHistory p : all) {
+            if (!"COMPLETED".equals(p.getStatus())) continue;
+            java.math.BigDecimal amt = p.getAmount();
+            allTimeSum = allTimeSum.add(amt);
+            LocalDateTime pd = p.getPaymentDate();
+            if (pd.isAfter(startOfToday)) todaySum = todaySum.add(amt);
+            if (pd.isAfter(startOfWeek)) weekSum = weekSum.add(amt);
+            if (pd.isAfter(startOfMonth)) monthSum = monthSum.add(amt);
+            if (pd.isAfter(startOfYear)) yearSum = yearSum.add(amt);
+        }
+
+        LocalDateTime windowEnd = startOfToday.minusDays(daysOffset);
+        LocalDateTime windowStart = windowEnd.minusDays(29);
+        List<com.springhi.user.model.PaymentHistory> recent = 
+            paymentHistoryRepository.findByPaymentDateBetween(windowStart, windowEnd.plusDays(1));
+
+        Map<String, java.math.BigDecimal> dailyRevenue = new LinkedHashMap<>();
+        for (int i = 29; i >= 0; i--) {
+            dailyRevenue.put(windowEnd.minusDays(i).toLocalDate().toString(), java.math.BigDecimal.ZERO);
+        }
+        for (com.springhi.user.model.PaymentHistory p : recent) {
+            if (!"COMPLETED".equals(p.getStatus())) continue;
+            String day = p.getPaymentDate().toLocalDate().toString();
+            if (dailyRevenue.containsKey(day)) {
+                dailyRevenue.put(day, dailyRevenue.get(day).add(p.getAmount()));
+            }
+        }
+
+        List<Map<String, Object>> daily = new ArrayList<>();
+        dailyRevenue.forEach((date, amount) -> daily.add(Map.of("date", date, "amount", amount)));
+
+        return ResponseEntity.ok(new AdminRevenueDto(todaySum, weekSum, monthSum, yearSum, allTimeSum, daily));
     }
 
     @PutMapping("/users/{id}/type")
