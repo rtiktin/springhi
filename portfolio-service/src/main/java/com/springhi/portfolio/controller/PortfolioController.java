@@ -154,7 +154,8 @@ public class PortfolioController {
     public ResponseEntity<Void> enforceLimits(@RequestBody Map<String, Object> request) {
         Long userId = ((Number) request.get("userId")).longValue();
         int maxPortfolios = (Integer) request.get("maxPortfolios");
-        portfolioService.enforceLimits(userId, maxPortfolios);
+        int maxOptimizations = (Integer) request.getOrDefault("maxOptimizationsPerMonth", Integer.MAX_VALUE);
+        portfolioService.enforceLimits(userId, maxPortfolios, maxOptimizations);
         return ResponseEntity.ok().build();
     }
 }

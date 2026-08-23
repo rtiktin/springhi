@@ -9,10 +9,13 @@ import {
     getLeaderboardPortfolioCash,
     getLeaderboardPortfolioPnl,
     getMonthlyLeaderboard,
+    getAiRunTimestamps,
+    getAiRunDetails,
 } from '../api/portfolioApi';
 import type { LeaderboardEntry, AssetWithPrice, Transaction, AiRunDetails, PnlSummary } from '../api/portfolioApi';
 import { getLoggedInUsername, isAdmin } from '../utils/auth';
 import ImpersonationBanner from '../components/ImpersonationBanner';
+import ShareableCard from '../components/ShareableCard';
 
 const isLoggedIn = () => !!localStorage.getItem('token');
 
@@ -27,6 +30,14 @@ const RANGE_LABELS: Record<LeaderboardRange, string> = {
     '6M': '6 Months',
     '1Y': '1 Year',
 };
+
+const GOAL_OPTIONS = [
+    { value: '', label: 'All Goals' },
+    { value: 'income', label: 'Income' },
+    { value: 'growth', label: 'Growth' },
+    { value: 'balanced', label: 'Balanced' },
+    { value: 'speculation', label: 'Speculation' },
+];
 
 const rankMedal = (rank: number) => {
     if (rank === 1) return '🥇';
@@ -585,16 +596,41 @@ interface LeaderboardTableProps {
 
 const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, showUser, rangeLabel }) => {
     const [selectedEntry, setSelectedEntry] = useState<LeaderboardEntry | null>(null);
+    const [shareEntry, setShareEntry] = useState<{ entry: LeaderboardEntry; holdings: AssetWithPrice[]; aiDetails: AiRunDetails | null } | null>(null);
+    const [sharingId, setSharingId] = useState<number | null>(null);
+
+    const handleShare = async (e: React.MouseEvent, entry: LeaderboardEntry) => {
+        e.stopPropagation();
+        setSharingId(entry.portfolioId);
+        try {
+            const [holdings, timestamps] = await Promise.all([
+                getLeaderboardPortfolioHoldings(entry.portfolioId),
+                getLeaderboardPortfolioAiRunTimestamps(entry.portfolioId).catch(() => []),
+            ]);
+            let aiDetails: AiRunDetails | null = null;
+            if (timestamps && timestamps.length > 0) {
+                aiDetails = await getLeaderboardAiRunDetails(entry.portfolioId, timestamps[0]);
+            }
+            setShareEntry({ entry, holdings, aiDetails });
+        } catch (err) {
+            console.error('Failed to prepare share card', err);
+        } finally {
+            setSharingId(null);
+        }
+    };
+
     const hasMargin = entries.some(e => e.marginVsSpy != null);
     const label = rangeLabel ?? (range ? RANGE_LABELS[range] : '');
 
     return (
         <>
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
+                        <thead>
                         <tr style={{ background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid var(--border)' }}>
                             <th style={thStyle}>Rank</th>
+                            <th style={{ ...thStyle, textAlign: 'center' }}>Share</th>
                             {showUser && <th style={thStyle}>Username</th>}
                             <th style={thStyle}>Portfolio</th>
                             <th style={{ ...thStyle, textAlign: 'right' }}>TWR{label ? ` (${label})` : ''}</th>
@@ -619,6 +655,42 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
                             >
                                 <td style={{ padding: '1rem 1.25rem', fontSize: '1.1rem', fontWeight: 700 }}>
                                     {rankMedal(entry.rank)}
+                                </td>
+                                <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
+                                    <button
+                                        onClick={(e) => handleShare(e, entry)}
+                                        disabled={sharingId === entry.portfolioId}
+                                        style={{
+                                            background: 'rgba(108, 71, 255, 0.1)',
+                                            color: '#818cf8',
+                                            border: '1px solid rgba(108, 71, 255, 0.2)',
+                                            borderRadius: 6,
+                                            padding: '0.4rem 0.75rem',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.4rem',
+                                            margin: '0 auto'
+                                        }}
+                                        onMouseEnter={e => {
+                                            if (sharingId !== entry.portfolioId) {
+                                                e.currentTarget.style.background = 'rgba(108, 71, 255, 0.2)';
+                                                e.currentTarget.style.borderColor = 'rgba(108, 71, 255, 0.4)';
+                                            }
+                                        }}
+                                        onMouseLeave={e => {
+                                            if (sharingId !== entry.portfolioId) {
+                                                e.currentTarget.style.background = 'rgba(108, 71, 255, 0.1)';
+                                                e.currentTarget.style.borderColor = 'rgba(108, 71, 255, 0.2)';
+                                            }
+                                        }}
+                                    >
+                                        {sharingId === entry.portfolioId ? '⌛' : '📤'}
+                                        <span>{sharingId === entry.portfolioId ? 'Preparing...' : 'Share'}</span>
+                                    </button>
                                 </td>
                                 {showUser && (
                                     <td style={{ padding: '1rem 1.25rem', color: 'var(--text-gray)', fontSize: '0.9rem' }}>
@@ -658,25 +730,44 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
                     </tbody>
                 </table>
             </div>
+        </div>
 
-            {selectedEntry && (
+        {selectedEntry && (
                 <PortfolioDetailModal entry={selectedEntry} onClose={() => setSelectedEntry(null)} />
+            )}
+
+            {shareEntry && (
+                <ShareableCard
+                    portfolioName={shareEntry.entry.portfolioName}
+                    aiProvider={shareEntry.aiDetails?.recommendations[0]?.aiProvider || null}
+                    rank={shareEntry.entry.rank}
+                    totalUsers={entries.length}
+                    twrPercent={shareEntry.entry.twrPercent}
+                    marginVsSpy={shareEntry.entry.marginVsSpy}
+                    confidenceScore={shareEntry.aiDetails?.confidenceScore || null}
+                    holdings={shareEntry.holdings}
+                    competitionMonth={shareEntry.entry.competitionMonth}
+                    createdAt={shareEntry.entry.createdAt}
+                    hideRank={!showUser}
+                    onClose={() => setShareEntry(null)}
+                />
             )}
         </>
     );
 };
 
-const LeaderboardPane: React.FC<{ scope: LeaderboardScope; range: LeaderboardRange }> = ({ scope, range }) => {
+const LeaderboardPane: React.FC<{ scope: LeaderboardScope; range: LeaderboardRange; goal: string }> = ({ scope, range, goal }) => {
     const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
     useEffect(() => {
-        getLeaderboard(range, scope)
+        setLoading(true);
+        getLeaderboard(range, scope, goal)
             .then(setEntries)
             .catch(() => setError('Failed to load leaderboard. Please try again.'))
             .finally(() => setLoading(false));
-    }, [scope, range]);
+    }, [scope, range, goal]);
 
     if (loading) return <div style={{ textAlign: 'center', color: 'var(--text-gray)', padding: '3rem' }}>Loading…</div>;
     if (error) return <div style={{ textAlign: 'center', color: '#f87171', padding: '1rem' }}>{error}</div>;
@@ -684,18 +775,19 @@ const LeaderboardPane: React.FC<{ scope: LeaderboardScope; range: LeaderboardRan
     return <LeaderboardTable entries={entries} range={range} showUser={scope === 'all'} />;
 };
 
-const MonthlyLeaderboardPane: React.FC<{ month: string }> = ({ month }) => {
+const MonthlyLeaderboardPane: React.FC<{ month: string; goal: string }> = ({ month, goal }) => {
     const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
     useEffect(() => {
         if (!month) return;
-        getMonthlyLeaderboard(month)
+        setLoading(true);
+        getMonthlyLeaderboard(month, goal)
             .then(setEntries)
             .catch(() => setError('Failed to load monthly leaderboard.'))
             .finally(() => setLoading(false));
-    }, [month]);
+    }, [month, goal]);
 
     if (loading) return <div style={{ textAlign: 'center', color: 'var(--text-gray)', padding: '3rem' }}>Loading…</div>;
     if (error) return <div style={{ textAlign: 'center', color: '#f87171', padding: '1rem' }}>{error}</div>;
@@ -737,6 +829,7 @@ const getMonthlyMonthOptions = (): { value: string; label: string }[] => {
 const Leaderboard: React.FC = () => {
     const [range, setRange] = useState<LeaderboardRange>('1M');
     const [scope, setScope] = useState<LeaderboardScope>('all');
+    const [goal, setGoal] = useState<string>('');
     const [mainTab, setMainTab] = useState<MainTab>('regular');
     const [monthlyMonth, setMonthlyMonth] = useState<string>(getDefaultMonthlyMonth());
     const username = getLoggedInUsername();
@@ -781,19 +874,46 @@ const Leaderboard: React.FC = () => {
                     </p>
                 </div>
 
-                <div style={{ display: 'flex', gap: '0', marginBottom: '1.75rem', borderBottom: '1px solid var(--border)' }}>
-                    {([['regular', 'All Portfolios / Mine'], ['monthly', '🏆 Monthly Leaderboards']] as [MainTab, string][]).map(([tab, label]) => (
-                        <button key={tab} onClick={() => setMainTab(tab)} style={{
-                            padding: '0.65rem 1.5rem', border: 'none',
-                            borderBottom: mainTab === tab ? '2px solid var(--accent)' : '2px solid transparent',
-                            background: 'transparent',
-                            color: mainTab === tab ? 'var(--accent)' : 'var(--text-gray)',
-                            fontWeight: mainTab === tab ? 700 : 400, cursor: 'pointer',
-                            fontSize: '0.95rem', marginBottom: '-1px',
-                        }}>
-                            {label}
-                        </button>
-                    ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--border)', marginBottom: '1.75rem' }}>
+                    <div style={{ display: 'flex', gap: '0' }}>
+                        {([['regular', 'All Portfolios / Mine'], ['monthly', '🏆 Monthly Leaderboards']] as [MainTab, string][]).map(([tab, label]) => (
+                            <button key={tab} onClick={() => setMainTab(tab)} style={{
+                                padding: '0.65rem 1.5rem', border: 'none',
+                                borderBottom: mainTab === tab ? '2px solid var(--accent)' : '2px solid transparent',
+                                background: 'transparent',
+                                color: mainTab === tab ? 'var(--accent)' : 'var(--text-gray)',
+                                fontWeight: mainTab === tab ? 700 : 400, cursor: 'pointer',
+                                fontSize: '0.95rem', marginBottom: '-1px',
+                            }}>
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                        <label style={{ color: 'var(--text-gray)', fontSize: '0.85rem' }}>Filter by Goal:</label>
+                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                            {GOAL_OPTIONS.map(o => (
+                                <button
+                                    key={o.value}
+                                    onClick={() => setGoal(o.value)}
+                                    style={{
+                                        padding: '0.3rem 0.7rem',
+                                        borderRadius: '6px',
+                                        border: '1px solid var(--border)',
+                                        background: goal === o.value ? 'rgba(99,102,241,0.15)' : 'var(--bg-card)',
+                                        color: goal === o.value ? 'var(--accent)' : 'var(--text-gray)',
+                                        borderColor: goal === o.value ? 'var(--accent)' : 'var(--border)',
+                                        fontWeight: goal === o.value ? 700 : 400,
+                                        cursor: 'pointer',
+                                        fontSize: '0.75rem',
+                                    }}
+                                >
+                                    {o.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
 
                 {mainTab === 'regular' && (
@@ -826,7 +946,7 @@ const Leaderboard: React.FC = () => {
                             ))}
                         </div>
 
-                        <LeaderboardPane scope={scope} range={range} />
+                        <LeaderboardPane scope={scope} range={range} goal={goal} />
                     </>
                 )}
 
@@ -851,7 +971,7 @@ const Leaderboard: React.FC = () => {
                                 ))}
                             </select>
                         </div>
-                        <MonthlyLeaderboardPane month={monthlyMonth} />
+                        <MonthlyLeaderboardPane month={monthlyMonth} goal={goal} />
                     </>
                 )}
 

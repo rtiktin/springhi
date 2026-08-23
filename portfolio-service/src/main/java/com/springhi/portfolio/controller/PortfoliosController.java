@@ -1,6 +1,7 @@
 package com.springhi.portfolio.controller;
 
 import com.springhi.portfolio.dto.PortfolioProfileDto;
+import com.springhi.portfolio.model.OptimizationSchedule;
 import com.springhi.portfolio.model.Portfolio;
 import com.springhi.portfolio.repository.PortfolioRecommendationRepository;
 import com.springhi.portfolio.security.UserPrincipal;
@@ -47,7 +48,8 @@ public class PortfoliosController {
         
         if (limits != null) {
             int maxPortfolios = limits.get("maxPortfolios") instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
-            portfolioService.enforceLimits(principal.getId(), maxPortfolios);
+            int maxOptimizations = limits.get("maxOptimizationsPerMonth") instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
+            portfolioService.enforceLimits(principal.getId(), maxPortfolios, maxOptimizations);
         }
 
         int portfolioCount = (int) portfolioService.listPortfolios(principal.getId()).stream()
@@ -61,11 +63,31 @@ public class PortfoliosController {
                 : LocalDate.now().withDayOfMonth(1).atStartOfDay();
         long optimizationCount = recommendationRepository.countOptimizationRunsSince(principal.getId(), countSince);
 
+        // Calculate projected monthly optimizations from active schedules
+        List<Portfolio> allPortfolios = portfolioService.listPortfolios(principal.getId());
+        int projectedOptimizations = allPortfolios.stream()
+                .filter(Portfolio::isEnabled)
+                .flatMap(p -> portfolioService.getSchedulesForPortfolio(p.getId()).stream())
+                .filter(OptimizationSchedule::isEnabled)
+                .mapToInt(s -> getMonthlyFreq(s.getFrequency()))
+                .sum();
+
         Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("portfolioCount", portfolioCount);
         stats.put("optimizationsThisMonth", optimizationCount);
+        stats.put("projectedOptimizationsPerMonth", projectedOptimizations);
         stats.put("isFreeLimit", isFree);
         return ResponseEntity.ok(stats);
+    }
+
+    private int getMonthlyFreq(String frequency) {
+        if (frequency == null) return 0;
+        return switch (frequency.toUpperCase()) {
+            case "DAILY" -> 30;
+            case "WEEKLY" -> 4;
+            case "MONTHLY" -> 1;
+            default -> 0;
+        };
     }
 
     @GetMapping("/creation-count")
@@ -84,7 +106,8 @@ public class PortfoliosController {
         userServiceClient.getSubscriptionLimits(principal.getId(), request.getHeader("Authorization"))
                 .ifPresent(limits -> {
                     int maxPortfolios = limits.get("maxPortfolios") instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
-                    portfolioService.enforceLimits(principal.getId(), maxPortfolios);
+                    int maxOptimizations = limits.get("maxOptimizationsPerMonth") instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
+                    portfolioService.enforceLimits(principal.getId(), maxPortfolios, maxOptimizations);
                 });
 
         return ResponseEntity.ok(portfolioService.listPortfolios(principal.getId()));
@@ -101,7 +124,8 @@ public class PortfoliosController {
         Map<String, Object> limits = userServiceClient.getSubscriptionLimits(principal.getId(), authHeader).orElse(null);
         if (limits != null) {
             int maxPortfolios = limits.get("maxPortfolios") instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
-            portfolioService.enforceLimits(principal.getId(), maxPortfolios);
+            int maxOptimizations = limits.get("maxOptimizationsPerMonth") instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
+            portfolioService.enforceLimits(principal.getId(), maxPortfolios, maxOptimizations);
             int currentCount = (int) portfolioService.listPortfolios(principal.getId()).stream()
                     .filter(Portfolio::isEnabled)
                     .count();

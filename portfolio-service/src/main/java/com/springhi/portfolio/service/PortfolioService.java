@@ -67,6 +67,10 @@ public class PortfolioService {
         this.scheduleRepository = scheduleRepository;
     }
 
+    public List<OptimizationSchedule> getSchedulesForPortfolio(Long portfolioId) {
+        return scheduleRepository.findByPortfolioId(portfolioId);
+    }
+
     public int getTotalPortfoliosCreated(Long userId) {
         return userPortfolioStatsRepository.findById(userId)
                 .map(UserPortfolioStats::getTotalCreated)
@@ -333,9 +337,12 @@ public class PortfolioService {
     }
 
     @Transactional
-    public void enforceLimits(Long userId, int maxPortfolios) {
+    public void enforceLimits(Long userId, int maxPortfolios, int maxOptimizationsPerMonth) {
         List<Portfolio> portfolios = portfolioRepository.findByUserIdOrderByCreatedAtAsc(userId);
         
+        int enabledPortfolios = 0;
+        int projectedOptimizations = 0;
+
         for (int i = 0; i < portfolios.size(); i++) {
             Portfolio portfolio = portfolios.get(i);
             boolean shouldBeEnabled = i < maxPortfolios;
@@ -345,14 +352,41 @@ public class PortfolioService {
                 portfolioRepository.save(portfolio);
             }
             
-            // Sync schedules with portfolio status
+            if (shouldBeEnabled) {
+                enabledPortfolios++;
+            }
+
+            // Sync schedules with portfolio status and check optimization limits
             List<OptimizationSchedule> schedules = scheduleRepository.findByPortfolioId(portfolio.getId());
             for (OptimizationSchedule schedule : schedules) {
-                if (schedule.isEnabled() != shouldBeEnabled) {
-                    schedule.setEnabled(shouldBeEnabled);
+                boolean scheduleShouldBeEnabled = shouldBeEnabled;
+                
+                if (shouldBeEnabled) {
+                    int monthlyFreq = getMonthlyFrequency(schedule.getFrequency());
+                    if (projectedOptimizations + monthlyFreq > maxOptimizationsPerMonth) {
+                        scheduleShouldBeEnabled = false;
+                    } else {
+                        projectedOptimizations += monthlyFreq;
+                    }
+                }
+
+                if (schedule.isEnabled() != scheduleShouldBeEnabled) {
+                    schedule.setEnabled(scheduleShouldBeEnabled);
                     scheduleRepository.save(schedule);
                 }
             }
         }
+    }
+
+    private int getMonthlyFrequency(String freq) {
+        if (freq == null) return 0;
+        return switch (freq.toUpperCase()) {
+            case "DAILY" -> 30;
+            case "WEEKLY" -> 4;
+            case "MONTHLY" -> 1;
+            case "QUARTERLY" -> 0; // effectively 0 for monthly limit check
+            case "YEARLY" -> 0;
+            default -> 0;
+        };
     }
 }

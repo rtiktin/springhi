@@ -49,20 +49,22 @@ public class LeaderboardController {
     @GetMapping("/monthly")
     public ResponseEntity<List<LeaderboardEntryDto>> getMonthlyLeaderboard(
             @RequestParam String month,
+            @RequestParam(required = false) String goal,
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @AuthenticationPrincipal UserPrincipal principal) {
         if (principal == null) return ResponseEntity.status(403).build();
-        return ResponseEntity.ok(leaderboardService.getMonthlyLeaderboard(month, authHeader));
+        return ResponseEntity.ok(leaderboardService.getMonthlyLeaderboard(month, authHeader, goal));
     }
 
     @GetMapping
     public ResponseEntity<List<LeaderboardEntryDto>> getLeaderboard(
             @RequestParam(defaultValue = "1M") String range,
             @RequestParam(defaultValue = "all") String scope,
+            @RequestParam(required = false) String goal,
             @RequestHeader(value = "Authorization", required = false) String authHeader,
             @AuthenticationPrincipal UserPrincipal principal) {
         if (principal == null) return ResponseEntity.status(403).build();
-        return ResponseEntity.ok(leaderboardService.getLeaderboard(range, scope, principal.getId(), authHeader));
+        return ResponseEntity.ok(leaderboardService.getLeaderboard(range, scope, principal.getId(), authHeader, goal));
     }
 
     @GetMapping("/portfolio/{portfolioId}/holdings")

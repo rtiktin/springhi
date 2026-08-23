@@ -273,12 +273,13 @@ export interface LeaderboardEntry {
     holdingCount: number;
     maxHoldingPct: number;
     competitionMonth: string | null;
+    createdAt: string;
 }
 
-export const getLeaderboard = async (range: string, scope: 'mine' | 'all' = 'all'): Promise<LeaderboardEntry[]> => {
+export const getLeaderboard = async (range: string, scope: 'mine' | 'all' = 'all', goal?: string): Promise<LeaderboardEntry[]> => {
     const response = await axios.get(`${API_GATEWAY}/api/v1/leaderboard`, {
         headers: authHeader(),
-        params: { range, scope },
+        params: { range, scope, goal },
     });
     return response.data;
 };
@@ -333,10 +334,10 @@ export const getSpyBenchmark = async (): Promise<Record<string, number>> => {
     return response.data;
 };
 
-export const getMonthlyLeaderboard = async (month: string): Promise<LeaderboardEntry[]> => {
+export const getMonthlyLeaderboard = async (month: string, goal?: string): Promise<LeaderboardEntry[]> => {
     const response = await axios.get(`${API_GATEWAY}/api/v1/leaderboard/monthly`, {
         headers: authHeader(),
-        params: { month },
+        params: { month, goal },
     });
     return response.data;
 };

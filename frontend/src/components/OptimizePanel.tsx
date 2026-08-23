@@ -574,6 +574,9 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                         {ran && recommendations.length > 0 && (
                             <span style={{ marginLeft: '0.5rem', fontSize: '0.78rem', color: 'var(--text-gray)' }}>
                                 Generated {new Date(recommendations[0].generatedAt).toLocaleString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                                {recommendations[0].confidenceScore != null && (
+                                    <span style={{ marginLeft: '0.6rem', color: '#a78bfa', fontWeight: 600 }}>🎯 AI Confidence: {recommendations[0].confidenceScore}%</span>
+                                )}
                             </span>
                         )}
                     </p>

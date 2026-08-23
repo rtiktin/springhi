@@ -4,6 +4,8 @@ import com.springhi.portfolio.dto.AssetWithPrice;
 import com.springhi.portfolio.dto.LeaderboardEntryDto;
 import com.springhi.portfolio.dto.TwrResponseDto;
 import com.springhi.portfolio.model.Portfolio;
+import com.springhi.portfolio.model.PortfolioProfile;
+import com.springhi.portfolio.repository.PortfolioProfileRepository;
 import com.springhi.portfolio.repository.PortfolioRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,10 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,25 +28,38 @@ public class LeaderboardService {
     private final TwrService twrService;
     private final UserServiceClient userServiceClient;
     private final SpyBenchmarkService spyBenchmarkService;
+    private final PortfolioProfileRepository profileRepository;
 
     public LeaderboardService(PortfolioRepository portfolioRepository,
                               PortfolioService portfolioService,
                               TwrService twrService,
                               UserServiceClient userServiceClient,
-                              SpyBenchmarkService spyBenchmarkService) {
+                              SpyBenchmarkService spyBenchmarkService,
+                              PortfolioProfileRepository profileRepository) {
         this.portfolioRepository = portfolioRepository;
         this.portfolioService = portfolioService;
         this.twrService = twrService;
         this.userServiceClient = userServiceClient;
         this.spyBenchmarkService = spyBenchmarkService;
+        this.profileRepository = profileRepository;
     }
 
     public List<LeaderboardEntryDto> getLeaderboard(String range, String scope, Long userId, String jwtToken) {
+        return getLeaderboard(range, scope, userId, jwtToken, null);
+    }
+
+    public List<LeaderboardEntryDto> getLeaderboard(String range, String scope, Long userId, String jwtToken, String goal) {
         List<Portfolio> portfolios;
         if ("mine".equalsIgnoreCase(scope)) {
             portfolios = portfolioRepository.findByUserIdOrderByCreatedAtAsc(userId);
         } else {
             portfolios = portfolioRepository.findAll();
+        }
+
+        if (goal != null && !goal.isBlank()) {
+            Set<Long> pids = profileRepository.findByGoalIgnoreCase(goal).stream()
+                    .map(PortfolioProfile::getPortfolioId).collect(Collectors.toSet());
+            portfolios = portfolios.stream().filter(p -> pids.contains(p.getId())).collect(Collectors.toList());
         }
 
         Map<Long, String> usernameMap = java.util.Collections.emptyMap();
@@ -62,9 +74,19 @@ public class LeaderboardService {
     }
 
     public List<LeaderboardEntryDto> getMonthlyLeaderboard(String monthStr, String jwtToken) {
+        return getMonthlyLeaderboard(monthStr, jwtToken, null);
+    }
+
+    public List<LeaderboardEntryDto> getMonthlyLeaderboard(String monthStr, String jwtToken, String goal) {
         LocalDate competitionMonth = LocalDate.parse(monthStr + "-01");
         java.time.LocalDateTime to = competitionMonth.atStartOfDay();
         List<Portfolio> portfolios = portfolioRepository.findByCreatedAtLessThan(to);
+
+        if (goal != null && !goal.isBlank()) {
+            Set<Long> pids = profileRepository.findByGoalIgnoreCase(goal).stream()
+                    .map(PortfolioProfile::getPortfolioId).collect(Collectors.toSet());
+            portfolios = portfolios.stream().filter(p -> pids.contains(p.getId())).collect(Collectors.toList());
+        }
 
         List<Long> userIds = portfolios.stream()
                 .map(Portfolio::getUserId).distinct().collect(Collectors.toList());
@@ -104,7 +126,7 @@ public class LeaderboardService {
 
                 entries.add(new LeaderboardEntryDto(0, portfolio.getId(), portfolio.getName(),
                         username, twr.twrPercent(), margin, holdings.size(),
-                        Math.round(maxPct * 10.0) / 10.0, competitionMonth));
+                        Math.round(maxPct * 10.0) / 10.0, competitionMonth, portfolio.getCreatedAt()));
             } catch (Exception e) {
                 log.warn("Skipping portfolio {} for monthly leaderboard: {}", portfolio.getId(), e.getMessage());
             }
@@ -115,7 +137,7 @@ public class LeaderboardService {
         for (int i = 0; i < entries.size(); i++) {
             LeaderboardEntryDto e = entries.get(i);
             ranked.add(new LeaderboardEntryDto(i + 1, e.portfolioId(), e.portfolioName(),
-                    e.username(), e.twrPercent(), e.marginVsSpy(), e.holdingCount(), e.maxHoldingPct(), e.competitionMonth()));
+                    e.username(), e.twrPercent(), e.marginVsSpy(), e.holdingCount(), e.maxHoldingPct(), e.competitionMonth(), e.createdAt()));
         }
         return ranked;
     }
@@ -175,7 +197,8 @@ public class LeaderboardService {
                         margin,
                         holdings.size(),
                         Math.round(maxPct * 10.0) / 10.0,
-                        portfolio.getCompetitionMonth()
+                        portfolio.getCompetitionMonth(),
+                        portfolio.getCreatedAt()
                 ));
             } catch (Exception e) {
                 log.warn("Skipping portfolio {} for leaderboard: {}", portfolio.getId(), e.getMessage());
@@ -188,7 +211,7 @@ public class LeaderboardService {
         for (int i = 0; i < entries.size(); i++) {
             LeaderboardEntryDto e = entries.get(i);
             ranked.add(new LeaderboardEntryDto(i + 1, e.portfolioId(), e.portfolioName(),
-                    e.username(), e.twrPercent(), e.marginVsSpy(), e.holdingCount(), e.maxHoldingPct(), e.competitionMonth()));
+                    e.username(), e.twrPercent(), e.marginVsSpy(), e.holdingCount(), e.maxHoldingPct(), e.competitionMonth(), e.createdAt()));
         }
         return ranked;
     }

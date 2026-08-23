@@ -154,10 +154,11 @@ public class SubscriptionService {
     public void enforcePlanLimits(Long userId, String targetPlan) {
         SubscriptionConfig config = getPlan(targetPlan);
         int maxPortfolios = config.getMaxPortfolios();
+        int maxOptimizations = config.getMaxOptimizationsPerMonth();
 
         webClientBuilder.build().post()
                 .uri(portfolioServiceUrl + "/api/v1/portfolio/internal/enforce-limits")
-                .bodyValue(Map.of("userId", userId, "maxPortfolios", maxPortfolios))
+                .bodyValue(Map.of("userId", userId, "maxPortfolios", maxPortfolios, "maxOptimizationsPerMonth", maxOptimizations))
                 .retrieve()
                 .toBodilessEntity()
                 .subscribe(

@@ -1,6 +1,7 @@
 package com.springhi.portfolio.dto;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 public record LeaderboardEntryDto(
         int rank,
@@ -11,5 +12,6 @@ public record LeaderboardEntryDto(
         Double marginVsSpy,
         int holdingCount,
         double maxHoldingPct,
-        LocalDate competitionMonth
+        LocalDate competitionMonth,
+        LocalDateTime createdAt
 ) {}

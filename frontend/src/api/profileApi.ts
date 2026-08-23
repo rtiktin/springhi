@@ -32,6 +32,7 @@ export interface Recommendation {
     transactionId: number | null;
     generatedAt: string;
     aiProvider: string | null;
+    confidenceScore: number | null;
 }
 
 export interface OptimizationResult {
