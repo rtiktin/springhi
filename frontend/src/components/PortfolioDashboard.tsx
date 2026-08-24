@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { getHoldings, getPortfolioSnapshots, takePortfolioSnapshot, getCashBalance, getCompanyName, getTwr, getPnlSummary } from '../api/portfolioApi';
+import { 
+    getHoldings, 
+    getPortfolioSnapshots, 
+    takePortfolioSnapshot, 
+    getCashBalance, 
+    getCompanyName, 
+    getTwr, 
+    getPnlSummary 
+} from '../api/portfolioApi';
 import type { AssetWithPrice, PortfolioSnapshot, TwrResult, TwrRange, PnlSummary } from '../api/portfolioApi';
 import { getPriceHistory } from '../api/marketApi';
 import type { QuoteResponse } from '../api/marketApi';

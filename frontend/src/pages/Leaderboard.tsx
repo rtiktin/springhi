@@ -592,9 +592,11 @@ interface LeaderboardTableProps {
     range: LeaderboardRange | null;
     showUser: boolean;
     rangeLabel?: string;
+    goal?: string;
 }
 
-const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, showUser, rangeLabel }) => {
+const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, showUser, rangeLabel, goal }) => {
+    const currentUsername = getLoggedInUsername();
     const [selectedEntry, setSelectedEntry] = useState<LeaderboardEntry | null>(null);
     const [shareEntry, setShareEntry] = useState<{ entry: LeaderboardEntry; holdings: AssetWithPrice[]; aiDetails: AiRunDetails | null } | null>(null);
     const [sharingId, setSharingId] = useState<number | null>(null);
@@ -658,40 +660,42 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
                                     {rankMedal(entry.rank)}
                                 </td>
                                 <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
-                                    <button
-                                        onClick={(e) => handleShare(e, entry)}
-                                        disabled={sharingId === entry.portfolioId}
-                                        style={{
-                                            background: 'rgba(108, 71, 255, 0.1)',
-                                            color: '#818cf8',
-                                            border: '1px solid rgba(108, 71, 255, 0.2)',
-                                            borderRadius: 6,
-                                            padding: '0.4rem 0.75rem',
-                                            fontSize: '0.85rem',
-                                            fontWeight: 600,
-                                            cursor: 'pointer',
-                                            transition: 'all 0.2s',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '0.4rem',
-                                            margin: '0 auto'
-                                        }}
-                                        onMouseEnter={e => {
-                                            if (sharingId !== entry.portfolioId) {
-                                                e.currentTarget.style.background = 'rgba(108, 71, 255, 0.2)';
-                                                e.currentTarget.style.borderColor = 'rgba(108, 71, 255, 0.4)';
-                                            }
-                                        }}
-                                        onMouseLeave={e => {
-                                            if (sharingId !== entry.portfolioId) {
-                                                e.currentTarget.style.background = 'rgba(108, 71, 255, 0.1)';
-                                                e.currentTarget.style.borderColor = 'rgba(108, 71, 255, 0.2)';
-                                            }
-                                        }}
-                                    >
-                                        {sharingId === entry.portfolioId ? '⌛' : '📤'}
-                                        <span>{sharingId === entry.portfolioId ? 'Preparing...' : 'Share'}</span>
-                                    </button>
+                                    {(entry.username === currentUsername || !showUser) && (
+                                        <button
+                                            onClick={(e) => handleShare(e, entry)}
+                                            disabled={sharingId === entry.portfolioId}
+                                            style={{
+                                                background: 'rgba(108, 71, 255, 0.1)',
+                                                color: '#818cf8',
+                                                border: '1px solid rgba(108, 71, 255, 0.2)',
+                                                borderRadius: 6,
+                                                padding: '0.4rem 0.75rem',
+                                                fontSize: '0.85rem',
+                                                fontWeight: 600,
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.4rem',
+                                                margin: '0 auto'
+                                            }}
+                                            onMouseEnter={e => {
+                                                if (sharingId !== entry.portfolioId) {
+                                                    e.currentTarget.style.background = 'rgba(108, 71, 255, 0.2)';
+                                                    e.currentTarget.style.borderColor = 'rgba(108, 71, 255, 0.4)';
+                                                }
+                                            }}
+                                            onMouseLeave={e => {
+                                                if (sharingId !== entry.portfolioId) {
+                                                    e.currentTarget.style.background = 'rgba(108, 71, 255, 0.1)';
+                                                    e.currentTarget.style.borderColor = 'rgba(108, 71, 255, 0.2)';
+                                                }
+                                            }}
+                                        >
+                                            {sharingId === entry.portfolioId ? '⌛' : '📤'}
+                                            <span>{sharingId === entry.portfolioId ? 'Preparing...' : `Share @${entry.username ?? currentUsername}`}</span>
+                                        </button>
+                                    )}
                                 </td>
                                 {showUser && (
                                     <td style={{ padding: '1rem 1.25rem', color: 'var(--text-gray)', fontSize: '0.9rem' }}>
@@ -743,6 +747,7 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
             {shareEntry && (
                 <ShareableCard
                     portfolioName={shareEntry.entry.portfolioName}
+                    username={shareEntry.entry.username}
                     aiProvider={shareEntry.aiDetails?.recommendations[0]?.aiProvider || null}
                     rank={shareEntry.entry.rank}
                     totalUsers={entries.length}
@@ -753,6 +758,7 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
                     competitionMonth={shareEntry.entry.competitionMonth}
                     createdAt={shareEntry.entry.createdAt}
                     hideRank={!showUser}
+                    goal={goal}
                     onClose={() => setShareEntry(null)}
                 />
             )}
@@ -776,7 +782,7 @@ const LeaderboardPane: React.FC<{ scope: LeaderboardScope; range: LeaderboardRan
     if (loading) return <div style={{ textAlign: 'center', color: 'var(--text-gray)', padding: '3rem' }}>Loading…</div>;
     if (error) return <div style={{ textAlign: 'center', color: '#f87171', padding: '1rem' }}>{error}</div>;
     if (entries.length === 0) return <EmptyState />;
-    return <LeaderboardTable entries={entries} range={range} showUser={scope === 'all'} />;
+    return <LeaderboardTable entries={entries} range={range} showUser={scope === 'all'} goal={goal} />;
 };
 
 const MonthlyLeaderboardPane: React.FC<{ month: string; goal: string }> = ({ month, goal }) => {
@@ -801,7 +807,7 @@ const MonthlyLeaderboardPane: React.FC<{ month: string; goal: string }> = ({ mon
             <p style={{ fontSize: '0.9rem' }}>Portfolios entered in this competition will appear here once they qualify.</p>
         </div>
     );
-    return <LeaderboardTable entries={entries} range={null} rangeLabel="Since Start" showUser={true} />;
+    return <LeaderboardTable entries={entries} range={null} rangeLabel="Since Start" showUser={true} goal={goal} />;
 };
 
 type MainTab = 'regular' | 'monthly';

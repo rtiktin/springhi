@@ -9,8 +9,24 @@ import CashForm from '../components/CashForm';
 import OptimizePanel from '../components/OptimizePanel';
 import ScheduleManager from '../components/ScheduleManager';
 import PortfolioProfileForm from '../components/PortfolioProfileForm';
-import { listPortfolios, createPortfolio, updatePortfolio, deletePortfolio, savePortfolioProfile, getCashBalance, submitTransaction, getPortfoliosCreatedCount, getOptimizationQuota, getPortfolioQuota, getAiRunTimestamps, getAiRunDetails } from '../api/portfolioApi';
-import type { Portfolio as PortfolioType, AiRunDetails } from '../api/portfolioApi';
+import ShareableCard from '../components/ShareableCard';
+import { 
+    listPortfolios, 
+    createPortfolio, 
+    updatePortfolio, 
+    deletePortfolio, 
+    savePortfolioProfile, 
+    getCashBalance, 
+    submitTransaction, 
+    getPortfoliosCreatedCount, 
+    getOptimizationQuota, 
+    getPortfolioQuota, 
+    getAiRunTimestamps, 
+    getAiRunDetails,
+    getHoldings,
+    getTwr
+} from '../api/portfolioApi';
+import type { Portfolio as PortfolioType, AiRunDetails, AssetWithPrice } from '../api/portfolioApi';
 import { getProfile, saveProfile, optimizePortfolio } from '../api/profileApi';
 import { getAccountProfile, sendEmailVerification, verifyEmail, sendPhoneVerification, verifyPhone } from '../api/accountApi';
 import { isPhoneVerified } from '../utils/auth';
@@ -45,6 +61,9 @@ const Portfolio: React.FC = () => {
     const [optimizationQuota, setOptimizationQuota] = useState<{ used: number; scheduled: number; max: number; isFree: boolean } | null>(null);
     const [newPortfolioName, setNewPortfolioName] = useState('');
     const [newPortfolioDesc, setNewPortfolioDesc] = useState('');
+
+    const [sharing, setSharing] = useState(false);
+    const [shareData, setShareData] = useState<{ holdings: AssetWithPrice[]; twr: number; createdAt: string; aiDetails: AiRunDetails | null } | null>(null);
 
     type WizardStep = 'ai-choice' | 'no-ai-name' | 'ai-name-profile' | 'ai-verify-email' | 'ai-verify-phone' | 'ai-model' | 'ai-cash' | 'ai-running';
     const [wizardStep, setWizardStep] = useState<WizardStep | null>(null);
@@ -465,6 +484,38 @@ const Portfolio: React.FC = () => {
         }
     };
 
+    const handleShare = async () => {
+        if (!activePortfolioId) return;
+        const p = portfolios.find(x => x.id === activePortfolioId);
+        if (!p) return;
+
+        setSharing(true);
+        try {
+            const [holdings, twrResult, timestamps] = await Promise.all([
+                getHoldings(activePortfolioId),
+                getTwr(activePortfolioId, 'ALL'),
+                getAiRunTimestamps(activePortfolioId).catch(() => []),
+            ]);
+            
+            let aiDetails: AiRunDetails | null = null;
+            if (timestamps && timestamps.length > 0) {
+                aiDetails = await getAiRunDetails(activePortfolioId, timestamps[0]);
+            }
+            
+            setShareData({
+                holdings,
+                twr: twrResult?.twrPercent ?? 0,
+                createdAt: p.createdAt,
+                aiDetails
+            });
+        } catch (err) {
+            console.error('Failed to prepare share card', err);
+            alert('Failed to prepare share card. Please try again.');
+        } finally {
+            setSharing(false);
+        }
+    };
+
     const activePortfolio = portfolios.find(p => p.id === activePortfolioId);
 
     if (portfolioLoading) {
@@ -602,6 +653,20 @@ const Portfolio: React.FC = () => {
                             >
                                 Rename
                             </button>
+                            <button
+                                className="btn-trade"
+                                style={{
+                                    fontSize: '0.85rem',
+                                    padding: '0.35rem 0.7rem',
+                                    background: 'rgba(108, 71, 255, 0.15)',
+                                    color: '#818cf8',
+                                    border: '1px solid rgba(108, 71, 255, 0.3)',
+                                }}
+                                onClick={handleShare}
+                                disabled={sharing}
+                            >
+                                {sharing ? '⌛...' : `📤 Share @${username}`}
+                            </button>
                         </>
                     )}
                     <button
@@ -709,8 +774,12 @@ const Portfolio: React.FC = () => {
                             </button>
                         </div>
 
-                        {activeTab === 'holdings' && (
-                            <PortfolioDashboard key={`holdings-${activePortfolioId}-${refreshKey}`} portfolioId={activePortfolioId} onTradeSuccess={handleTradeSuccess} />
+                        {activeTab === 'holdings' && activePortfolioId && (
+                            <PortfolioDashboard
+                                key={`holdings-${activePortfolioId}-${refreshKey}`}
+                                portfolioId={activePortfolioId}
+                                onTradeSuccess={handleTradeSuccess}
+                            />
                         )}
                         {activeTab === 'transactions' && (
                             <TransactionHistory key={`tx-${activePortfolioId}-${refreshKey}`} portfolioId={activePortfolioId} />
@@ -1322,6 +1391,24 @@ const Portfolio: React.FC = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {shareData && (
+                <ShareableCard
+                    portfolioName={activePortfolio?.name || ''}
+                    username={username}
+                    aiProvider={shareData.aiDetails?.recommendations[0]?.aiProvider || null}
+                    rank={null}
+                    totalUsers={null}
+                    twrPercent={shareData.twr}
+                    marginVsSpy={null}
+                    confidenceScore={shareData.aiDetails?.confidenceScore || null}
+                    holdings={shareData.holdings}
+                    competitionMonth={null}
+                    createdAt={shareData.createdAt}
+                    hideRank={true}
+                    onClose={() => setShareData(null)}
+                />
             )}
         </div>
     );

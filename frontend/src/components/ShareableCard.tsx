@@ -4,6 +4,7 @@ import type { AssetWithPrice } from '../api/portfolioApi';
 
 interface ShareableCardProps {
     portfolioName: string;
+    username: string | null;
     aiProvider: string | null;
     rank: number | null;
     totalUsers: number | null;
@@ -14,11 +15,13 @@ interface ShareableCardProps {
     competitionMonth: string | null;
     createdAt: string;
     hideRank?: boolean;
+    goal?: string;
     onClose: () => void;
 }
 
 const ShareableCard: React.FC<ShareableCardProps> = ({
     portfolioName,
+    username,
     aiProvider,
     rank,
     totalUsers,
@@ -29,6 +32,7 @@ const ShareableCard: React.FC<ShareableCardProps> = ({
     competitionMonth,
     createdAt,
     hideRank = false,
+    goal,
     onClose,
 }) => {
     const cardRef = useRef<HTMLDivElement>(null);
@@ -125,7 +129,12 @@ const ShareableCard: React.FC<ShareableCardProps> = ({
 
                         {/* Portfolio Name & AI */}
                         <div style={{ marginBottom: '2rem' }}>
-                            <h4 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, lineHeight: 1.2, marginBottom: '0.25rem' }}>{portfolioName}</h4>
+                            <h4 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, lineHeight: 1.2, marginBottom: '0.1rem' }}>{portfolioName}</h4>
+                            {username && (
+                                <div style={{ fontSize: '0.85rem', color: '#818cf8', fontWeight: 600, marginBottom: '0.4rem' }}>
+                                    @{username}
+                                </div>
+                            )}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#94a3b8', fontSize: '0.85rem' }}>
                                     <span>Powered by</span>
@@ -160,7 +169,9 @@ const ShareableCard: React.FC<ShareableCardProps> = ({
                             <div>
                                 {rank && !hideRank && (
                                     <div style={{ marginBottom: '0.75rem' }}>
-                                        <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.1rem' }}>Global Rank</div>
+                                        <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.1rem' }}>
+                                            Global Rank {goal && goal !== '' ? `(${goal.charAt(0).toUpperCase() + goal.slice(1)})` : ''}
+                                        </div>
                                         <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>#{rank} {percentile && <span style={{ fontSize: '0.85rem', color: '#818cf8', fontWeight: 500 }}>• Top {percentile}%</span>}</div>
                                     </div>
                                 )}
