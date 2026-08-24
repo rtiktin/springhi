@@ -15,6 +15,18 @@ spring:
             allowCredentials: true
             maxAge: 3600
       routes:
+        - id: block-internal-portfolio
+          uri: no://op
+          predicates:
+            - Path=/api/v1/portfolio/internal/**
+          filters:
+            - SetStatus=403
+        - id: block-internal-subscription-limits-by-user
+          uri: no://op
+          predicates:
+            - Path=/api/v1/subscription/limits/*
+          filters:
+            - SetStatus=403
         - id: backend
           uri: ${BACKEND_URL:http://localhost:8080}
           predicates:

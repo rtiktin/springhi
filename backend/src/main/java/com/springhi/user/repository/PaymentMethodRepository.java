@@ -11,4 +11,8 @@ import java.util.Optional;
 public interface PaymentMethodRepository extends JpaRepository<PaymentMethod, Long> {
     List<PaymentMethod> findByUserIdOrderByCreatedAtDesc(Long userId);
     Optional<PaymentMethod> findFirstByUserIdAndIsDefaultTrue(Long userId);
+
+    List<PaymentMethod> findByCardFingerprint(String cardFingerprint);
+    boolean existsByCardFingerprintAndUserIdNot(String cardFingerprint, Long userId);
+    long countByCardFingerprintAndUserIdNot(String cardFingerprint, Long userId);
 }

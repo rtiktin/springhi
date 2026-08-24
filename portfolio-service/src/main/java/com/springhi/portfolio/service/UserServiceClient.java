@@ -18,16 +18,20 @@ public class UserServiceClient {
     private static final Logger log = LoggerFactory.getLogger(UserServiceClient.class);
 
     private final WebClient webClient;
+    private final String internalSecret;
 
-    public UserServiceClient(@Value("${backend.url:http://localhost:8080}") String backendUrl) {
+    public UserServiceClient(@Value("${backend.url:http://localhost:8080}") String backendUrl,
+                            @Value("${app.internal.secret:dev-internal-secret-change-me}") String internalSecret) {
         this.webClient = WebClient.builder().baseUrl(backendUrl).build();
+        this.internalSecret = internalSecret;
     }
 
     public Optional<Map<String, Object>> getSubscriptionLimits(Long userId, String jwtToken) {
         try {
             Map<String, Object> result = webClient.get()
                     .uri("/api/v1/subscription/limits/" + userId)
-                    .header("Authorization", jwtToken)
+                    .header("Authorization", jwtToken == null ? "" : jwtToken)
+                    .header("X-Internal-Secret", internalSecret)
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                     .block();

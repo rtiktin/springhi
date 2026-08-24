@@ -4,6 +4,7 @@ import com.springhi.user.model.PaymentHistory;
 import com.springhi.user.model.SubscriptionConfig;
 import com.springhi.user.model.User;
 import com.springhi.user.service.SubscriptionService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -18,6 +19,9 @@ import java.util.Map;
 public class SubscriptionController {
 
     private final SubscriptionService subscriptionService;
+
+    @Value("${app.internal.secret:dev-internal-secret-change-me}")
+    private String internalSecret;
 
     public SubscriptionController(SubscriptionService subscriptionService) {
         this.subscriptionService = subscriptionService;
@@ -46,8 +50,12 @@ public class SubscriptionController {
 
     @GetMapping("/limits/{userId}")
     public ResponseEntity<Map<String, Object>> getLimitsByUserId(
-            @PathVariable Long userId) {
-        return ResponseEntity.ok(subscriptionService.getLimitsForUser(userId));
+            @PathVariable Long userId,
+            @RequestHeader(value = "X-Internal-Secret", required = false) String secret) {
+        if (secret == null || !secret.equals(internalSecret)) {
+            return ResponseEntity.status(401).build();
+        }
+        return ResponseEntity.ok(subscriptionService.getLimitsForUserReadOnly(userId));
     }
 
     @PostMapping("/subscribe")

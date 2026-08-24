@@ -33,7 +33,7 @@ const describeSchedule = (s: OptimizationSchedule): string => {
     }
 };
 
-const blank = { frequency: 'MONTHLY' as const, aiProvider: 'gemini', dayOfWeek: 1, dayOfMonth: 1 };
+const blank = { frequency: 'MONTHLY' as typeof FREQUENCIES[number], aiProvider: 'gemini', dayOfWeek: 1, dayOfMonth: 1 };
 
 const MONTHLY_RUNS: Record<string, number> = {
     DAILY: 22,

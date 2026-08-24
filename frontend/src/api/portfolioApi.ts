@@ -34,7 +34,7 @@ export interface AssetWithPrice {
 export interface Transaction {
     id: number;
     symbol: string;
-    type: 'BUY' | 'SELL';
+    type: 'BUY' | 'SELL' | 'DIVIDEND';
     quantity: number;
     price: number;
     timestamp: string;

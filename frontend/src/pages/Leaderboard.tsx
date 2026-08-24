@@ -9,8 +9,6 @@ import {
     getLeaderboardPortfolioCash,
     getLeaderboardPortfolioPnl,
     getMonthlyLeaderboard,
-    getAiRunTimestamps,
-    getAiRunDetails,
 } from '../api/portfolioApi';
 import type { LeaderboardEntry, AssetWithPrice, Transaction, AiRunDetails, PnlSummary } from '../api/portfolioApi';
 import { getLoggedInUsername, isAdmin } from '../utils/auth';
@@ -747,7 +745,7 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
             {shareEntry && (
                 <ShareableCard
                     portfolioName={shareEntry.entry.portfolioName}
-                    username={shareEntry.entry.username}
+                    username={shareEntry.entry.username ?? currentUsername}
                     aiProvider={shareEntry.aiDetails?.recommendations[0]?.aiProvider || null}
                     rank={shareEntry.entry.rank}
                     totalUsers={entries.length}

@@ -1,18 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { 
-    getHoldings, 
-    getPortfolioSnapshots, 
-    takePortfolioSnapshot, 
-    getCashBalance, 
-    getCompanyName, 
-    getTwr, 
-    getPnlSummary 
+import {
+    getHoldings,
+    getCashBalance,
+    getCompanyName,
+    getTwr,
+    getPnlSummary,
 } from '../api/portfolioApi';
-import type { AssetWithPrice, PortfolioSnapshot, TwrResult, TwrRange, PnlSummary } from '../api/portfolioApi';
+import type { AssetWithPrice, TwrResult, TwrRange, PnlSummary } from '../api/portfolioApi';
 import { getPriceHistory } from '../api/marketApi';
 import type { QuoteResponse } from '../api/marketApi';
 import StockChart from './StockChart';
-import PortfolioChart from './PortfolioChart';
 import TradeForm from './TradeForm';
 
 const fmt = (val: number | null, decimals = 2, prefix = '') =>
@@ -31,8 +28,6 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId, onTradeSuccess }) =>
     const [selectedHolding, setSelectedHolding] = useState<AssetWithPrice | null>(null);
     const [chartData, setChartData] = useState<QuoteResponse[]>([]);
     const [chartLoading, setChartLoading] = useState(false);
-    const [snapshots, setSnapshots] = useState<PortfolioSnapshot[]>([]);
-    const [snapshotting, setSnapshotting] = useState(false);
     const [cashBalance, setCashBalance] = useState<number | null>(null);
     const [twrData, setTwrData] = useState<TwrResult | null>(null);
     const [twrRange, setTwrRange] = useState<TwrRange>('ALL');
@@ -50,10 +45,6 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId, onTradeSuccess }) =>
             .catch(() => setError('Failed to load portfolio holdings.'))
             .finally(() => setLoading(false));
 
-        getPortfolioSnapshots(portfolioId)
-            .then(setSnapshots)
-            .catch(() => setSnapshots([]));
-
         getCashBalance(portfolioId)
             .then(setCashBalance)
             .catch(() => setCashBalance(null));
@@ -70,16 +61,6 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId, onTradeSuccess }) =>
             .catch(() => setTwrData(null))
             .finally(() => setTwrLoading(false));
     }, [portfolioId, twrRange]);
-
-    const handleSnapshotNow = () => {
-        setSnapshotting(true);
-        takePortfolioSnapshot(portfolioId)
-            .then(snap => setSnapshots(prev => {
-                const filtered = prev.filter(s => s.snapshotDate !== snap.snapshotDate);
-                return [...filtered, snap].sort((a, b) => a.snapshotDate.localeCompare(b.snapshotDate));
-            }))
-            .finally(() => setSnapshotting(false));
-    };
 
     const selectHolding = (holding: AssetWithPrice) => {
         setSelectedHolding(holding);

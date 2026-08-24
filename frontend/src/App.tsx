@@ -1,23 +1,28 @@
-import React, { useEffect } from 'react';
+import React, { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import Home from './pages/Home';
-import GettingStarted from './pages/GettingStarted';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
-import Portfolio from './pages/Portfolio';
-import ProfileEdit from './pages/ProfileEdit';
-import AccountMaintenance from './pages/AccountMaintenance';
-import About from './pages/About';
-import Leaderboard from './pages/Leaderboard';
-import ForgotPassword from './pages/ForgotPassword';
-import Admin from './pages/Admin';
-import Subscription from './pages/Subscription';
-import Pricing from './pages/Pricing';
-import Support from './pages/Support';
 import { isLoggedIn } from './utils/auth';
 import API_GATEWAY from './api/apiBase';
 import './App.css';
+
+const Home = lazy(() => import('./pages/Home'));
+const GettingStarted = lazy(() => import('./pages/GettingStarted'));
+const Login = lazy(() => import('./pages/Login'));
+const Signup = lazy(() => import('./pages/Signup'));
+const Portfolio = lazy(() => import('./pages/Portfolio'));
+const ProfileEdit = lazy(() => import('./pages/ProfileEdit'));
+const AccountMaintenance = lazy(() => import('./pages/AccountMaintenance'));
+const About = lazy(() => import('./pages/About'));
+const Leaderboard = lazy(() => import('./pages/Leaderboard'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const Admin = lazy(() => import('./pages/Admin'));
+const Subscription = lazy(() => import('./pages/Subscription'));
+const Pricing = lazy(() => import('./pages/Pricing'));
+const Support = lazy(() => import('./pages/Support'));
+
+const PageLoader: React.FC = () => (
+  <div className="portfolio-loading">Loading…</div>
+);
 
 const RequireAuth: React.FC<{ children: React.ReactElement }> = ({ children }) => {
   return isLoggedIn() ? children : <Navigate to="/login" replace />;
@@ -44,6 +49,7 @@ function App() {
     <Router>
       <div className="App">
         <ActivityTracker />
+        <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/getting-started" element={<GettingStarted />} />
@@ -60,6 +66,7 @@ function App() {
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/support" element={<RequireAuth><Support /></RequireAuth>} />
         </Routes>
+        </Suspense>
       </div>
     </Router>
   );

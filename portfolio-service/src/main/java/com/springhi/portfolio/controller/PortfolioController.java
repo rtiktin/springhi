@@ -13,6 +13,7 @@ import com.springhi.portfolio.service.PortfolioSnapshotService;
 import com.springhi.portfolio.service.TwrService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -26,6 +27,9 @@ public class PortfolioController {
     private final PortfolioService portfolioService;
     private final PortfolioSnapshotService snapshotService;
     private final TwrService twrService;
+
+    @Value("${app.internal.secret:dev-internal-secret-change-me}")
+    private String internalSecret;
 
     public PortfolioController(PortfolioService portfolioService,
                                PortfolioSnapshotService snapshotService,
@@ -151,10 +155,15 @@ public class PortfolioController {
     }
 
     @PostMapping("/internal/enforce-limits")
-    public ResponseEntity<Void> enforceLimits(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Void> enforceLimits(@RequestBody Map<String, Object> request,
+                                              @RequestHeader(value = "X-Internal-Secret", required = false) String secret) {
+        if (secret == null || !secret.equals(internalSecret)) {
+            return ResponseEntity.status(401).build();
+        }
         Long userId = ((Number) request.get("userId")).longValue();
-        int maxPortfolios = (Integer) request.get("maxPortfolios");
-        int maxOptimizations = (Integer) request.getOrDefault("maxOptimizationsPerMonth", Integer.MAX_VALUE);
+        int maxPortfolios = ((Number) request.get("maxPortfolios")).intValue();
+        Object optVal = request.getOrDefault("maxOptimizationsPerMonth", Integer.MAX_VALUE);
+        int maxOptimizations = optVal instanceof Number ? ((Number) optVal).intValue() : Integer.MAX_VALUE;
         portfolioService.enforceLimits(userId, maxPortfolios, maxOptimizations);
         return ResponseEntity.ok().build();
     }

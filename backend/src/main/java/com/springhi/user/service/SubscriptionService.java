@@ -8,6 +8,8 @@ import com.springhi.user.repository.PaymentHistoryRepository;
 import com.springhi.user.repository.PaymentMethodRepository;
 import com.springhi.user.repository.SubscriptionConfigRepository;
 import com.springhi.user.repository.UserSubscriptionRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,13 +17,19 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 
 @Service
 public class SubscriptionService {
+
+    private static final Logger log = LoggerFactory.getLogger(SubscriptionService.class);
 
     private final SubscriptionConfigRepository configRepository;
     private final UserSubscriptionRepository subscriptionRepository;
@@ -29,8 +37,14 @@ public class SubscriptionService {
     private final PaymentHistoryRepository paymentHistoryRepository;
     private final WebClient.Builder webClientBuilder;
 
-    @Value("${app.portfolio-service.url:http://portfolio-service}")
+    @Value("${app.portfolio-service.url:http://localhost:8081}")
     private String portfolioServiceUrl;
+
+    @Value("${app.internal.secret:dev-internal-secret-change-me}")
+    private String internalSecret;
+
+    @Value("${app.card.fingerprint.secret:dev-card-fingerprint-secret-change-me}")
+    private String cardFingerprintSecret;
 
     public SubscriptionService(SubscriptionConfigRepository configRepository,
                                UserSubscriptionRepository subscriptionRepository,
@@ -78,6 +92,23 @@ public class SubscriptionService {
         return result;
     }
 
+    public Map<String, Object> getLimitsForUserReadOnly(Long userId) {
+        String planName = subscriptionRepository.findByUserId(userId)
+                .map(UserSubscription::getPlanName)
+                .orElse("FREE");
+        SubscriptionConfig config = configRepository.findByPlanName(planName)
+                .orElseGet(() -> configRepository.findByPlanName("FREE").orElseThrow());
+        int premiumMax = configRepository.findByPlanName("PREMIUM")
+                .map(SubscriptionConfig::getMaxOptimizationsPerMonth)
+                .orElse(config.getMaxOptimizationsPerMonth());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("planName", planName);
+        result.put("maxPortfolios", config.getMaxPortfolios());
+        result.put("maxOptimizationsPerMonth", config.getMaxOptimizationsPerMonth());
+        result.put("premiumMaxOptimizationsPerMonth", premiumMax);
+        return result;
+    }
+
     @Transactional
     public Map<String, Object> subscribe(Long userId, String planName, String billingCycle,
                                          String cardholderName, String cardNumber,
@@ -109,8 +140,10 @@ public class SubscriptionService {
             pm.setExpiryYear(expiryYear);
             pm.setBillingZip(billingZip);
             pm.setCardNumberEncrypted(maskCardNumber(cardNumber));
+            pm.setCardFingerprint(cardFingerprint(cardNumber));
             pm.setDefault(true);
             savedPm = paymentMethodRepository.save(pm);
+            countOtherUsersWithCard(savedPm.getCardFingerprint(), userId);
         }
 
         BigDecimal amount = "ANNUAL".equalsIgnoreCase(billingCycle)
@@ -156,15 +189,17 @@ public class SubscriptionService {
         int maxPortfolios = config.getMaxPortfolios();
         int maxOptimizations = config.getMaxOptimizationsPerMonth();
 
-        webClientBuilder.build().post()
-                .uri(portfolioServiceUrl + "/api/v1/portfolio/internal/enforce-limits")
-                .bodyValue(Map.of("userId", userId, "maxPortfolios", maxPortfolios, "maxOptimizationsPerMonth", maxOptimizations))
-                .retrieve()
-                .toBodilessEntity()
-                .subscribe(
-                        res -> {},
-                        err -> {} // Log error in real implementation
-                );
+        try {
+            webClientBuilder.build().post()
+                    .uri(portfolioServiceUrl + "/api/v1/portfolio/internal/enforce-limits")
+                    .header("X-Internal-Secret", internalSecret)
+                    .bodyValue(Map.of("userId", userId, "maxPortfolios", maxPortfolios, "maxOptimizationsPerMonth", maxOptimizations))
+                    .retrieve()
+                    .toBodilessEntity()
+                    .block();
+        } catch (Exception e) {
+            log.warn("Failed to enforce plan limits for userId={} plan={}: {}", userId, targetPlan, e.getMessage());
+        }
     }
 
     public Map<String, Object> getStatus(Long userId) {
@@ -199,15 +234,19 @@ public class SubscriptionService {
         pm.setExpiryYear(expiryYear);
         pm.setBillingZip(billingZip);
         pm.setCardNumberEncrypted(maskCardNumber(cardNumber));
+        pm.setCardFingerprint(cardFingerprint(cardNumber));
         pm.setDefault(true);
         PaymentMethod saved = paymentMethodRepository.save(pm);
 
+        int duplicateUserCount = countOtherUsersWithCard(saved.getCardFingerprint(), userId);
         Map<String, Object> card = new LinkedHashMap<>();
         card.put("cardholderName", saved.getCardholderName());
         card.put("cardLastFour", saved.getCardLastFour());
         card.put("cardBrand", saved.getCardBrand());
         card.put("expiryMonth", saved.getExpiryMonth());
         card.put("expiryYear", saved.getExpiryYear());
+        card.put("duplicateCard", duplicateUserCount > 0);
+        card.put("duplicateUserCount", duplicateUserCount);
         return card;
     }
 
@@ -263,5 +302,28 @@ public class SubscriptionService {
         String n = number.replaceAll("\\s", "");
         if (n.length() < 4) return "****";
         return "*".repeat(n.length() - 4) + n.substring(n.length() - 4);
+    }
+
+    private String cardFingerprint(String cardNumber) {
+        if (cardNumber == null) return null;
+        String digits = cardNumber.replaceAll("\\D", "");
+        if (digits.isEmpty()) return null;
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(cardFingerprintSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] hash = mac.doFinal(digits.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to compute card fingerprint", e);
+        }
+    }
+
+    private int countOtherUsersWithCard(String fingerprint, Long userId) {
+        if (fingerprint == null) return 0;
+        long count = paymentMethodRepository.countByCardFingerprintAndUserIdNot(fingerprint, userId);
+        if (count > 0) {
+            log.warn("Card fingerprint {} already used by {} other user(s) besides userId={}", fingerprint, count, userId);
+        }
+        return (int) count;
     }
 }

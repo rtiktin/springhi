@@ -236,7 +236,6 @@ const Pricing: React.FC = () => {
                                                 marginTop: 'auto',
                                                 padding: '0.75rem',
                                                 borderRadius: 10,
-                                                border: 'none',
                                                 cursor: 'pointer',
                                                 fontWeight: 700,
                                                 fontSize: '0.95rem',

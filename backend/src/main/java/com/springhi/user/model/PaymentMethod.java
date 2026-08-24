@@ -35,6 +35,9 @@ public class PaymentMethod {
     @Column(name = "card_number_encrypted", length = 500)
     private String cardNumberEncrypted;
 
+    @Column(name = "card_fingerprint", length = 128)
+    private String cardFingerprint;
+
     @Column(name = "is_default", nullable = false)
     private boolean isDefault = true;
 
@@ -65,6 +68,8 @@ public class PaymentMethod {
     public void setBillingZip(String billingZip) { this.billingZip = billingZip; }
     public String getCardNumberEncrypted() { return cardNumberEncrypted; }
     public void setCardNumberEncrypted(String cardNumberEncrypted) { this.cardNumberEncrypted = cardNumberEncrypted; }
+    public String getCardFingerprint() { return cardFingerprint; }
+    public void setCardFingerprint(String cardFingerprint) { this.cardFingerprint = cardFingerprint; }
     public boolean isDefault() { return isDefault; }
     public void setDefault(boolean isDefault) { this.isDefault = isDefault; }
     public LocalDateTime getCreatedAt() { return createdAt; }

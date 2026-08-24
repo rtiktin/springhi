@@ -39,7 +39,7 @@ const Subscription: React.FC = () => {
     const navigate = useNavigate();
     const [plans, setPlans] = useState<Plan[]>([]);
     const [status, setStatus] = useState<SubscriptionStatus | null>(null);
-    const [usageStats, setUsageStats] = useState<{ portfolioCount: number; optimizationsThisMonth: number; isFreeLimit?: boolean } | null>(null);
+    const [usageStats, setUsageStats] = useState<{ portfolioCount: number; optimizationsThisMonth: number; projectedOptimizationsPerMonth: number; isFreeLimit?: boolean } | null>(null);
     const [loading, setLoading] = useState(true);
     const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
     const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY');

@@ -199,7 +199,6 @@ const Portfolio: React.FC = () => {
             setPortfolios(updated);
             setActivePortfolioId(created.id);
             localStorage.setItem('activePortfolioId', String(created.id));
-            setShowNewPortfolioForm(false);
             setNewPortfolioName('');
             setNewPortfolioDesc('');
             setActiveTab('profile');

@@ -3,10 +3,12 @@ package com.springhi.user.controller;
 import com.springhi.user.dto.AdminPaymentHistoryDto;
 import com.springhi.user.dto.AdminRevenueDto;
 import com.springhi.user.dto.AdminUserDto;
+import com.springhi.user.model.PaymentMethod;
 import com.springhi.user.model.SubscriptionConfig;
 import com.springhi.user.model.User;
 import com.springhi.user.model.UserIpAddress;
 import com.springhi.user.repository.PaymentHistoryRepository;
+import com.springhi.user.repository.PaymentMethodRepository;
 import com.springhi.user.repository.UserEmailHistoryRepository;
 import com.springhi.user.repository.UserIpAddressRepository;
 import com.springhi.user.repository.UserPhoneHistoryRepository;
@@ -39,6 +41,7 @@ public class AdminController {
     private final SubscriptionService subscriptionService;
     private final UserSubscriptionRepository userSubscriptionRepository;
     private final PaymentHistoryRepository paymentHistoryRepository;
+    private final PaymentMethodRepository paymentMethodRepository;
 
     public AdminController(UserService userService, UserRepository userRepository,
                            UserIpAddressService userIpAddressService,
@@ -47,7 +50,8 @@ public class AdminController {
                            UserIpAddressRepository userIpAddressRepository,
                            SubscriptionService subscriptionService,
                            UserSubscriptionRepository userSubscriptionRepository,
-                           PaymentHistoryRepository paymentHistoryRepository) {
+                           PaymentHistoryRepository paymentHistoryRepository,
+                           PaymentMethodRepository paymentMethodRepository) {
         this.userService = userService;
         this.userRepository = userRepository;
         this.userIpAddressService = userIpAddressService;
@@ -57,6 +61,7 @@ public class AdminController {
         this.subscriptionService = subscriptionService;
         this.userSubscriptionRepository = userSubscriptionRepository;
         this.paymentHistoryRepository = paymentHistoryRepository;
+        this.paymentMethodRepository = paymentMethodRepository;
     }
 
     private boolean isAdmin(UserDetails userDetails) {
@@ -442,6 +447,22 @@ public class AdminController {
                     .filter(ip -> !ip.getUserId().equals(id))
                     .forEach(ip -> sharedMap.computeIfAbsent(ip.getUserId(), k -> new LinkedHashSet<>())
                             .add("IP: " + ip.getIpAddress()));
+        }
+
+        // Link by shared credit card fingerprint
+        Map<String, PaymentMethod> targetFingerprints = new HashMap<>();
+        for (PaymentMethod pm : paymentMethodRepository.findByUserIdOrderByCreatedAtDesc(id)) {
+            if (pm.getCardFingerprint() != null) {
+                targetFingerprints.putIfAbsent(pm.getCardFingerprint(), pm);
+            }
+        }
+        for (Map.Entry<String, PaymentMethod> cardEntry : targetFingerprints.entrySet()) {
+            String fp = cardEntry.getKey();
+            PaymentMethod targetCard = cardEntry.getValue();
+            String label = "card: ****" + targetCard.getCardLastFour() + " (" + targetCard.getCardBrand() + ")";
+            paymentMethodRepository.findByCardFingerprint(fp).stream()
+                    .filter(pm -> !pm.getUserId().equals(id))
+                    .forEach(pm -> sharedMap.computeIfAbsent(pm.getUserId(), k -> new LinkedHashSet<>()).add(label));
         }
 
         if (sharedMap.isEmpty()) return ResponseEntity.ok(List.of());

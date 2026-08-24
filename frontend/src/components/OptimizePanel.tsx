@@ -63,7 +63,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
     const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
     const [error, setError] = useState('');
     const [ran, setRan] = useState(false);
-    const [profile, setProfile] = useState<UserProfile | null>(null);
+    const [, setProfile] = useState<UserProfile | null>(null);
     const [cashBalance, setCashBalance] = useState<number>(0);
     const [holdingsMarketValue, setHoldingsMarketValue] = useState<number>(0);
     const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
@@ -75,7 +75,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
 
     const [portfolioProfile, setPortfolioProfile] = useState<PortfolioProfile | null>(null);
     const [upgradeModal, setUpgradeModal] = useState<{ message: string } | null>(null);
-    const [optimizationQuota, setOptimizationQuota] = useState<{ used: number; max: number; isFree: boolean } | null>(null);
+    const [optimizationQuota, setOptimizationQuota] = useState<{ used: number; max: number; isFree: boolean; scheduled: number } | null>(null);
     const [userEmail, setUserEmail] = useState<string>('');
     const [userPhone, setUserPhone] = useState<string>('');
     const [showVerifyModal, setShowVerifyModal] = useState(false);

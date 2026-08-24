@@ -58,7 +58,6 @@ const TransactionHistory: React.FC<Props> = ({ portfolioId }) => {
     );
 
     const resolvedName = selectedSymbol != null ? companyNameMap[selectedSymbol] : undefined;
-    const profile = aiRunModal?.details.profile;
 
     return (
         <div>
