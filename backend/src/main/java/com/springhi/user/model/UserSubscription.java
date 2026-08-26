@@ -32,6 +32,12 @@ public class UserSubscription {
     @Column(name = "next_billing_date")
     private LocalDateTime nextBillingDate;
 
+    @Column(name = "pending_plan_name", length = 20)
+    private String pendingPlanName;
+
+    @Column(name = "pending_billing_cycle", length = 10)
+    private String pendingBillingCycle;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -69,4 +75,8 @@ public class UserSubscription {
     public void setNextBillingDate(LocalDateTime nextBillingDate) { this.nextBillingDate = nextBillingDate; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public String getPendingPlanName() { return pendingPlanName; }
+    public void setPendingPlanName(String pendingPlanName) { this.pendingPlanName = pendingPlanName; }
+    public String getPendingBillingCycle() { return pendingBillingCycle; }
+    public void setPendingBillingCycle(String pendingBillingCycle) { this.pendingBillingCycle = pendingBillingCycle; }
 }

@@ -14,6 +14,8 @@ import java.util.Optional;
 public interface UserSubscriptionRepository extends JpaRepository<UserSubscription, Long> {
     Optional<UserSubscription> findByUserId(Long userId);
 
+    List<UserSubscription> findByNextBillingDateBeforeAndPendingPlanNameNotNull(LocalDateTime when);
+
     @Query("SELECT s.planName, COUNT(s) FROM UserSubscription s WHERE s.status = 'ACTIVE' GROUP BY s.planName")
     List<Object[]> countActiveByPlan();
 

@@ -122,6 +122,7 @@ const ProfileEdit: React.FC = () => {
                     <Link to="/getting-started" className="btn-logout">Getting Started</Link>
                     <Link to="/portfolio" className="btn-logout">Portfolio</Link>
                     <Link to="/account" className="btn-logout">Account</Link>
+                    <Link to="/referral" className="btn-logout">Referral</Link>
                     {isAdmin() && <Link to="/admin" className="btn-logout">Admin</Link>}
                     <button className="btn-logout" onClick={() => setShowCashForm(true)}>$ Cash</button>
                     <button className="btn-logout" onClick={handleLogout}>Log Out</button>

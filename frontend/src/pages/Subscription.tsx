@@ -236,6 +236,7 @@ const Subscription: React.FC = () => {
                     <Link to="/getting-started" className="btn-logout">Getting Started</Link>
                     <Link to="/portfolio" className="btn-logout">Portfolios</Link>
                     <Link to="/leaderboard" className="btn-logout">Leaderboard</Link>
+                    <Link to="/referral" className="btn-logout">Referral</Link>
                     <Link to="/account" className="btn-logout">Account</Link>
                     <button className="btn-logout" onClick={handleLogout}>Log Out</button>
                 </nav>

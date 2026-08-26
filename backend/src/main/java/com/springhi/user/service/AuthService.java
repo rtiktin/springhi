@@ -35,6 +35,7 @@ public class AuthService {
     private final UserPhoneHistoryRepository phoneHistoryRepository;
     private final JavaMailSender mailSender;
     private final TelnyxService telnyxService;
+    private final ReferralService referralService;
 
     @Value("${application.mail.from}")
     private String mailFrom;
@@ -52,7 +53,8 @@ public class AuthService {
                        UserEmailHistoryRepository emailHistoryRepository,
                        UserPhoneHistoryRepository phoneHistoryRepository,
                        JavaMailSender mailSender,
-                       TelnyxService telnyxService) {
+                       TelnyxService telnyxService,
+                       ReferralService referralService) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -62,8 +64,10 @@ public class AuthService {
         this.phoneHistoryRepository = phoneHistoryRepository;
         this.mailSender = mailSender;
         this.telnyxService = telnyxService;
+        this.referralService = referralService;
     }
 
+    @Transactional
     public AuthResponse signup(SignupRequest request) {
         if (repository.findByUsername(request.getUsername()).isPresent()) {
             throw new RuntimeException("Username already taken");
@@ -85,6 +89,8 @@ public class AuthService {
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
         repository.save(user);
+
+        referralService.attributeSignup(user.getId(), request.getReferralCode());
 
         String jwtToken = jwtService.generateToken(user);
         return new AuthResponse(jwtToken);

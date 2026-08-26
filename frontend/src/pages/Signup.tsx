@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 
 type FormFields = 'firstName' | 'lastName' | 'username' | 'email' | 'password' | 'confirmPassword';
@@ -63,6 +63,8 @@ const Signup: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const referralCode = searchParams.get('ref') || localStorage.getItem('referralCode') || '';
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -81,8 +83,10 @@ const Signup: React.FC = () => {
     }
     setError('');
     try {
-      const { confirmPassword: _, ...payload } = formData;
+      const { confirmPassword: _, ...rest } = formData;
+      const payload = { ...rest, referralCode: referralCode || undefined };
       await axios.post('http://localhost:9000/api/v1/auth/signup', payload);
+      localStorage.removeItem('referralCode');
       navigate('/login');
     } catch (err: any) {
       const msg: string = err.response?.data?.message || '';
@@ -117,6 +121,12 @@ const Signup: React.FC = () => {
         <Link to="/" className="logo-text">SpringHi.ai</Link>
         <h2>Create your account</h2>
         <p>Join the future of AI investing.</p>
+
+        {referralCode && (
+          <div style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.4)', color: '#a5b4fc', borderRadius: 8, padding: '0.6rem 0.9rem', marginBottom: '1rem', fontSize: '0.9rem' }}>
+            You were referred by a friend — welcome!
+          </div>
+        )}
 
         {error && <div className="error-msg">{error}</div>}
 

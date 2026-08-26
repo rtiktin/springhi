@@ -19,6 +19,8 @@ const Admin = lazy(() => import('./pages/Admin'));
 const Subscription = lazy(() => import('./pages/Subscription'));
 const Pricing = lazy(() => import('./pages/Pricing'));
 const Support = lazy(() => import('./pages/Support'));
+const Referral = lazy(() => import('./pages/Referral'));
+const ReferralLanding = lazy(() => import('./pages/ReferralLanding'));
 
 const PageLoader: React.FC = () => (
   <div className="portfolio-loading">Loading…</div>
@@ -55,6 +57,8 @@ function App() {
           <Route path="/getting-started" element={<GettingStarted />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/ref/:code" element={<ReferralLanding />} />
+          <Route path="/referral" element={<RequireAuth><Referral /></RequireAuth>} />
           <Route path="/portfolio" element={<RequireAuth><Portfolio /></RequireAuth>} />
           <Route path="/profile" element={<RequireAuth><ProfileEdit /></RequireAuth>} />
           <Route path="/account" element={<RequireAuth><AccountMaintenance /></RequireAuth>} />

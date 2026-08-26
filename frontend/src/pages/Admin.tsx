@@ -6,6 +6,31 @@ import { getLoggedInUsername, isAdmin, startImpersonation } from '../utils/auth'
 import {
     adminGetTickets, adminGetTicketDetail, adminAddReply, adminUpdateStatus, adminGetTicketCounts,
 } from '../api/supportApi';
+import { downloadPayoutCsv } from '../api/referralApi';
+
+interface ReferralOverviewRow {
+    userId: number;
+    username: string;
+    code: string;
+    active: boolean;
+    clicks: number;
+    uniqueClicks: number;
+    signups: number;
+    conversions: number;
+    accruedBalance: number;
+    paidOut: number;
+}
+interface ReferralPayoutRow {
+    id: number;
+    referrerUserId: number;
+    username: string;
+    amount: number;
+    status: string;
+    method: string | null;
+    runId: string | null;
+    createdAt: string;
+    completedAt: string | null;
+}
 
 interface SupportTicketSummary {
     id: number;
@@ -79,7 +104,7 @@ const TYPE_BADGE_COLOR: Record<number, string> = {
     3: '#b91c1c',
 };
 
-type AdminTab = 'users' | 'portfolios' | 'stats' | 'config' | 'support' | 'payments';
+type AdminTab = 'users' | 'portfolios' | 'stats' | 'config' | 'support' | 'payments' | 'referrals';
 
 interface AdminPaymentHistory {
     id: number;
@@ -745,6 +770,11 @@ const Admin: React.FC = () => {
     const [configSaving, setConfigSaving] = useState<string | null>(null);
     const [configMessage, setConfigMessage] = useState<{ planName: string; text: string; error: boolean } | null>(null);
 
+    const [referralOverview, setReferralOverview] = useState<ReferralOverviewRow[]>([]);
+    const [referralPayouts, setReferralPayouts] = useState<ReferralPayoutRow[]>([]);
+    const [loadingReferrals, setLoadingReferrals] = useState(false);
+    const [referralMsg, setReferralMsg] = useState<{ text: string; error: boolean } | null>(null);
+
     useEffect(() => {
         if (!isAdmin()) {
             navigate('/portfolio');
@@ -762,6 +792,8 @@ const Admin: React.FC = () => {
             loadSubscriptionConfig();
         } else if (tab === 'payments') {
             loadPayments();
+        } else if (tab === 'referrals') {
+            loadReferrals();
         }
     }, [tab]);
 
@@ -772,6 +804,31 @@ const Admin: React.FC = () => {
             .catch(() => setError('Failed to load payment history.'))
             .finally(() => setLoadingPayments(false));
         loadRevenueStats(revenueChartOffset);
+    };
+
+    const loadReferrals = () => {
+        setLoadingReferrals(true);
+        setReferralMsg(null);
+        Promise.all([
+            axios.get(`${API_GATEWAY}/api/v1/referral/admin/all`, { headers: authHeader() }),
+            axios.get(`${API_GATEWAY}/api/v1/referral/admin/payouts`, { headers: authHeader() }),
+        ])
+            .then(([o, p]) => {
+                setReferralOverview(o.data);
+                setReferralPayouts(p.data);
+            })
+            .catch(() => setReferralMsg({ text: 'Failed to load referral data.', error: true }))
+            .finally(() => setLoadingReferrals(false));
+    };
+
+    const runReferralPayouts = () => {
+        setReferralMsg(null);
+        axios.post(`${API_GATEWAY}/api/v1/referral/admin/run-payouts`, {}, { headers: authHeader() })
+            .then(() => {
+                setReferralMsg({ text: 'Payout run complete.', error: false });
+                loadReferrals();
+            })
+            .catch(() => setReferralMsg({ text: 'Payout run failed.', error: true }));
     };
 
     const loadRevenueStats = (offset: number) => {
@@ -1018,6 +1075,7 @@ const Admin: React.FC = () => {
                     <Link to="/portfolio" className="btn-logout">Portfolios</Link>
                     <Link to="/leaderboard" className="btn-logout">Leaderboard</Link>
                     <Link to="/account" className="btn-logout">Account</Link>
+                    <Link to="/referral" className="btn-logout">Referral</Link>
                     <button className="btn-logout" onClick={handleLogout}>Log Out</button>
                 </nav>
             </header>
@@ -1039,6 +1097,7 @@ const Admin: React.FC = () => {
                     <button style={tabStyle('config')} onClick={() => setTab('config')}>Config</button>
                     <button style={tabStyle('payments')} onClick={() => setTab('payments')}>Payments</button>
                     <button style={tabStyle('support')} onClick={() => setTab('support')}>Support</button>
+                    <button style={tabStyle('referrals')} onClick={() => setTab('referrals')}>Referrals</button>
                 </div>
 
                 <div style={{ background: 'var(--bg-card)', borderRadius: '0 8px 8px 8px', border: '1px solid var(--border)', borderTop: 'none', padding: '1.5rem' }}>
@@ -1384,6 +1443,100 @@ const Admin: React.FC = () => {
                     )}
 
                     {tab === 'support' && <AdminSupportPanel />}
+
+                    {tab === 'referrals' && (
+                        <>
+                            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1.25rem', color: 'var(--text-primary)' }}>Referral Program</h2>
+                            {referralMsg && (
+                                <div style={{ background: referralMsg.error ? '#fee2e2' : '#d1fae5', color: referralMsg.error ? '#b91c1c' : '#065f46', borderRadius: 8, padding: '0.6rem 0.9rem', marginBottom: '1rem', fontSize: '0.9rem' }}>{referralMsg.text}</div>
+                            )}
+                            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                                <button className="btn-trade" onClick={runReferralPayouts}>Run Payouts Now</button>
+                                <button className="btn-logout" onClick={loadReferrals}>Refresh</button>
+                            </div>
+                            {loadingReferrals ? (
+                                <div className="portfolio-loading">Loading referrals…</div>
+                            ) : (
+                                <>
+                                    <h3 style={{ margin: '0 0 0.75rem', color: 'var(--text-primary)', fontSize: '1rem' }}>Referrers</h3>
+                                    <div style={{ overflowX: 'auto', marginBottom: '2rem' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                            <thead>
+                                                <tr style={{ textAlign: 'left', color: 'var(--text-gray)', borderBottom: '1px solid var(--border)' }}>
+                                                    <th style={{ padding: '0.5rem' }}>Username</th>
+                                                    <th style={{ padding: '0.5rem' }}>Code</th>
+                                                    <th style={{ padding: '0.5rem' }}>Clicks</th>
+                                                    <th style={{ padding: '0.5rem' }}>Unique</th>
+                                                    <th style={{ padding: '0.5rem' }}>Signups</th>
+                                                    <th style={{ padding: '0.5rem' }}>Conversions</th>
+                                                    <th style={{ padding: '0.5rem' }}>Accrued</th>
+                                                    <th style={{ padding: '0.5rem' }}>Paid</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {referralOverview.length === 0 ? (
+                                                    <tr><td colSpan={8} style={{ padding: '0.75rem', color: 'var(--text-gray)' }}>No referrers yet.</td></tr>
+                                                ) : referralOverview.map(r => (
+                                                    <tr key={r.userId} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                        <td style={{ padding: '0.5rem' }}>@{r.username}</td>
+                                                        <td style={{ padding: '0.5rem' }}>{r.code}</td>
+                                                        <td style={{ padding: '0.5rem' }}>{r.clicks}</td>
+                                                        <td style={{ padding: '0.5rem' }}>{r.uniqueClicks}</td>
+                                                        <td style={{ padding: '0.5rem' }}>{r.signups}</td>
+                                                        <td style={{ padding: '0.5rem' }}>{r.conversions}</td>
+                                                        <td style={{ padding: '0.5rem' }}>${Number(r.accruedBalance).toFixed(2)}</td>
+                                                        <td style={{ padding: '0.5rem' }}>${Number(r.paidOut).toFixed(2)}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <h3 style={{ margin: '0 0 0.75rem', color: 'var(--text-primary)', fontSize: '1rem' }}>Payouts</h3>
+                                    <div style={{ overflowX: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                            <thead>
+                                                <tr style={{ textAlign: 'left', color: 'var(--text-gray)', borderBottom: '1px solid var(--border)' }}>
+                                                    <th style={{ padding: '0.5rem' }}>ID</th>
+                                                    <th style={{ padding: '0.5rem' }}>Referrer</th>
+                                                    <th style={{ padding: '0.5rem' }}>Amount</th>
+                                                    <th style={{ padding: '0.5rem' }}>Status</th>
+                                                    <th style={{ padding: '0.5rem' }}>Method</th>
+                                                    <th style={{ padding: '0.5rem' }}>Run Id</th>
+                                                    <th style={{ padding: '0.5rem' }}>Completed</th>
+                                                    <th style={{ padding: '0.5rem' }}>CSV</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {referralPayouts.length === 0 ? (
+                                                    <tr><td colSpan={8} style={{ padding: '0.75rem', color: 'var(--text-gray)' }}>No payouts yet.</td></tr>
+                                                ) : referralPayouts.map(p => (
+                                                    <tr key={p.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                        <td style={{ padding: '0.5rem' }}>{p.id}</td>
+                                                        <td style={{ padding: '0.5rem' }}>@{p.username}</td>
+                                                        <td style={{ padding: '0.5rem' }}>${Number(p.amount).toFixed(2)}</td>
+                                                        <td style={{ padding: '0.5rem' }}>{p.status}</td>
+                                                        <td style={{ padding: '0.5rem' }}>{p.method ?? '—'}</td>
+                                                        <td style={{ padding: '0.5rem' }}>{p.runId ?? '—'}</td>
+                                                        <td style={{ padding: '0.5rem' }}>{p.completedAt ? new Date(p.completedAt).toLocaleString() : '—'}</td>
+                                                        <td style={{ padding: '0.5rem' }}>
+                                                            {p.runId ? (
+                                                                <button
+                                                                    className="btn-logout"
+                                                                    style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                                                                    onClick={() => downloadPayoutCsv(p.runId!)}
+                                                                >CSV</button>
+                                                            ) : '—'}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </>
+                            )}
+                        </>
+                    )}
 
                     {tab === 'payments' && (
                         <>

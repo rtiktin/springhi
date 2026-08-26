@@ -73,7 +73,10 @@ const GettingStarted: React.FC = () => {
                     <Link to="/about" className="nav-link">About</Link>
                     <Link to="/pricing" className="nav-link">Pricing</Link>
                     {isLoggedIn() ? (
-                        <Link to="/portfolio" className="btn-primary">My Portfolio</Link>
+                        <>
+                            <Link to="/referral" className="nav-link">Referral</Link>
+                            <Link to="/portfolio" className="btn-primary">My Portfolio</Link>
+                        </>
                     ) : (
                         <>
                             <Link to="/login" className="nav-link">Login</Link>

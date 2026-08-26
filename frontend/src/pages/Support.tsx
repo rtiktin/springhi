@@ -136,6 +136,7 @@ const Support: React.FC = () => {
                     <Link to="/getting-started" className="nav-link">Getting Started</Link>
                     <Link to="/portfolio" className="nav-link">My Portfolio</Link>
                     <Link to="/subscription" className="nav-link">Subscription</Link>
+                    <Link to="/referral" className="nav-link">Referral</Link>
                 </nav>
             </header>
 
