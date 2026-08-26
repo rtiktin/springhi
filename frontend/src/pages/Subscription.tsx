@@ -150,11 +150,19 @@ const Subscription: React.FC = () => {
         setError('');
         const payload: Record<string, unknown> = { planName: selectedPlan, billingCycle };
         const hasExistingCard = !!(status?.paymentMethod);
-        const isDowngradeRequest = status && (
+        const hadPendingChange = !!status?.pendingPlanName;
+        const hasFuturePeriod = !!status?.nextBillingDate && new Date(status.nextBillingDate) > new Date();
+        const samePlan = !!status && status.planName === selectedPlan;
+        const sameCycle = !status?.billingCycle || !billingCycle || status.billingCycle === billingCycle;
+        const isSamePlanRequest = samePlan && sameCycle && hasFuturePeriod;
+        const isCycleSwitch = samePlan && !sameCycle && hasFuturePeriod;
+        const isCycleUpgrade = isCycleSwitch && billingCycle === 'ANNUAL';
+        const isCycleDowngrade = isCycleSwitch && billingCycle === 'MONTHLY';
+        const isDowngradeRequest = !!status && (
             (status.planName === 'PREMIUM' && (selectedPlan === 'BASIC' || selectedPlan === 'FREE')) ||
             (status.planName === 'BASIC' && selectedPlan === 'FREE')
         );
-        const requiresCard = selectedPlan !== 'FREE' && !isDowngradeRequest;
+        const requiresCard = selectedPlan !== 'FREE' && !isDowngradeRequest && !isCycleDowngrade && !isSamePlanRequest;
         if (requiresCard) {
             if (hasExistingCard && useExistingCard) {
                 payload.useExistingCard = true;
@@ -193,12 +201,21 @@ const Subscription: React.FC = () => {
                 setExpiryYear('');
                 setBillingZip('');
                 setCvv('');
-                if (res.data?.pendingPlanName) {
+                if (isCycleDowngrade) {
+                    const when = res.data?.nextBillingDate
+                        ? new Date(res.data.nextBillingDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+                        : 'the end of your billing period';
+                    setSuccess(`Your billing will switch to Monthly on ${when}. Your current Annual period stays active until then.`);
+                } else if (isCycleUpgrade) {
+                    setSuccess('Your billing has been switched to Annual. A prorated charge for the new annual period has been applied.');
+                } else if (res.data?.pendingPlanName) {
                     const when = res.data?.nextBillingDate
                         ? new Date(res.data.nextBillingDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
                         : 'the end of your billing period';
                     const target = plans.find(p => p.planName === res.data.pendingPlanName)?.displayName ?? res.data.pendingPlanName;
                     setSuccess(`Your plan will change to ${target} on ${when}. Your current plan stays active until then.`);
+                } else if (hadPendingChange && !res.data?.pendingPlanName) {
+                    setSuccess('Your pending plan change has been cancelled. Your current plan stays active.');
                 } else {
                     setSuccess('Subscription updated successfully!');
                 }

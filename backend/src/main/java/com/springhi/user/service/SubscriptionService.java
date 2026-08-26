@@ -131,6 +131,51 @@ public class SubscriptionService {
         boolean hasFuturePeriod = currentMonthly.compareTo(BigDecimal.ZERO) > 0
                 && sub.getNextBillingDate() != null && sub.getNextBillingDate().isAfter(now);
         int direction = newMonthly.compareTo(currentMonthly);
+        String currentCycle = sub.getBillingCycle();
+        boolean cycleChanging = currentCycle != null && billingCycle != null
+                && !billingCycle.equalsIgnoreCase(currentCycle);
+        boolean toAnnual = "ANNUAL".equalsIgnoreCase(billingCycle);
+        // Same plan, switching billing cycle mid-period (monthly <-> annual).
+        // MONTHLY->ANNUAL falls through to the charge logic (a charge); ANNUAL->MONTHLY
+        // is deferred below to preserve the paid annual period.
+        boolean cycleUpgradeToAnnual = false;
+
+        if (direction == 0 && hasFuturePeriod) {
+            if (cycleChanging) {
+                if (toAnnual) {
+                    // MONTHLY -> ANNUAL: credit the unused monthly remainder and start a new
+                    // annual period. The charge is computed by the charge logic below.
+                    cycleUpgradeToAnnual = true;
+                } else {
+                    // ANNUAL -> MONTHLY: defer to period end so the paid annual period is
+                    // preserved (no credit forfeited); flip to MONTHLY when it expires.
+                    sub.setPendingPlanName(plan);
+                    sub.setPendingBillingCycle(billingCycle);
+                    subscriptionRepository.save(sub);
+                    log.info("Billing cycle downgrade scheduled: userId={} plan={} {} -> {} effective at {}",
+                            userId, plan, currentCycle, billingCycle, sub.getNextBillingDate());
+                    PaymentMethod pm = paymentMethodRepository.findFirstByUserIdAndIsDefaultTrue(userId).orElse(null);
+                    return buildStatusResponse(sub, currentConfig, pm);
+                }
+            } else {
+                // Same plan, same cycle: no charge. Cancels any pending change and keeps the
+                // existing period intact (prevents a double charge when a user downgrades then
+                // upgrades back to the same plan before the period ends).
+                boolean hadPending = sub.getPendingPlanName() != null;
+                sub.setPendingPlanName(null);
+                sub.setPendingBillingCycle(null);
+                if ("CANCELLED".equalsIgnoreCase(sub.getStatus())) {
+                    sub.setStatus("ACTIVE");
+                }
+                subscriptionRepository.save(sub);
+                if (hadPending) {
+                    log.info("Pending subscription change cancelled, keeping current plan: userId={} plan={}",
+                            userId, sub.getPlanName());
+                }
+                PaymentMethod pm = paymentMethodRepository.findFirstByUserIdAndIsDefaultTrue(userId).orElse(null);
+                return buildStatusResponse(sub, currentConfig, pm);
+            }
+        }
 
         // DOWNGRADE (incl. cancel-to-FREE) while a prepaid period is still running: defer, no charge
         if (direction < 0 && hasFuturePeriod) {
@@ -170,6 +215,18 @@ public class SubscriptionService {
             double fraction = Math.min(1.0, (double) remainingSec / (double) periodSec);
             BigDecimal delta = newCyclePrice.subtract(currentCyclePrice);
             chargeAmount = delta.multiply(BigDecimal.valueOf(fraction)).setScale(2, RoundingMode.HALF_UP);
+            if (chargeAmount.compareTo(BigDecimal.ZERO) < 0) chargeAmount = BigDecimal.ZERO;
+        } else if (cycleUpgradeToAnnual) {
+            // MONTHLY -> ANNUAL on the same plan: credit the unused portion of the current
+            // monthly cycle, then charge the annual price minus that credit. The period-reset
+            // branch below starts a fresh annual period (billingCycle == ANNUAL here).
+            BigDecimal currentCyclePrice = cyclePrice(currentConfig, sub.getBillingCycle());
+            BigDecimal newCyclePrice = cyclePrice(newConfig, billingCycle);
+            long periodSec = Math.max(1L, Duration.between(sub.getStartDate(), sub.getNextBillingDate()).getSeconds());
+            long remainingSec = Math.max(0L, Duration.between(now, sub.getNextBillingDate()).getSeconds());
+            double fraction = Math.min(1.0, (double) remainingSec / (double) periodSec);
+            BigDecimal credit = currentCyclePrice.multiply(BigDecimal.valueOf(fraction)).setScale(2, RoundingMode.HALF_UP);
+            chargeAmount = newCyclePrice.subtract(credit);
             if (chargeAmount.compareTo(BigDecimal.ZERO) < 0) chargeAmount = BigDecimal.ZERO;
         } else {
             chargeAmount = cyclePrice(newConfig, billingCycle);
@@ -226,30 +283,71 @@ public class SubscriptionService {
     @Transactional
     public void applyScheduledChanges() {
         LocalDateTime now = LocalDateTime.now();
-        List<UserSubscription> due = subscriptionRepository.findByNextBillingDateBeforeAndPendingPlanNameNotNull(now);
+        List<UserSubscription> due = subscriptionRepository.findByNextBillingDateBefore(now);
         if (due.isEmpty()) return;
         for (UserSubscription sub : due) {
-            String newPlan = sub.getPendingPlanName();
-            String newCycle = sub.getPendingBillingCycle() != null ? sub.getPendingBillingCycle() : sub.getBillingCycle();
+            boolean hasPending = sub.getPendingPlanName() != null;
+            String newPlan = hasPending ? sub.getPendingPlanName() : sub.getPlanName();
+            String newCycle = hasPending && sub.getPendingBillingCycle() != null
+                    ? sub.getPendingBillingCycle() : sub.getBillingCycle();
             sub.setPlanName(newPlan);
             sub.setPendingPlanName(null);
             sub.setPendingBillingCycle(null);
-            if ("FREE".equalsIgnoreCase(newPlan)) {
-                sub.setStatus("CANCELLED");
-                sub.setEndDate(now);
-                sub.setNextBillingDate(null);
-            } else {
-                sub.setStatus("ACTIVE");
-                sub.setStartDate(now);
-                sub.setEndDate(null);
-                sub.setNextBillingDate(now);
-            }
             sub.setBillingCycle(newCycle);
-            subscriptionRepository.save(sub);
-            enforcePlanLimits(sub.getUserId(), newPlan);
-            log.info("Applied scheduled subscription change: userId={} -> plan={} cycle={}",
-                    sub.getUserId(), newPlan, newCycle);
+            if ("FREE".equalsIgnoreCase(newPlan)) {
+                if (hasPending) {
+                    sub.setStatus("CANCELLED");
+                    sub.setEndDate(now);
+                    log.info("Subscription cancelled to FREE at period end: userId={}", sub.getUserId());
+                } else {
+                    log.info("Clearing stale nextBillingDate for FREE subscription: userId={}", sub.getUserId());
+                }
+                sub.setNextBillingDate(null);
+                subscriptionRepository.save(sub);
+                enforcePlanLimits(sub.getUserId(), "FREE");
+            } else {
+                renewPaid(sub, newPlan, newCycle, now);
+            }
         }
+    }
+
+    // Auto-renew a paid subscription at the end of its billing period. Charges the
+    // user's default payment method for the next cycle and advances nextBillingDate
+    // by exactly one cycle (so renewal times don't drift). If there is no default
+    // card on file the renewal fails and the subscription reverts to FREE.
+    private void renewPaid(UserSubscription sub, String plan, String cycle, LocalDateTime now) {
+        PaymentMethod pm = paymentMethodRepository.findFirstByUserIdAndIsDefaultTrue(sub.getUserId()).orElse(null);
+        if (pm == null) {
+            sub.setPlanName("FREE");
+            sub.setStatus("EXPIRED");
+            sub.setEndDate(now);
+            sub.setNextBillingDate(null);
+            subscriptionRepository.save(sub);
+            enforcePlanLimits(sub.getUserId(), "FREE");
+            log.warn("Auto-renewal failed (no payment method on file), reverted to FREE: userId={} plan={} cycle={}",
+                    sub.getUserId(), plan, cycle);
+            return;
+        }
+        SubscriptionConfig config = getPlan(plan);
+        BigDecimal chargeAmount = cyclePrice(config, cycle);
+        PaymentHistory ph = new PaymentHistory();
+        ph.setUserId(sub.getUserId());
+        ph.setPlanName(plan);
+        ph.setAmount(chargeAmount);
+        ph.setBillingCycle(cycle);
+        ph.setStatus("COMPLETED");
+        ph.setPaymentMethodId(pm.getId());
+        paymentHistoryRepository.save(ph);
+        referralService.accrueCommissionOnPayment(sub.getUserId(), ph.getId(), chargeAmount);
+        LocalDateTime periodStart = sub.getNextBillingDate() != null ? sub.getNextBillingDate() : now;
+        sub.setStatus("ACTIVE");
+        sub.setStartDate(periodStart);
+        sub.setEndDate(null);
+        sub.setNextBillingDate("ANNUAL".equalsIgnoreCase(cycle) ? periodStart.plusYears(1) : periodStart.plusMonths(1));
+        subscriptionRepository.save(sub);
+        enforcePlanLimits(sub.getUserId(), plan);
+        log.info("Auto-renewed subscription: userId={} plan={} cycle={} amount={} nextBillingDate={}",
+                sub.getUserId(), plan, cycle, chargeAmount, sub.getNextBillingDate());
     }
 
     private PaymentMethod resolvePaymentMethod(Long userId, String cardholderName, String cardNumber,

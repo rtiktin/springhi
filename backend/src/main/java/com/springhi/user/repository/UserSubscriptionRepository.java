@@ -16,6 +16,8 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
 
     List<UserSubscription> findByNextBillingDateBeforeAndPendingPlanNameNotNull(LocalDateTime when);
 
+    List<UserSubscription> findByNextBillingDateBefore(LocalDateTime when);
+
     @Query("SELECT s.planName, COUNT(s) FROM UserSubscription s WHERE s.status = 'ACTIVE' GROUP BY s.planName")
     List<Object[]> countActiveByPlan();
 

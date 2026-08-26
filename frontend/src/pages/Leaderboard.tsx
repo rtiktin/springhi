@@ -1026,7 +1026,7 @@ const Leaderboard: React.FC = () => {
             </main>
 
             <footer className="footer">
-                <p>&copy; 2025 SpringHi.ai. All rights reserved.</p>
+                <p>&copy; 2026 SpringHi.ai. All rights reserved.</p>
             </footer>
         </div>
     );
