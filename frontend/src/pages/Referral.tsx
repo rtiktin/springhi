@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getLoggedInUsername } from '../utils/auth';
+import { getLoggedInUsername, isAdmin } from '../utils/auth';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 import { getMyReferral, getPayoutProfile, savePayoutProfile } from '../api/referralApi';
 import type { ReferralDashboard, PayoutProfile, PayoutProfilePayload } from '../api/referralApi';
@@ -122,6 +122,7 @@ const Referral: React.FC = () => {
                     <Link to="/account" className="btn-logout">Account</Link>
                     <Link to="/subscription" className="btn-logout">Subscription</Link>
                     <Link to="/referral" className="btn-logout">Referral</Link>
+                    {isAdmin() && <Link to="/admin" className="btn-logout">Admin</Link>}
                     <button className="btn-logout" onClick={handleLogout}>Log Out</button>
                 </nav>
             </header>

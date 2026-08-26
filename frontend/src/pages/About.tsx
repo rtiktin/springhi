@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Trophy, Eye, Cpu, TrendingUp, BarChart2, CalendarClock, ShieldCheck, BookOpen, GitCompare, ShieldAlert } from 'lucide-react';
-import { getLoggedInUsername } from '../utils/auth';
+import { getLoggedInUsername, isAdmin } from '../utils/auth';
 
 const isLoggedIn = () => !!localStorage.getItem('token');
 
@@ -20,7 +20,10 @@ const About: React.FC = () => {
                     <Link to="/getting-started" className="nav-link">Getting Started</Link>
                     <Link to="/pricing" className="nav-link">Pricing</Link>
                     {isLoggedIn() ? (
-                        <Link to="/portfolio" className="btn-primary">My Portfolio</Link>
+                        <>
+                            {isAdmin() && <Link to="/admin" className="nav-link">Admin</Link>}
+                            <Link to="/portfolio" className="btn-primary">My Portfolio</Link>
+                        </>
                     ) : (
                         <>
                             <Link to="/login" className="nav-link">Login</Link>

@@ -541,12 +541,6 @@ const Portfolio: React.FC = () => {
                     <Link to="/referral" className="btn-logout">Referral</Link>
                     <Link to="/support" className="btn-logout">Support</Link>
                     {isAdmin() && <Link to="/admin" className="btn-logout">Admin</Link>}
-                    <button className="btn-trade" onClick={() => setShowCashForm(true)}>
-                        $ Cash
-                    </button>
-                    <button className="btn-trade" onClick={() => setShowTradeForm(true)}>
-                        + Trade
-                    </button>
                     <button className="btn-logout" onClick={handleLogout}>Log Out</button>
                 </nav>
             </header>
@@ -556,6 +550,14 @@ const Portfolio: React.FC = () => {
                     <div>
                         <h1 className="portfolio-heading">My Portfolio</h1>
                         <p className="portfolio-sub">Prices updated at 9am &amp; 3pm ET on market days.</p>
+                        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem' }}>
+                            <button className="btn-trade" onClick={() => setShowCashForm(true)}>
+                                $ Cash
+                            </button>
+                            <button className="btn-trade" onClick={() => setShowTradeForm(true)}>
+                                + Trade
+                            </button>
+                        </div>
                     </div>
                     <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'stretch' }}>
                         {portfolioQuota && (

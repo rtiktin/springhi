@@ -79,9 +79,6 @@ public class SubscriptionController {
             if (planName == null || planName.isBlank()) {
                 return ResponseEntity.badRequest().body(Map.of("message", "planName is required"));
             }
-            if (!"FREE".equalsIgnoreCase(planName) && !useExistingCard && (cardNumber == null || cardNumber.isBlank())) {
-                return ResponseEntity.badRequest().body(Map.of("message", "Card number is required for paid plans"));
-            }
 
             Map<String, Object> result = subscriptionService.subscribe(
                     userId, planName, billingCycle, cardholderName, cardNumber,

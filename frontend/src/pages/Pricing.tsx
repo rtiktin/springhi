@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Check } from 'lucide-react';
 import API_GATEWAY from '../api/apiBase';
-import { isLoggedIn, getLoggedInUsername } from '../utils/auth';
+import { isLoggedIn, getLoggedInUsername, isAdmin } from '../utils/auth';
 
 interface Plan {
     planName: string;
@@ -76,13 +76,22 @@ const Pricing: React.FC = () => {
         if (plan.planName === 'BASIC') return [
             'Everything in Free',
             `${plan.maxOptimizationsPerMonth} AI optimizations per month`,
+            `Up to ${plan.maxPortfolios} portfolios`,
             'Scheduled auto-rebalancing',
         ];
         return [
             'Everything in Basic',
             `${plan.maxOptimizationsPerMonth} AI optimizations per month`,
             `Up to ${plan.maxPortfolios} portfolios`,
+            'Scheduled auto-rebalancing',
         ];
+    };
+
+    const planTagline = (plan: Plan): string => {
+        if (plan.planName === 'FREE') {
+            return `${plan.maxPortfolios} portfolios · ${plan.maxOptimizationsPerMonth} lifetime optimizations`;
+        }
+        return `${plan.maxOptimizationsPerMonth} optimizations / month · up to ${plan.maxPortfolios} portfolios`;
     };
 
     const handleCta = () => {
@@ -106,7 +115,10 @@ const Pricing: React.FC = () => {
                     <Link to="/getting-started" className="nav-link">Getting Started</Link>
                     <Link to="/about" className="nav-link">About</Link>
                     {isLoggedIn() ? (
-                        <Link to="/portfolio" className="btn-primary">My Portfolio</Link>
+                        <>
+                            {isAdmin() && <Link to="/admin" className="nav-link">Admin</Link>}
+                            <Link to="/portfolio" className="btn-primary">My Portfolio</Link>
+                        </>
                     ) : (
                         <>
                             <Link to="/login" className="nav-link">Login</Link>
@@ -203,7 +215,7 @@ const Pricing: React.FC = () => {
                                         )}
 
                                         <h2 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: '0.5rem', color: '#fff' }}>{plan.displayName}</h2>
-                                        <p style={{ color: '#a0a0a0', fontSize: '0.875rem', lineHeight: 1.6, marginBottom: '1.25rem', minHeight: 40 }}>{plan.description}</p>
+                                        <p style={{ color: '#a0a0a0', fontSize: '0.875rem', lineHeight: 1.6, marginBottom: '1.25rem', minHeight: 40 }}>{planTagline(plan)}</p>
 
                                         <div style={{ marginBottom: '1.5rem' }}>
                                             <span style={{ fontSize: '2.5rem', fontWeight: 900, color: '#fff' }}>

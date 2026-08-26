@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { MessageSquare, ChevronDown, ChevronUp, Plus, Send } from 'lucide-react';
-import { getLoggedInUsername } from '../utils/auth';
+import { getLoggedInUsername, isAdmin } from '../utils/auth';
 import {
     createTicket, getMyTickets, getTicketDetail, addUserReply,
 } from '../api/supportApi';
@@ -137,6 +137,7 @@ const Support: React.FC = () => {
                     <Link to="/portfolio" className="nav-link">My Portfolio</Link>
                     <Link to="/subscription" className="nav-link">Subscription</Link>
                     <Link to="/referral" className="nav-link">Referral</Link>
+                    {isAdmin() && <Link to="/admin" className="nav-link">Admin</Link>}
                 </nav>
             </header>
 

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import API_GATEWAY from '../api/apiBase';
+import { isAdmin } from '../utils/auth';
 
 interface Plan {
     planName: string;
@@ -19,6 +20,9 @@ interface SubscriptionStatus {
     billingCycle: string | null;
     status: string;
     nextBillingDate: string | null;
+    endDate: string | null;
+    pendingPlanName: string | null;
+    pendingBillingCycle: string | null;
     monthlyPrice: number;
     annualPrice: number;
     maxPortfolios: number;
@@ -146,7 +150,12 @@ const Subscription: React.FC = () => {
         setError('');
         const payload: Record<string, unknown> = { planName: selectedPlan, billingCycle };
         const hasExistingCard = !!(status?.paymentMethod);
-        if (selectedPlan !== 'FREE') {
+        const isDowngradeRequest = status && (
+            (status.planName === 'PREMIUM' && (selectedPlan === 'BASIC' || selectedPlan === 'FREE')) ||
+            (status.planName === 'BASIC' && selectedPlan === 'FREE')
+        );
+        const requiresCard = selectedPlan !== 'FREE' && !isDowngradeRequest;
+        if (requiresCard) {
             if (hasExistingCard && useExistingCard) {
                 payload.useExistingCard = true;
             } else {
@@ -184,7 +193,15 @@ const Subscription: React.FC = () => {
                 setExpiryYear('');
                 setBillingZip('');
                 setCvv('');
-                setSuccess('Subscription updated successfully!');
+                if (res.data?.pendingPlanName) {
+                    const when = res.data?.nextBillingDate
+                        ? new Date(res.data.nextBillingDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+                        : 'the end of your billing period';
+                    const target = plans.find(p => p.planName === res.data.pendingPlanName)?.displayName ?? res.data.pendingPlanName;
+                    setSuccess(`Your plan will change to ${target} on ${when}. Your current plan stays active until then.`);
+                } else {
+                    setSuccess('Subscription updated successfully!');
+                }
             })
             .catch(err => setError(err.response?.data?.message ?? 'Subscription failed. Please try again.'))
             .finally(() => setSubmitting(false));
@@ -215,7 +232,7 @@ const Subscription: React.FC = () => {
         return digits.replace(/(.{4})/g, '$1 ').trim();
     };
 
-    const currentPlan = (status?.status === 'CANCELLED') ? 'FREE' : (status?.planName ?? 'FREE');
+    const currentPlan = status?.planName ?? 'FREE';
 
     const selectedPlanDetails = plans.find(p => p.planName === selectedPlan);
     const willLoseData = selectedPlanDetails && usageStats && usageStats.portfolioCount > selectedPlanDetails.maxPortfolios;
@@ -238,6 +255,7 @@ const Subscription: React.FC = () => {
                     <Link to="/leaderboard" className="btn-logout">Leaderboard</Link>
                     <Link to="/referral" className="btn-logout">Referral</Link>
                     <Link to="/account" className="btn-logout">Account</Link>
+                    {isAdmin() && <Link to="/admin" className="btn-logout">Admin</Link>}
                     <button className="btn-logout" onClick={handleLogout}>Log Out</button>
                 </nav>
             </header>
@@ -260,6 +278,16 @@ const Subscription: React.FC = () => {
                         {status && (
                             <div style={{ background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border)', padding: '1.25rem', marginBottom: '2rem' }}>
                                 <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>Current Plan</h2>
+                                {status.pendingPlanName && status.pendingPlanName !== 'FREE' && status.nextBillingDate && status.status !== 'CANCELLED' && (
+                                    <div style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid #3b82f6', borderRadius: 8, padding: '0.7rem 1rem', marginBottom: '1rem', display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
+                                        <span style={{ fontSize: '1rem', lineHeight: 1.4 }}>⏳</span>
+                                        <div style={{ fontSize: '0.88rem', color: '#3b82f6', lineHeight: 1.5 }}>
+                                            Your plan is scheduled to change to <strong>{plans.find(p => p.planName === status.pendingPlanName)?.displayName ?? status.pendingPlanName}</strong> on{' '}
+                                            <strong>{new Date(status.nextBillingDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</strong>.
+                                            Your current <strong>{status.displayName}</strong> features remain active until then. At that time, anything exceeding the new plan's limits will be disabled.
+                                        </div>
+                                    </div>
+                                )}
                                 {status.status === 'CANCELLED' && status.nextBillingDate && (
                                     <div style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid #f59e0b', borderRadius: 8, padding: '0.7rem 1rem', marginBottom: '1rem', display: 'flex', alignItems: 'flex-start', gap: '0.6rem' }}>
                                         <span style={{ fontSize: '1rem', lineHeight: 1.4 }}>⚠️</span>
@@ -405,6 +433,9 @@ const Subscription: React.FC = () => {
                                         <ul style={{ listStyle: 'none', padding: 0, margin: '0.75rem 0 1rem', fontSize: '0.88rem', color: 'var(--text-gray)' }}>
                                             <li style={{ marginBottom: 4 }}>✓ {plan.maxPortfolios} portfolios</li>
                                             <li style={{ marginBottom: 4 }}>✓ {plan.maxOptimizationsPerMonth} AI optimizations{plan.planName === 'FREE' ? ' (lifetime total)' : '/month'}</li>
+                                            {plan.planName !== 'FREE' && (
+                                                <li style={{ marginBottom: 4 }}>✓ Scheduled auto-rebalancing</li>
+                                            )}
                                         </ul>
                                         <button
                                             style={{

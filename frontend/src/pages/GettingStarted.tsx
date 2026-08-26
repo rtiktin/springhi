@@ -10,7 +10,7 @@ import {
     ArrowRight, 
     CheckCircle2 
 } from 'lucide-react';
-import { getLoggedInUsername } from '../utils/auth';
+import { getLoggedInUsername, isAdmin } from '../utils/auth';
 
 const isLoggedIn = () => !!localStorage.getItem('token');
 
@@ -75,6 +75,7 @@ const GettingStarted: React.FC = () => {
                     {isLoggedIn() ? (
                         <>
                             <Link to="/referral" className="nav-link">Referral</Link>
+                            {isAdmin() && <Link to="/admin" className="nav-link">Admin</Link>}
                             <Link to="/portfolio" className="btn-primary">My Portfolio</Link>
                         </>
                     ) : (
