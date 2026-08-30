@@ -8,6 +8,8 @@ import com.springhi.user.repository.PaymentHistoryRepository;
 import com.springhi.user.repository.PaymentMethodRepository;
 import com.springhi.user.repository.SubscriptionConfigRepository;
 import com.springhi.user.repository.UserSubscriptionRepository;
+import com.stripe.exception.StripeException;
+import com.stripe.model.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,6 +42,7 @@ public class SubscriptionService {
     private final PaymentHistoryRepository paymentHistoryRepository;
     private final WebClient.Builder webClientBuilder;
     private final ReferralService referralService;
+    private final StripeService stripeService;
 
     @Value("${app.portfolio-service.url:http://localhost:8081}")
     private String portfolioServiceUrl;
@@ -55,13 +58,15 @@ public class SubscriptionService {
                                PaymentMethodRepository paymentMethodRepository,
                                PaymentHistoryRepository paymentHistoryRepository,
                                WebClient.Builder webClientBuilder,
-                               ReferralService referralService) {
+                               ReferralService referralService,
+                               StripeService stripeService) {
         this.configRepository = configRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.paymentMethodRepository = paymentMethodRepository;
         this.paymentHistoryRepository = paymentHistoryRepository;
         this.webClientBuilder = webClientBuilder;
         this.referralService = referralService;
+        this.stripeService = stripeService;
     }
 
     public List<SubscriptionConfig> getAllPlans() {
@@ -120,7 +125,20 @@ public class SubscriptionService {
                                          String cardholderName, String cardNumber,
                                          Integer expiryMonth, Integer expiryYear,
                                          String billingZip, boolean useExistingCard) {
+        return subscribe(userId, planName, billingCycle, cardholderName, cardNumber,
+                expiryMonth, expiryYear, billingZip, useExistingCard, null);
+    }
+
+    @Transactional
+    public Map<String, Object> subscribe(Long userId, String planName, String billingCycle,
+                                         String cardholderName, String cardNumber,
+                                         Integer expiryMonth, Integer expiryYear,
+                                         String billingZip, boolean useExistingCard,
+                                         String paymentMethodId) {
         String plan = planName.toUpperCase();
+        if (stripeService.isEnabled()) {
+            return subscribeViaStripe(userId, plan, billingCycle, paymentMethodId, useExistingCard);
+        }
         SubscriptionConfig newConfig = getPlan(plan);
         UserSubscription sub = getOrCreateSubscription(userId);
         SubscriptionConfig currentConfig = getPlan(sub.getPlanName());
@@ -265,7 +283,23 @@ public class SubscriptionService {
     @Transactional
     public void cancel(Long userId) {
         subscriptionRepository.findByUserId(userId).ifPresent(sub -> {
-            if ("FREE".equalsIgnoreCase(sub.getPlanName())) {
+            if ("FREE".equalsIgnoreCase(sub.getPlanName()) && sub.getStripeSubscriptionId() == null) {
+                return;
+            }
+            if (stripeService.isEnabled() && sub.getStripeSubscriptionId() != null) {
+                try {
+                    stripeService.cancelAtPeriodEnd(sub);
+                } catch (StripeException e) {
+                    throw new IllegalStateException("Stripe cancel failed: " + e.getMessage(), e);
+                }
+                LocalDateTime endDate = sub.getNextBillingDate() != null ? sub.getNextBillingDate() : LocalDateTime.now();
+                sub.setStatus("CANCELLED");
+                sub.setEndDate(endDate);
+                sub.setPendingPlanName("FREE");
+                sub.setPendingBillingCycle(null);
+                subscriptionRepository.save(sub);
+                log.info("Stripe subscription cancel scheduled at period end: userId={} plan={} activeUntil={} then FREE",
+                        userId, sub.getPlanName(), endDate);
                 return;
             }
             LocalDateTime endDate = sub.getNextBillingDate() != null ? sub.getNextBillingDate() : LocalDateTime.now();
@@ -279,6 +313,207 @@ public class SubscriptionService {
         });
     }
 
+    // ===================== Stripe-native path (webhook-driven) =====================
+
+    @Value("${app.stripe.publishable-key:}")
+    private String stripePublishableKey;
+
+    public Map<String, Object> getStripePublicConfig() {
+        Map<String, Object> cfg = new LinkedHashMap<>();
+        cfg.put("enabled", stripeService.isEnabled());
+        cfg.put("publishableKey", stripePublishableKey == null ? "" : stripePublishableKey);
+        return cfg;
+    }
+
+    public String createSetupIntent(Long userId) {
+        if (!stripeService.isEnabled()) {
+            throw new IllegalStateException("Stripe is not enabled.");
+        }
+        try {
+            return stripeService.createSetupIntentClientSecret(getOrCreateSubscription(userId));
+        } catch (StripeException e) {
+            throw new IllegalStateException("Failed to create SetupIntent: " + e.getMessage(), e);
+        }
+    }
+
+    @Transactional
+    public Map<String, Object> confirmPaymentMethod(Long userId, String paymentMethodId) {
+        if (!stripeService.isEnabled()) {
+            throw new IllegalStateException("Stripe is not enabled.");
+        }
+        if (paymentMethodId == null || paymentMethodId.isBlank()) {
+            throw new IllegalArgumentException("paymentMethodId is required");
+        }
+        try {
+            stripeService.attachDefaultPaymentMethod(getOrCreateSubscription(userId), paymentMethodId);
+        } catch (StripeException e) {
+            throw new IllegalStateException("Failed to attach payment method: " + e.getMessage(), e);
+        }
+        return getStatus(userId);
+    }
+
+    /**
+     * Stripe-native subscribe. Stripe owns the charge and the billing cycle; the webhook projector
+     * sets nextBillingDate / payment history / commission. Upgrades prorate immediately; downgrades
+     * defer to period end (Stripe proration_behavior=none) with the current plan preserved until then.
+     */
+    @Transactional
+    public Map<String, Object> subscribeViaStripe(Long userId, String plan, String billingCycle,
+                                                   String paymentMethodId, boolean useExistingCard) {
+        if (!stripeService.isEnabled()) {
+            throw new IllegalStateException("Stripe is not enabled.");
+        }
+        SubscriptionConfig newConfig = getPlan(plan);
+        UserSubscription sub = getOrCreateSubscription(userId);
+        PaymentMethod defaultPm = paymentMethodRepository.findFirstByUserIdAndIsDefaultTrue(userId).orElse(null);
+
+        // Cancel to FREE: keep service until the paid period ends, then drop to FREE (webhook finalizes).
+        if ("FREE".equalsIgnoreCase(plan)) {
+            if (sub.getStripeSubscriptionId() != null) {
+                try {
+                    stripeService.cancelAtPeriodEnd(sub);
+                } catch (StripeException e) {
+                    throw new IllegalStateException("Stripe cancel failed: " + e.getMessage(), e);
+                }
+            }
+            LocalDateTime endDate = sub.getNextBillingDate() != null ? sub.getNextBillingDate() : LocalDateTime.now();
+            sub.setStatus("CANCELLED");
+            sub.setEndDate(endDate);
+            sub.setPendingPlanName("FREE");
+            sub.setPendingBillingCycle(null);
+            subscriptionRepository.save(sub);
+            log.info("Stripe cancel-to-FREE scheduled: userId={} activeUntil={}", userId, endDate);
+            return buildStatusResponse(sub, getPlan(sub.getPlanName()), defaultPm);
+        }
+
+        // Paid plan: ensure a payment method is on file.
+        if (paymentMethodId != null && !paymentMethodId.isBlank()) {
+            try {
+                stripeService.attachDefaultPaymentMethod(sub, paymentMethodId);
+            } catch (StripeException e) {
+                throw new IllegalStateException("Failed to attach payment method: " + e.getMessage(), e);
+            }
+            defaultPm = paymentMethodRepository.findFirstByUserIdAndIsDefaultTrue(userId).orElse(null);
+        } else if (!useExistingCard) {
+            throw new IllegalArgumentException("Confirm your card before subscribing.");
+        }
+        if (defaultPm == null) {
+            throw new IllegalArgumentException("No payment method on file. Add a card first.");
+        }
+
+        String priceId = stripeService.priceIdFor(plan, billingCycle);
+        SubscriptionConfig currentConfig = getPlan(sub.getPlanName());
+        boolean isUpgrade = newConfig.getMonthlyPrice().compareTo(currentConfig.getMonthlyPrice()) > 0;
+        boolean sameTier = newConfig.getMonthlyPrice().compareTo(currentConfig.getMonthlyPrice()) == 0;
+
+        Map<String, Object> resp = new LinkedHashMap<>();
+        try {
+            if (sub.getStripeSubscriptionId() == null) {
+                Subscription created = stripeService.createSubscription(sub, priceId, null);
+                sub.setPlanName(plan);
+                sub.setBillingCycle(billingCycle);
+                sub.setStatus("ACTIVE");
+                sub.setPendingPlanName(null);
+                sub.setPendingBillingCycle(null);
+                sub.setEndDate(null);
+                subscriptionRepository.save(sub);
+                String actionSecret = stripeService.pendingPaymentIntentClientSecret(created);
+                if (actionSecret != null) {
+                    resp.put("requiresAction", true);
+                    resp.put("clientSecret", actionSecret);
+                }
+                enforcePlanLimits(userId, plan);
+                log.info("Stripe subscription created: userId={} plan={} cycle={} stripeSub={}",
+                        userId, plan, billingCycle, created.getId());
+            } else if (isUpgrade || sameTier) {
+                stripeService.updateSubscription(sub, priceId, true);
+                sub.setPlanName(plan);
+                sub.setBillingCycle(billingCycle);
+                sub.setStatus("ACTIVE");
+                sub.setPendingPlanName(null);
+                sub.setPendingBillingCycle(null);
+                subscriptionRepository.save(sub);
+                enforcePlanLimits(userId, plan);
+                log.info("Stripe subscription upgraded/switched: userId={} plan={} cycle={} (prorated)",
+                        userId, plan, billingCycle);
+            } else {
+                // Downgrade to a lower paid plan: defer to period end; keep current plan/limits until then.
+                stripeService.updateSubscription(sub, priceId, false);
+                sub.setPendingPlanName(plan);
+                sub.setPendingBillingCycle(billingCycle);
+                sub.setStatus("ACTIVE");
+                subscriptionRepository.save(sub);
+                log.info("Stripe subscription downgrade deferred to period end: userId={} {} -> {} {}",
+                        userId, sub.getPlanName(), plan, billingCycle);
+            }
+        } catch (StripeException e) {
+            throw new IllegalStateException("Stripe subscribe failed: " + e.getMessage(), e);
+        }
+
+        SubscriptionConfig responseConfig = (sub.getPendingPlanName() == null) ? newConfig : getPlan(sub.getPlanName());
+        Map<String, Object> status = buildStatusResponse(sub, responseConfig, defaultPm);
+        resp.putAll(status);
+        return resp;
+    }
+
+    // ===================== Sandbox test helpers (admin only) =====================
+
+    @Transactional
+    public Map<String, Object> runTestSubscribe(Long userId, String plan, String billingCycle, boolean failPayment) {
+        if (!stripeService.isEnabled()) {
+            throw new IllegalStateException("Stripe is not enabled.");
+        }
+        getPlan(plan); // validate
+        UserSubscription sub = getOrCreateSubscription(userId);
+        try {
+            long now = System.currentTimeMillis() / 1000L;
+            com.stripe.model.testhelpers.TestClock clock = stripeService.createTestClock(now);
+            String testToken = failPayment ? "tok_chargeDeclined" : "tok_visa";
+            com.stripe.model.PaymentMethod pm = stripeService.createTestPaymentMethod(testToken);
+            // Attach the test card to the (clock-attached) customer and mirror locally.
+            stripeService.ensureCustomer(sub, clock.getId());
+            stripeService.attachDefaultPaymentMethod(sub, pm.getId());
+
+            String priceId = stripeService.priceIdFor(plan, billingCycle);
+            Subscription created = stripeService.createSubscription(sub, priceId, clock.getId());
+            sub.setPlanName(plan);
+            sub.setBillingCycle(billingCycle);
+            sub.setStatus(failPayment ? "PAST_DUE" : "ACTIVE");
+            sub.setPendingPlanName(null);
+            sub.setPendingBillingCycle(null);
+            sub.setEndDate(null);
+            subscriptionRepository.save(sub);
+
+            Map<String, Object> resp = new LinkedHashMap<>();
+            resp.put("stripeSubscriptionId", created.getId());
+            resp.put("stripeCustomerId", sub.getStripeCustomerId());
+            resp.put("stripeTestClockId", clock.getId());
+            resp.put("failPayment", failPayment);
+            resp.put("status", created.getStatus());
+            log.info("Test subscription created: userId={} plan={} cycle={} fail={} stripeSub={} clock={}",
+                    userId, plan, billingCycle, failPayment, created.getId(), clock.getId());
+            return resp;
+        } catch (StripeException e) {
+            throw new IllegalStateException("Stripe test subscribe failed: " + e.getMessage(), e);
+        }
+    }
+
+    public Map<String, Object> advanceTestClock(String testClockId, long frozenTimeEpochSeconds) {
+        if (!stripeService.isEnabled()) {
+            throw new IllegalStateException("Stripe is not enabled.");
+        }
+        try {
+            stripeService.advanceTestClock(testClockId, frozenTimeEpochSeconds);
+            Map<String, Object> resp = new LinkedHashMap<>();
+            resp.put("testClockId", testClockId);
+            resp.put("frozenTime", frozenTimeEpochSeconds);
+            resp.put("note", "Clock advanced; Stripe will fire renewal/failure webhooks shortly.");
+            return resp;
+        } catch (StripeException e) {
+            throw new IllegalStateException("Failed to advance test clock: " + e.getMessage(), e);
+        }
+    }
+
     @Scheduled(cron = "${app.subscription.expiry-cron:0 0 * * * *}")
     @Transactional
     public void applyScheduledChanges() {
@@ -286,6 +521,10 @@ public class SubscriptionService {
         List<UserSubscription> due = subscriptionRepository.findByNextBillingDateBefore(now);
         if (due.isEmpty()) return;
         for (UserSubscription sub : due) {
+            // Stripe-native subscriptions are driven by webhooks; the in-process cron must not touch them.
+            if (sub.getStripeSubscriptionId() != null) {
+                continue;
+            }
             boolean hasPending = sub.getPendingPlanName() != null;
             String newPlan = hasPending ? sub.getPendingPlanName() : sub.getPlanName();
             String newCycle = hasPending && sub.getPendingBillingCycle() != null

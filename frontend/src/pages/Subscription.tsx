@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import API_GATEWAY from '../api/apiBase';
 import { isAdmin } from '../utils/auth';
+import StripeCardInput, { type StripeCardInputHandle } from '../components/StripeCardInput';
+import { getStripeConfig, createSetupIntent, confirmPaymentMethod, type StripePublicConfig } from '../api/stripeApi';
 
 interface Plan {
     planName: string;
@@ -67,6 +69,12 @@ const Subscription: React.FC = () => {
     const [addCardCvv, setAddCardCvv] = useState('');
     const [addCardError, setAddCardError] = useState('');
     const [addCardSubmitting, setAddCardSubmitting] = useState(false);
+    const [stripeConfig, setStripeConfig] = useState<StripePublicConfig | null>(null);
+    const [setupIntentSecret, setSetupIntentSecret] = useState<string | null>(null);
+    const cardRef = useRef<StripeCardInputHandle>(null);
+    const addCardRef = useRef<StripeCardInputHandle>(null);
+
+    const stripeEnabled = !!stripeConfig?.enabled && !!stripeConfig?.publishableKey;
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -86,43 +94,68 @@ const Subscription: React.FC = () => {
           .finally(() => setLoading(false));
     }, []);
 
+    useEffect(() => {
+        getStripeConfig().then(setStripeConfig).catch(() => { /* optional; legacy flow remains */ });
+    }, []);
+
+    const ensureSetupIntent = () => {
+        if (stripeEnabled && !setupIntentSecret) {
+            createSetupIntent().then(setSetupIntentSecret).catch(err => {
+                setError(err.response?.data?.message ?? 'Failed to start card collection.');
+            });
+        }
+    };
+
     const openAddCardModal = () => {
         setAddCardName(''); setAddCardNumber(''); setAddCardMonth('');
         setAddCardYear(''); setAddCardZip(''); setAddCardCvv('');
         setAddCardError('');
         setShowAddCardModal(true);
+        ensureSetupIntent();
     };
 
-    const handleAddCard = () => {
-        const brand = detectCardBrand(addCardNumber);
-        if (!addCardNumber.trim() || !addCardName.trim() || !addCardMonth || !addCardYear || !addCardCvv.trim()) {
-            setAddCardError('Please fill in all card details.');
-            return;
-        }
-        if (!brand) {
-            setAddCardError('Only Visa and Mastercard are accepted.');
-            return;
-        }
-        if (addCardCvv.length < 3) {
-            setAddCardError('Please enter a valid security code (CVV).');
-            return;
-        }
+    const handleAddCard = async () => {
         setAddCardSubmitting(true);
         setAddCardError('');
-        axios.post(`${API_GATEWAY}/api/v1/subscription/payment-method`, {
-            cardholderName: addCardName,
-            cardNumber: addCardNumber.replace(/\s/g, ''),
-            expiryMonth: parseInt(addCardMonth),
-            expiryYear: parseInt(addCardYear),
-            billingZip: addCardZip,
-        }, { headers: authHeader() })
-            .then(res => {
+        try {
+            if (stripeEnabled) {
+                if (!addCardRef.current) throw new Error('Card input is not ready.');
+                const pmId = await addCardRef.current.confirm();
+                const res: any = await confirmPaymentMethod(pmId);
+                setStatus(prev => prev ? { ...prev, paymentMethod: res?.paymentMethod ?? res } : prev);
+                setShowAddCardModal(false);
+                setSetupIntentSecret(null);
+                setSuccess('Payment method saved successfully.');
+            } else {
+                const brand = detectCardBrand(addCardNumber);
+                if (!addCardNumber.trim() || !addCardName.trim() || !addCardMonth || !addCardYear || !addCardCvv.trim()) {
+                    setAddCardError('Please fill in all card details.');
+                    return;
+                }
+                if (!brand) {
+                    setAddCardError('Only Visa and Mastercard are accepted.');
+                    return;
+                }
+                if (addCardCvv.length < 3) {
+                    setAddCardError('Please enter a valid security code (CVV).');
+                    return;
+                }
+                const res = await axios.post(`${API_GATEWAY}/api/v1/subscription/payment-method`, {
+                    cardholderName: addCardName,
+                    cardNumber: addCardNumber.replace(/\s/g, ''),
+                    expiryMonth: parseInt(addCardMonth),
+                    expiryYear: parseInt(addCardYear),
+                    billingZip: addCardZip,
+                }, { headers: authHeader() });
                 setStatus(prev => prev ? { ...prev, paymentMethod: res.data } : prev);
                 setShowAddCardModal(false);
                 setSuccess('Payment method saved successfully.');
-            })
-            .catch(err => setAddCardError(err.response?.data?.message ?? 'Failed to save card.'))
-            .finally(() => setAddCardSubmitting(false));
+            }
+        } catch (err: any) {
+            setAddCardError(err.response?.data?.message ?? err.message ?? 'Failed to save card.');
+        } finally {
+            setAddCardSubmitting(false);
+        }
     };
 
     const handleSelectPlan = (planName: string) => {
@@ -139,12 +172,13 @@ const Subscription: React.FC = () => {
             setExpiryYear('');
             setBillingZip('');
             setCvv('');
+            ensureSetupIntent();
         }
         setError('');
         setSuccess('');
     };
 
-    const handleSubscribe = () => {
+    const handleSubscribe = async () => {
         if (!selectedPlan) return;
         setSubmitting(true);
         setError('');
@@ -166,6 +200,16 @@ const Subscription: React.FC = () => {
         if (requiresCard) {
             if (hasExistingCard && useExistingCard) {
                 payload.useExistingCard = true;
+            } else if (stripeEnabled) {
+                try {
+                    if (!cardRef.current) throw new Error('Card input is not ready.');
+                    const pmId = await cardRef.current.confirm();
+                    payload.paymentMethodId = pmId;
+                } catch (err: any) {
+                    setError(err.message ?? 'Card verification failed.');
+                    setSubmitting(false);
+                    return;
+                }
             } else {
                 const brand = detectCardBrand(cardNumber);
                 if (!cardNumber.trim() || !cardholderName.trim() || !expiryMonth || !expiryYear || !cvv.trim()) {
@@ -201,6 +245,7 @@ const Subscription: React.FC = () => {
                 setExpiryYear('');
                 setBillingZip('');
                 setCvv('');
+                setSetupIntentSecret(null);
                 if (isCycleDowngrade) {
                     const when = res.data?.nextBillingDate
                         ? new Date(res.data.nextBillingDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
@@ -582,144 +627,160 @@ const Subscription: React.FC = () => {
                                     </div>
                                 </div>
                                 <div
-                                    onClick={() => setUseExistingCard(false)}
+                                    onClick={() => { setUseExistingCard(false); ensureSetupIntent(); }}
                                     style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderRadius: 8, border: `2px solid ${!useExistingCard ? '#6c47ff' : 'var(--border)'}`, background: !useExistingCard ? 'rgba(108,71,255,0.08)' : 'var(--bg-input, #1e2035)', cursor: 'pointer' }}
                                 >
-                                    <input type="radio" checked={!useExistingCard} onChange={() => setUseExistingCard(false)} style={{ accentColor: '#6c47ff' }} />
+                                    <input type="radio" checked={!useExistingCard} onChange={() => { setUseExistingCard(false); ensureSetupIntent(); }} style={{ accentColor: '#6c47ff' }} />
                                     <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>Use a different card</div>
                                 </div>
                             </div>
                         )}
 
                         {(!status?.paymentMethod || !useExistingCard) && (
-                        <><div style={{ marginBottom: '1rem' }}>
-                            <label className="form-label">Cardholder Name</label>
-                            <input
-                                type="text"
-                                className="profile-input"
-                                value={cardholderName}
-                                onChange={e => setCardholderName(e.target.value)}
-                                placeholder="Name on card"
-                                autoComplete="cc-name"
-                            />
-                        </div>
+                        <>
+                            {stripeEnabled ? (
+                                <div style={{ marginBottom: '1rem' }}>
+                                    {setupIntentSecret ? (
+                                        <StripeCardInput ref={cardRef} publishableKey={stripeConfig!.publishableKey} clientSecret={setupIntentSecret} />
+                                    ) : (
+                                        <div style={{ color: 'var(--text-gray)', fontSize: '0.85rem' }}>Loading secure card input…</div>
+                                    )}
+                                    <p style={{ fontSize: '0.78rem', color: 'var(--text-gray)', marginTop: '0.75rem' }}>
+                                        Your card details are encrypted by Stripe and never touch our servers.
+                                    </p>
+                                </div>
+                            ) : (
+                                <>
+                                <div style={{ marginBottom: '1rem' }}>
+                                    <label className="form-label">Cardholder Name</label>
+                                    <input
+                                        type="text"
+                                        className="profile-input"
+                                        value={cardholderName}
+                                        onChange={e => setCardholderName(e.target.value)}
+                                        placeholder="Name on card"
+                                        autoComplete="cc-name"
+                                    />
+                                </div>
 
-                        <div style={{ marginBottom: '1rem' }}>
-                            <label className="form-label">
-                                Card Number
-                                {cardBrand && (
-                                    <span style={{ marginLeft: '0.5rem', background: cardBrand === 'Visa' ? '#1a1f71' : '#eb001b', color: '#fff', borderRadius: 4, padding: '0.05rem 0.45rem', fontSize: '0.72rem', fontWeight: 700, letterSpacing: 0.5, verticalAlign: 'middle' }}>
-                                        {cardBrand === 'Visa' ? 'VISA' : 'MC'}
-                                    </span>
-                                )}
-                                {cardNumber.replace(/\s/g, '').length >= 4 && !cardBrand && (
-                                    <span style={{ marginLeft: '0.5rem', color: '#ef4444', fontSize: '0.78rem' }}>Only Visa &amp; Mastercard accepted</span>
-                                )}
-                            </label>
-                            <input
-                                type="text"
-                                className="profile-input"
-                                value={cardNumber}
-                                onChange={e => setCardNumber(formatCardNumber(e.target.value))}
-                                placeholder="1234 5678 9012 3456"
-                                maxLength={19}
-                                autoComplete="cc-number"
-                                inputMode="numeric"
-                            />
-                        </div>
+                                <div style={{ marginBottom: '1rem' }}>
+                                    <label className="form-label">
+                                        Card Number
+                                        {cardBrand && (
+                                            <span style={{ marginLeft: '0.5rem', background: cardBrand === 'Visa' ? '#1a1f71' : '#eb001b', color: '#fff', borderRadius: 4, padding: '0.05rem 0.45rem', fontSize: '0.72rem', fontWeight: 700, letterSpacing: 0.5, verticalAlign: 'middle' }}>
+                                                {cardBrand === 'Visa' ? 'VISA' : 'MC'}
+                                            </span>
+                                        )}
+                                        {cardNumber.replace(/\s/g, '').length >= 4 && !cardBrand && (
+                                            <span style={{ marginLeft: '0.5rem', color: '#ef4444', fontSize: '0.78rem' }}>Only Visa &amp; Mastercard accepted</span>
+                                        )}
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="profile-input"
+                                        value={cardNumber}
+                                        onChange={e => setCardNumber(formatCardNumber(e.target.value))}
+                                        placeholder="1234 5678 9012 3456"
+                                        maxLength={19}
+                                        autoComplete="cc-number"
+                                        inputMode="numeric"
+                                    />
+                                </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
-                            <div>
-                                <label className="form-label">Exp Month</label>
-                                <input
-                                    type="number"
-                                    className="profile-input"
-                                    value={expiryMonth}
-                                    onChange={e => setExpiryMonth(e.target.value)}
-                                    placeholder="MM"
-                                    min={1}
-                                    max={12}
-                                    autoComplete="cc-exp-month"
-                                />
-                            </div>
-                            <div>
-                                <label className="form-label">Exp Year</label>
-                                <input
-                                    type="number"
-                                    className="profile-input"
-                                    value={expiryYear}
-                                    onChange={e => setExpiryYear(e.target.value)}
-                                    placeholder="YYYY"
-                                    min={new Date().getFullYear()}
-                                    autoComplete="cc-exp-year"
-                                />
-                            </div>
-                            <div>
-                                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                    CVV
-                                    <span style={{ position: 'relative', display: 'inline-flex' }} className="cvv-hint-wrapper">
-                                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{ cursor: 'pointer', color: 'var(--text-gray)', flexShrink: 0 }}>
-                                            <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="1.5"/>
-                                            <text x="10" y="14.5" textAnchor="middle" fontSize="11" fill="currentColor" fontFamily="sans-serif" fontWeight="700">?</text>
-                                        </svg>
-                                        <span style={{
-                                            display: 'none',
-                                            position: 'absolute',
-                                            bottom: '120%',
-                                            left: '50%',
-                                            transform: 'translateX(-50%)',
-                                            background: '#1e2035',
-                                            border: '1px solid var(--border)',
-                                            borderRadius: 8,
-                                            padding: '0.6rem 0.75rem',
-                                            width: 180,
-                                            zIndex: 50,
-                                            boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-                                        }} className="cvv-tooltip">
-                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-gray)', marginBottom: '0.4rem', textAlign: 'center' }}>
-                                                The 3-digit code on the <strong style={{ color: 'var(--text-primary)' }}>back</strong> of Visa &amp; Mastercard
-                                            </div>
-                                            <svg viewBox="0 0 160 90" width="100%" style={{ display: 'block' }}>
-                                                <rect x="2" y="2" width="156" height="86" rx="6" ry="6" fill="#374151" stroke="#6b7280" strokeWidth="1.5"/>
-                                                <rect x="2" y="18" width="156" height="18" fill="#111827"/>
-                                                <rect x="10" y="46" width="100" height="14" rx="2" fill="#4b5563"/>
-                                                <rect x="116" y="44" width="34" height="18" rx="3" fill="#f3f4f6"/>
-                                                <text x="133" y="57" textAnchor="middle" fontSize="9" fill="#111827" fontWeight="700" fontFamily="monospace">123</text>
-                                                <line x1="113" y1="36" x2="113" y2="70" stroke="#ef4444" strokeWidth="1" strokeDasharray="3,2"/>
-                                                <text x="133" y="73" textAnchor="middle" fontSize="7" fill="#ef4444" fontFamily="sans-serif">CVV</text>
-                                            </svg>
-                                        </span>
-                                    </span>
-                                </label>
-                                <style>{`.cvv-hint-wrapper:hover .cvv-tooltip { display: block !important; }`}</style>
-                                <input
-                                    type="text"
-                                    className="profile-input"
-                                    value={cvv}
-                                    onChange={e => setCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                                    placeholder="123"
-                                    maxLength={4}
-                                    autoComplete="cc-csc"
-                                    inputMode="numeric"
-                                />
-                            </div>
-                            <div>
-                                <label className="form-label">ZIP</label>
-                                <input
-                                    type="text"
-                                    className="profile-input"
-                                    value={billingZip}
-                                    onChange={e => setBillingZip(e.target.value)}
-                                    placeholder="ZIP"
-                                    maxLength={10}
-                                    autoComplete="postal-code"
-                                />
-                            </div>
-                        </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                                    <div>
+                                        <label className="form-label">Exp Month</label>
+                                        <input
+                                            type="number"
+                                            className="profile-input"
+                                            value={expiryMonth}
+                                            onChange={e => setExpiryMonth(e.target.value)}
+                                            placeholder="MM"
+                                            min={1}
+                                            max={12}
+                                            autoComplete="cc-exp-month"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="form-label">Exp Year</label>
+                                        <input
+                                            type="number"
+                                            className="profile-input"
+                                            value={expiryYear}
+                                            onChange={e => setExpiryYear(e.target.value)}
+                                            placeholder="YYYY"
+                                            min={new Date().getFullYear()}
+                                            autoComplete="cc-exp-year"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                            CVV
+                                            <span style={{ position: 'relative', display: 'inline-flex' }} className="cvv-hint-wrapper">
+                                                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{ cursor: 'pointer', color: 'var(--text-gray)', flexShrink: 0 }}>
+                                                    <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="1.5"/>
+                                                    <text x="10" y="14.5" textAnchor="middle" fontSize="11" fill="currentColor" fontFamily="sans-serif" fontWeight="700">?</text>
+                                                </svg>
+                                                <span style={{
+                                                    display: 'none',
+                                                    position: 'absolute',
+                                                    bottom: '120%',
+                                                    left: '50%',
+                                                    transform: 'translateX(-50%)',
+                                                    background: '#1e2035',
+                                                    border: '1px solid var(--border)',
+                                                    borderRadius: 8,
+                                                    padding: '0.6rem 0.75rem',
+                                                    width: 180,
+                                                    zIndex: 50,
+                                                    boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                                                }} className="cvv-tooltip">
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-gray)', marginBottom: '0.4rem', textAlign: 'center' }}>
+                                                        The 3-digit code on the <strong style={{ color: 'var(--text-primary)' }}>back</strong> of Visa &amp; Mastercard
+                                                    </div>
+                                                    <svg viewBox="0 0 160 90" width="100%" style={{ display: 'block' }}>
+                                                        <rect x="2" y="2" width="156" height="86" rx="6" ry="6" fill="#374151" stroke="#6b7280" strokeWidth="1.5"/>
+                                                        <rect x="2" y="18" width="156" height="18" fill="#111827"/>
+                                                        <rect x="10" y="46" width="100" height="14" rx="2" fill="#4b5563"/>
+                                                        <rect x="116" y="44" width="34" height="18" rx="3" fill="#f3f4f6"/>
+                                                        <text x="133" y="57" textAnchor="middle" fontSize="9" fill="#111827" fontWeight="700" fontFamily="monospace">123</text>
+                                                        <line x1="113" y1="36" x2="113" y2="70" stroke="#ef4444" strokeWidth="1" strokeDasharray="3,2"/>
+                                                        <text x="133" y="73" textAnchor="middle" fontSize="7" fill="#ef4444" fontFamily="sans-serif">CVV</text>
+                                                    </svg>
+                                                </span>
+                                            </span>
+                                        </label>
+                                        <style>{`.cvv-hint-wrapper:hover .cvv-tooltip { display: block !important; }`}</style>
+                                        <input
+                                            type="text"
+                                            className="profile-input"
+                                            value={cvv}
+                                            onChange={e => setCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                                            placeholder="123"
+                                            maxLength={4}
+                                            autoComplete="cc-csc"
+                                            inputMode="numeric"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="form-label">ZIP</label>
+                                        <input
+                                            type="text"
+                                            className="profile-input"
+                                            value={billingZip}
+                                            onChange={e => setBillingZip(e.target.value)}
+                                            placeholder="ZIP"
+                                            maxLength={10}
+                                            autoComplete="postal-code"
+                                        />
+                                    </div>
+                                </div>
 
-                        <p style={{ fontSize: '0.78rem', color: 'var(--text-gray)', marginBottom: '1rem' }}>
-                            Your card information is stored securely. No real charges will be processed until a payment provider is integrated.
-                        </p>
+                                <p style={{ fontSize: '0.78rem', color: 'var(--text-gray)', marginBottom: '1rem' }}>
+                                    Your card information is stored securely. No real charges will be processed until a payment provider is integrated.
+                                </p>
+                                </>
+                            )}
                         </>)}
 
                         {error && (
@@ -767,39 +828,54 @@ const Subscription: React.FC = () => {
                             </div>
                         </div>
 
-                        <div style={{ marginBottom: '1rem' }}>
-                            <label className="form-label">Cardholder Name</label>
-                            <input type="text" className="profile-input" value={addCardName} onChange={e => setAddCardName(e.target.value)} placeholder="Name on card" autoComplete="cc-name" />
-                        </div>
-                        <div style={{ marginBottom: '1rem' }}>
-                            <label className="form-label">
-                                Card Number
-                                {(() => { const b = detectCardBrand(addCardNumber); return b ? (
-                                    <span style={{ marginLeft: '0.5rem', background: b === 'Visa' ? '#1a1f71' : '#eb001b', color: '#fff', borderRadius: 4, padding: '0.05rem 0.45rem', fontSize: '0.72rem', fontWeight: 700, verticalAlign: 'middle' }}>{b === 'Visa' ? 'VISA' : 'MC'}</span>
-                                ) : addCardNumber.replace(/\s/g, '').length >= 4 ? (
-                                    <span style={{ marginLeft: '0.5rem', color: '#ef4444', fontSize: '0.78rem' }}>Only Visa &amp; Mastercard accepted</span>
-                                ) : null; })()}
-                            </label>
-                            <input type="text" className="profile-input" value={addCardNumber} onChange={e => setAddCardNumber(formatCardNumber(e.target.value))} placeholder="1234 5678 9012 3456" maxLength={19} autoComplete="cc-number" inputMode="numeric" />
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
-                            <div>
-                                <label className="form-label">Exp Month</label>
-                                <input type="number" className="profile-input" value={addCardMonth} onChange={e => setAddCardMonth(e.target.value)} placeholder="MM" min={1} max={12} autoComplete="cc-exp-month" />
+                        {stripeEnabled ? (
+                            <div style={{ marginBottom: '1rem' }}>
+                                {setupIntentSecret ? (
+                                    <StripeCardInput ref={addCardRef} publishableKey={stripeConfig!.publishableKey} clientSecret={setupIntentSecret} />
+                                ) : (
+                                    <div style={{ color: 'var(--text-gray)', fontSize: '0.85rem' }}>Loading secure card input…</div>
+                                )}
+                                <p style={{ fontSize: '0.78rem', color: 'var(--text-gray)', marginTop: '0.75rem' }}>
+                                    Your card details are encrypted by Stripe and never touch our servers.
+                                </p>
                             </div>
-                            <div>
-                                <label className="form-label">Exp Year</label>
-                                <input type="number" className="profile-input" value={addCardYear} onChange={e => setAddCardYear(e.target.value)} placeholder="YYYY" min={new Date().getFullYear()} autoComplete="cc-exp-year" />
+                        ) : (
+                            <>
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label className="form-label">Cardholder Name</label>
+                                <input type="text" className="profile-input" value={addCardName} onChange={e => setAddCardName(e.target.value)} placeholder="Name on card" autoComplete="cc-name" />
                             </div>
-                            <div>
-                                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>CVV</label>
-                                <input type="text" className="profile-input" value={addCardCvv} onChange={e => setAddCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="123" maxLength={4} autoComplete="cc-csc" inputMode="numeric" />
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label className="form-label">
+                                    Card Number
+                                    {(() => { const b = detectCardBrand(addCardNumber); return b ? (
+                                        <span style={{ marginLeft: '0.5rem', background: b === 'Visa' ? '#1a1f71' : '#eb001b', color: '#fff', borderRadius: 4, padding: '0.05rem 0.45rem', fontSize: '0.72rem', fontWeight: 700, verticalAlign: 'middle' }}>{b === 'Visa' ? 'VISA' : 'MC'}</span>
+                                    ) : addCardNumber.replace(/\s/g, '').length >= 4 ? (
+                                        <span style={{ marginLeft: '0.5rem', color: '#ef4444', fontSize: '0.78rem' }}>Only Visa &amp; Mastercard accepted</span>
+                                    ) : null; })()}
+                                </label>
+                                <input type="text" className="profile-input" value={addCardNumber} onChange={e => setAddCardNumber(formatCardNumber(e.target.value))} placeholder="1234 5678 9012 3456" maxLength={19} autoComplete="cc-number" inputMode="numeric" />
                             </div>
-                            <div>
-                                <label className="form-label">ZIP</label>
-                                <input type="text" className="profile-input" value={addCardZip} onChange={e => setAddCardZip(e.target.value)} placeholder="ZIP" maxLength={10} autoComplete="postal-code" />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                                <div>
+                                    <label className="form-label">Exp Month</label>
+                                    <input type="number" className="profile-input" value={addCardMonth} onChange={e => setAddCardMonth(e.target.value)} placeholder="MM" min={1} max={12} autoComplete="cc-exp-month" />
+                                </div>
+                                <div>
+                                    <label className="form-label">Exp Year</label>
+                                    <input type="number" className="profile-input" value={addCardYear} onChange={e => setAddCardYear(e.target.value)} placeholder="YYYY" min={new Date().getFullYear()} autoComplete="cc-exp-year" />
+                                </div>
+                                <div>
+                                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>CVV</label>
+                                    <input type="text" className="profile-input" value={addCardCvv} onChange={e => setAddCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))} placeholder="123" maxLength={4} autoComplete="cc-csc" inputMode="numeric" />
+                                </div>
+                                <div>
+                                    <label className="form-label">ZIP</label>
+                                    <input type="text" className="profile-input" value={addCardZip} onChange={e => setAddCardZip(e.target.value)} placeholder="ZIP" maxLength={10} autoComplete="postal-code" />
+                                </div>
                             </div>
-                        </div>
+                            </>
+                        )}
 
                         {addCardError && (
                             <div style={{ background: '#fee2e2', color: '#b91c1c', borderRadius: 7, padding: '0.6rem 0.85rem', marginBottom: '0.75rem', fontSize: '0.88rem' }}>{addCardError}</div>

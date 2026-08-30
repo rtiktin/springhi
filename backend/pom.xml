@@ -88,6 +88,12 @@
 			<artifactId>spring-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
+		<dependency>
+			<groupId>com.stripe</groupId>
+			<artifactId>stripe-java</artifactId>
+			<version>32.2.0</version>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -98,6 +104,13 @@
 				<configuration>
 					<skip>false</skip>
 					<mainClass>com.springhi.user.UserApplication</mainClass>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<argLine>-Xshare:off -javaagent:${settings.localRepository}/net/bytebuddy/byte-buddy-agent/1.15.11/byte-buddy-agent-1.15.11.jar</argLine>
 				</configuration>
 			</plugin>
 		</plugins>

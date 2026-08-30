@@ -57,6 +57,7 @@ public record AdminUserDto(
     private static String typeName(int type, boolean chargebacks) {
         return switch (type) {
             case 10 -> "admin";
+            case 9  -> "sandbox";
             case 8  -> "user";
             case 6  -> "closed";
             case 4  -> chargebacks ? "suspended - chargebacks" : "suspended";

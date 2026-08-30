@@ -33,6 +33,11 @@ public class PaymentHistory {
     @Column(name = "payment_method_id")
     private Long paymentMethodId;
 
+    // Stripe invoice id when this payment was recorded from a Stripe webhook; used for idempotent
+    // handling of Stripe's webhook retries/redelivery (nullable for non-Stripe/manual payments).
+    @Column(name = "stripe_invoice_id", length = 64)
+    private String stripeInvoiceId;
+
     @PrePersist
     protected void onCreate() {
         if (paymentDate == null) paymentDate = LocalDateTime.now();
@@ -55,4 +60,6 @@ public class PaymentHistory {
     public void setPaymentDate(LocalDateTime paymentDate) { this.paymentDate = paymentDate; }
     public Long getPaymentMethodId() { return paymentMethodId; }
     public void setPaymentMethodId(Long paymentMethodId) { this.paymentMethodId = paymentMethodId; }
+    public String getStripeInvoiceId() { return stripeInvoiceId; }
+    public void setStripeInvoiceId(String stripeInvoiceId) { this.stripeInvoiceId = stripeInvoiceId; }
 }

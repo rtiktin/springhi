@@ -101,7 +101,7 @@ public class UserService {
 
     @Transactional
     public AdminUserDto updateUserType(Long userId, int newType) {
-        Set<Integer> valid = Set.of(4, 6, 8, 10);
+        Set<Integer> valid = Set.of(4, 6, 8, 9, 10);
         if (!valid.contains(newType)) {
             throw new IllegalArgumentException("Invalid user type: " + newType);
         }

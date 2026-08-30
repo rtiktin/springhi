@@ -7,6 +7,7 @@ import {
     adminGetTickets, adminGetTicketDetail, adminAddReply, adminUpdateStatus, adminGetTicketCounts,
 } from '../api/supportApi';
 import { downloadPayoutCsv } from '../api/referralApi';
+import { adminTestSubscribe, adminCreateTestClock, adminAdvanceTestClock, getStripeWebhookStatus, type StripeWebhookStatus } from '../api/stripeApi';
 
 interface ReferralOverviewRow {
     userId: number;
@@ -104,7 +105,7 @@ const TYPE_BADGE_COLOR: Record<number, string> = {
     3: '#b91c1c',
 };
 
-type AdminTab = 'users' | 'portfolios' | 'stats' | 'config' | 'support' | 'payments' | 'referrals';
+type AdminTab = 'users' | 'portfolios' | 'stats' | 'config' | 'support' | 'payments' | 'referrals' | 'stripe';
 
 interface AdminPaymentHistory {
     id: number;
@@ -775,6 +776,17 @@ const Admin: React.FC = () => {
     const [loadingReferrals, setLoadingReferrals] = useState(false);
     const [referralMsg, setReferralMsg] = useState<{ text: string; error: boolean } | null>(null);
 
+    const [stripeUserId, setStripeUserId] = useState('');
+    const [stripePlan, setStripePlan] = useState('BASIC');
+    const [stripeCycle, setStripeCycle] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY');
+    const [stripeFail, setStripeFail] = useState(false);
+    const [stripeBusy, setStripeBusy] = useState(false);
+    const [stripeResult, setStripeResult] = useState<string>('');
+    const [stripeClockId, setStripeClockId] = useState('');
+    const [stripeAdvanceDays, setStripeAdvanceDays] = useState('30');
+    const [stripeCreateFrozen, setStripeCreateFrozen] = useState('');
+    const [stripeWebhook, setStripeWebhook] = useState<StripeWebhookStatus | null>(null);
+
     useEffect(() => {
         if (!isAdmin()) {
             navigate('/portfolio');
@@ -795,6 +807,15 @@ const Admin: React.FC = () => {
         } else if (tab === 'referrals') {
             loadReferrals();
         }
+    }, [tab]);
+
+    // Poll the volatile last-webhook snapshot while the Stripe tab is open.
+    useEffect(() => {
+        if (tab !== 'stripe') return;
+        const refresh = () => getStripeWebhookStatus().then(setStripeWebhook).catch(() => { /* ignore */ });
+        refresh();
+        const handle = window.setInterval(refresh, 5000);
+        return () => window.clearInterval(handle);
     }, [tab]);
 
     const loadPayments = () => {
@@ -829,6 +850,65 @@ const Admin: React.FC = () => {
                 loadReferrals();
             })
             .catch(() => setReferralMsg({ text: 'Payout run failed.', error: true }));
+    };
+
+    const handleStripeTestSubscribe = async () => {
+        const uid = parseInt(stripeUserId, 10);
+        if (!stripeUserId || isNaN(uid)) {
+            setStripeResult('Enter a valid numeric user id.');
+            return;
+        }
+        setStripeBusy(true);
+        setStripeResult('Creating test subscription…');
+        try {
+            const r = await adminTestSubscribe(uid, stripePlan, stripeCycle, stripeFail);
+            setStripeClockId(r.stripeTestClockId);
+            setStripeResult(
+                `Created — sub: ${r.stripeSubscriptionId}\n` +
+                `customer: ${r.stripeCustomerId}\n` +
+                `clock: ${r.stripeTestClockId}\n` +
+                `status: ${r.status}${r.failPayment ? ' (intended failure card)' : ''}\n` +
+                `Advance the clock below to fire renewal/failure webhooks.`
+            );
+        } catch (err: any) {
+            setStripeResult(err.response?.data?.message ?? err.message ?? 'Test subscribe failed.');
+        } finally {
+            setStripeBusy(false);
+        }
+    };
+
+    const handleStripeCreateClock = async () => {
+        setStripeBusy(true);
+        setStripeResult('Creating test clock…');
+        try {
+            const frozen = stripeCreateFrozen.trim() ? parseInt(stripeCreateFrozen, 10) : undefined;
+            const r = await adminCreateTestClock(frozen);
+            setStripeClockId(r.testClockId);
+            setStripeResult(`Created test clock ${r.testClockId} (frozen at epoch ${r.frozenTime}).`);
+        } catch (err: any) {
+            setStripeResult(err.response?.data?.message ?? err.message ?? 'Create clock failed.');
+        } finally {
+            setStripeBusy(false);
+        }
+    };
+
+    const handleStripeAdvanceClock = async () => {
+        if (!stripeClockId.trim()) {
+            setStripeResult('Enter a test clock id (or run Test Subscribe first).');
+            return;
+        }
+        const days = parseInt(stripeAdvanceDays, 10) || 30;
+        const frozen = Math.floor(Date.now() / 1000) + days * 86400;
+        setStripeBusy(true);
+        setStripeResult(`Advancing clock ${stripeClockId} by ${days} day(s)…`);
+        try {
+            const r = await adminAdvanceTestClock(stripeClockId, frozen);
+            setStripeResult(`${r.note}\nclock: ${r.testClockId}\nfrozen at epoch ${r.frozenTime} (~${new Date(r.frozenTime * 1000).toLocaleString()})`);
+        } catch (err: any) {
+            setStripeResult(err.response?.data?.message ?? err.message ?? 'Advance clock failed.');
+        } finally {
+            setStripeBusy(false);
+        }
     };
 
     const loadRevenueStats = (offset: number) => {
@@ -1098,6 +1178,7 @@ const Admin: React.FC = () => {
                     <button style={tabStyle('payments')} onClick={() => setTab('payments')}>Payments</button>
                     <button style={tabStyle('support')} onClick={() => setTab('support')}>Support</button>
                     <button style={tabStyle('referrals')} onClick={() => setTab('referrals')}>Referrals</button>
+                    <button style={tabStyle('stripe')} onClick={() => setTab('stripe')}>Stripe Sandbox</button>
                 </div>
 
                 <div style={{ background: 'var(--bg-card)', borderRadius: '0 8px 8px 8px', border: '1px solid var(--border)', borderTop: 'none', padding: '1.5rem' }}>
@@ -1777,6 +1858,111 @@ const Admin: React.FC = () => {
                                 </div>
                             )}
                         </>
+                    )}
+
+                    {tab === 'stripe' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: 640 }}>
+                            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '1rem 1.1rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                    <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Webhook Delivery</h2>
+                                    <span style={{ fontSize: '0.78rem', color: stripeWebhook?.configured ? 'var(--text-gray)' : '#e67e22' }}>
+                                        {stripeWebhook ? (stripeWebhook.configured ? 'secret configured' : 'secret missing') : '…'}
+                                    </span>
+                                </div>
+                                {stripeWebhook && stripeWebhook.lastEventId ? (
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>
+                                        <div><strong>Last event:</strong> <code>{stripeWebhook.lastType}</code></div>
+                                        <div style={{ color: 'var(--text-gray)' }}><code>{stripeWebhook.lastEventId}</code></div>
+                                        <div style={{ color: 'var(--text-gray)' }}>
+                                            {stripeWebhook.lastEventAt ? new Date(stripeWebhook.lastEventAt).toLocaleString() : '—'} · total received: {stripeWebhook.totalEvents}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-gray)' }}>
+                                        No webhooks received yet. Advance a test clock after subscribing to fire renewal/failure events (auto-refreshing every 5s).
+                                    </div>
+                                )}
+                            </div>
+
+                            <div>
+                                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Stripe Sandbox — Test Subscribe</h2>
+                                <p style={{ color: 'var(--text-gray)', fontSize: '0.85rem', marginBottom: '0.85rem' }}>
+                                    Creates a test clock + customer (on the clock) + subscription with a sandbox test card.
+                                    Use <code>4242…4242</code> for success or the decline card to drive <code>invoice.payment_failed</code>.
+                                    Then advance the clock below to fire renewal/dunning webhooks instantly.
+                                </p>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-gray)', marginBottom: 4 }}>User ID</label>
+                                        <input type="number" value={stripeUserId} onChange={e => setStripeUserId(e.target.value)} placeholder="e.g. 5" style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.4rem 0.6rem', color: 'var(--text-primary)', fontSize: '0.9rem' }} />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-gray)', marginBottom: 4 }}>Plan</label>
+                                        <select value={stripePlan} onChange={e => setStripePlan(e.target.value)} style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.4rem 0.6rem', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                                            <option value="BASIC">Basic</option>
+                                            <option value="PREMIUM">Premium</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-gray)', marginBottom: 4 }}>Billing Cycle</label>
+                                        <select value={stripeCycle} onChange={e => setStripeCycle(e.target.value as 'MONTHLY' | 'ANNUAL')} style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.4rem 0.6rem', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                                            <option value="MONTHLY">Monthly</option>
+                                            <option value="ANNUAL">Annual</option>
+                                        </select>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                                            <input type="checkbox" checked={stripeFail} onChange={e => setStripeFail(e.target.checked)} style={{ accentColor: '#6c47ff' }} />
+                                            Use decline card (force failure)
+                                        </label>
+                                    </div>
+                                </div>
+                                <button onClick={handleStripeTestSubscribe} disabled={stripeBusy} style={{ background: '#6c47ff', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1.1rem', fontWeight: 600, fontSize: '0.88rem', cursor: stripeBusy ? 'default' : 'pointer', opacity: stripeBusy ? 0.7 : 1 }}>
+                                    {stripeBusy ? 'Working…' : 'Run Test Subscribe'}
+                                </button>
+                            </div>
+
+                            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.25rem' }}>
+                                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Create Test Clock</h2>
+                                <p style={{ color: 'var(--text-gray)', fontSize: '0.85rem', marginBottom: '0.85rem' }}>
+                                    Optional: create a standalone test clock. Leave frozen time blank for "now".
+                                </p>
+                                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-gray)', marginBottom: 4 }}>Frozen time (epoch seconds, optional)</label>
+                                        <input type="number" value={stripeCreateFrozen} onChange={e => setStripeCreateFrozen(e.target.value)} placeholder="now" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.4rem 0.6rem', color: 'var(--text-primary)', fontSize: '0.9rem', minWidth: 220 }} />
+                                    </div>
+                                    <button onClick={handleStripeCreateClock} disabled={stripeBusy} style={{ background: '#6c47ff', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1.1rem', fontWeight: 600, fontSize: '0.88rem', cursor: stripeBusy ? 'default' : 'pointer', opacity: stripeBusy ? 0.7 : 1 }}>
+                                        {stripeBusy ? 'Working…' : 'Create Clock'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.25rem' }}>
+                                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Advance Test Clock</h2>
+                                <p style={{ color: 'var(--text-gray)', fontSize: '0.85rem', marginBottom: '0.85rem' }}>
+                                    Moves the clock forward by N days from now. Stripe then fires renewal / payment-failed webhooks
+                                    (ensure the webhook endpoint + secret are configured and the CLI forwarder is running locally).
+                                </p>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-gray)', marginBottom: 4 }}>Test Clock ID</label>
+                                        <input type="text" value={stripeClockId} onChange={e => setStripeClockId(e.target.value)} placeholder="clock_…" style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.4rem 0.6rem', color: 'var(--text-primary)', fontSize: '0.9rem' }} />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-gray)', marginBottom: 4 }}>Advance (days)</label>
+                                        <input type="number" value={stripeAdvanceDays} onChange={e => setStripeAdvanceDays(e.target.value)} style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.4rem 0.6rem', color: 'var(--text-primary)', fontSize: '0.9rem' }} />
+                                    </div>
+                                </div>
+                                <button onClick={handleStripeAdvanceClock} disabled={stripeBusy} style={{ background: '#6c47ff', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1.1rem', fontWeight: 600, fontSize: '0.88rem', cursor: stripeBusy ? 'default' : 'pointer', opacity: stripeBusy ? 0.7 : 1 }}>
+                                    {stripeBusy ? 'Working…' : 'Advance Clock'}
+                                </button>
+                            </div>
+
+                            {stripeResult && (
+                                <pre style={{ background: 'var(--bg-input, #1e2035)', border: '1px solid var(--border)', borderRadius: 8, padding: '0.85rem 1rem', color: 'var(--text-primary)', fontSize: '0.82rem', whiteSpace: 'pre-wrap', margin: 0 }}>{stripeResult}</pre>
+                            )}
+                        </div>
                     )}
                 </div>
             </main>

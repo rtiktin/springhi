@@ -38,6 +38,15 @@ public class UserSubscription {
     @Column(name = "pending_billing_cycle", length = 10)
     private String pendingBillingCycle;
 
+    @Column(name = "stripe_customer_id", length = 60)
+    private String stripeCustomerId;
+
+    @Column(name = "stripe_subscription_id", length = 60)
+    private String stripeSubscriptionId;
+
+    @Column(name = "stripe_test_clock_id", length = 60)
+    private String stripeTestClockId;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -79,4 +88,10 @@ public class UserSubscription {
     public void setPendingPlanName(String pendingPlanName) { this.pendingPlanName = pendingPlanName; }
     public String getPendingBillingCycle() { return pendingBillingCycle; }
     public void setPendingBillingCycle(String pendingBillingCycle) { this.pendingBillingCycle = pendingBillingCycle; }
+    public String getStripeCustomerId() { return stripeCustomerId; }
+    public void setStripeCustomerId(String stripeCustomerId) { this.stripeCustomerId = stripeCustomerId; }
+    public String getStripeSubscriptionId() { return stripeSubscriptionId; }
+    public void setStripeSubscriptionId(String stripeSubscriptionId) { this.stripeSubscriptionId = stripeSubscriptionId; }
+    public String getStripeTestClockId() { return stripeTestClockId; }
+    public void setStripeTestClockId(String stripeTestClockId) { this.stripeTestClockId = stripeTestClockId; }
 }

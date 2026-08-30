@@ -14,6 +14,10 @@ import java.util.Optional;
 public interface UserSubscriptionRepository extends JpaRepository<UserSubscription, Long> {
     Optional<UserSubscription> findByUserId(Long userId);
 
+    Optional<UserSubscription> findByStripeSubscriptionId(String stripeSubscriptionId);
+
+    Optional<UserSubscription> findByStripeCustomerId(String stripeCustomerId);
+
     List<UserSubscription> findByNextBillingDateBeforeAndPendingPlanNameNotNull(LocalDateTime when);
 
     List<UserSubscription> findByNextBillingDateBefore(LocalDateTime when);

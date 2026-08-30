@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@stripe/stripe-js": "^9.14.0",
     "axios": "^1.13.6",
     "html-to-image": "^1.11.13",
     "lightweight-charts": "^5.1.0",

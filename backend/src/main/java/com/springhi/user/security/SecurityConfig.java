@@ -27,6 +27,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/**", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html",
                                 "/api/v1/subscription/plans", "/api/v1/subscription/limits/*",
+                                "/api/v1/subscription/stripe-config", "/api/v1/subscription/webhook",
                                 "/api/v1/referral/code/**", "/api/v1/referral/click").permitAll()
                         .anyRequest().authenticated()
                 )

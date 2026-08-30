@@ -12,4 +12,5 @@ public interface PaymentHistoryRepository extends JpaRepository<PaymentHistory, 
     List<PaymentHistory> findByUserIdOrderByPaymentDateDesc(Long userId);
     List<PaymentHistory> findAllByOrderByPaymentDateDesc();
     List<PaymentHistory> findByPaymentDateBetween(LocalDateTime start, LocalDateTime end);
+    boolean existsByStripeInvoiceId(String stripeInvoiceId);
 }
