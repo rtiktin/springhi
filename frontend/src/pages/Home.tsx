@@ -266,7 +266,7 @@ const Home: React.FC = () => {
                 }}>
                     {[
                         { label: 'Risk', value: 'Zero' },
-                        { label: 'AI Models', value: '3' },
+                        { label: 'AI Models', value: '4' },
                         { label: 'Benchmark', value: 'S&P 500' },
                         { label: 'Transparency', value: 'Full' },
                     ].map(stat => (
@@ -306,7 +306,7 @@ const Home: React.FC = () => {
                         {
                             icon: <GitCompare size={32} color="#60a5fa" />,
                             title: 'Compare How Different AIs Think',
-                            body: 'Claude, ChatGPT, and Gemini each reason differently about the same portfolio profile. Give all three identical settings and watch them diverge — different sectors, different concentration, different conviction.',
+                            body: 'Claude, ChatGPT, Grok and Gemini each reason differently about the same portfolio profile. Give all three identical settings and watch them diverge — different sectors, different concentration, different conviction.',
                         },
                         {
                             icon: <Trophy size={32} color="#f59e0b" />,

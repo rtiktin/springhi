@@ -76,8 +76,8 @@ const About: React.FC = () => {
                             },
                             {
                                 icon: <Cpu size={24} color="#60a5fa" />,
-                                point: 'Three AI models to choose from',
-                                desc: 'Claude, ChatGPT, and Gemini each bring different reasoning styles. Pick one — or run all three and compare.',
+                                point: 'Four AI models to choose from',
+                                desc: 'Claude, ChatGPT, Grok and Gemini each bring different reasoning styles. Pick one — or run all three and compare.',
                             },
                             {
                                 icon: <Trophy size={24} color="#f59e0b" />,
@@ -134,7 +134,7 @@ const About: React.FC = () => {
                             {
                                 icon: <GitCompare size={26} color="#60a5fa" />,
                                 heading: 'Do different AI models pick differently?',
-                                body: 'Claude, ChatGPT, and Gemini each have distinct reasoning styles. Give them the same profile and cash amount and study how they diverge in sector allocation, concentration, and the rationale behind each pick.',
+                                body: 'Claude, ChatGPT, Grok and Gemini each have distinct reasoning styles. Give them the same profile and cash amount and study how they diverge in sector allocation, concentration, and the rationale behind each pick.',
                             },
                         ].map(item => (
                             <div key={item.heading} style={{

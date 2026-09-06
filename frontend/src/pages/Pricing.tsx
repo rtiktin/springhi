@@ -70,7 +70,7 @@ const Pricing: React.FC = () => {
     const planHighlights = (plan: Plan): string[] => {
         if (plan.planName === 'FREE') return [
             'Get started with no commitment',
-            'Explore all 3 AI models',
+            'Explore all 4 AI models',
             `${plan.maxPortfolios} portfolios · ${plan.maxOptimizationsPerMonth} lifetime optimizations`,
         ];
         if (plan.planName === 'BASIC') return [
