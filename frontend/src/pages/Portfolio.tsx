@@ -85,7 +85,7 @@ const Portfolio: React.FC = () => {
     const [wizardEmail, setWizardEmail] = useState('');
     const [wizardEmailCode, setWizardEmailCode] = useState('');
     const [wizardEmailSent, setWizardEmailSent] = useState(false);
-    const [wizardAiModel, setWizardAiModel] = useState<'chatgpt' | 'claude' | 'gemini'>('gemini');
+    const [wizardAiModel, setWizardAiModel] = useState<'chatgpt' | 'claude' | 'gemini' | 'grok'>('gemini');
     const [wizardCashBalance, setWizardCashBalance] = useState<number | null>(null);
     const [wizardCashAmount, setWizardCashAmount] = useState('');
     const [wizardCashSubmitting, setWizardCashSubmitting] = useState(false);
@@ -805,6 +805,7 @@ const Portfolio: React.FC = () => {
                                         if (p === 'claude') return 'Claude';
                                         if (p === 'chatgpt') return 'ChatGPT';
                                         if (p === 'gemini') return 'Gemini';
+                                        if (p === 'grok') return 'Grok';
                                         return 'AI';
                                     };
                                     const fmt = (n: number | null) =>
@@ -1268,7 +1269,7 @@ const Portfolio: React.FC = () => {
                         <p style={{ color: 'var(--text-gray)', marginBottom: '1.5rem' }}>
                             Select which AI model you'd like to use to generate your initial portfolio recommendations.
                         </p>
-                        {(['gemini', 'chatgpt', 'claude'] as const).map(model => (
+                        {(['gemini', 'chatgpt', 'claude', 'grok'] as const).map(model => (
                             <label key={model} style={{
                                 display: 'flex', alignItems: 'center', gap: '0.75rem',
                                 padding: '0.75rem 1rem', borderRadius: 8, cursor: 'pointer',
@@ -1279,7 +1280,7 @@ const Portfolio: React.FC = () => {
                                 <input type="radio" name="aiModel" value={model} checked={wizardAiModel === model}
                                     onChange={() => setWizardAiModel(model)} />
                                 <span style={{ fontWeight: 600, color: 'var(--text-light)', textTransform: 'capitalize' }}>
-                                    {model === 'chatgpt' ? 'ChatGPT' : model === 'claude' ? 'Claude' : 'Gemini'}
+                                    {model === 'chatgpt' ? 'ChatGPT' : model === 'claude' ? 'Claude' : model === 'grok' ? 'Grok' : 'Gemini'}
                                 </span>
                             </label>
                         ))}

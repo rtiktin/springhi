@@ -17,7 +17,7 @@ interface Props {
 
 const FREQUENCIES = ['DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY'] as const;
 const DAY_NAMES = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const PROVIDERS = ['gemini', 'claude', 'chatgpt'] as const;
+const PROVIDERS = ['gemini', 'claude', 'chatgpt', 'grok'] as const;
 
 const fmtDt = (s: string | null) =>
     s ? new Date(s).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';

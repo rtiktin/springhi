@@ -1,7 +1,10 @@
 package com.springhi.user.service;
 
+import com.springhi.user.model.AppSetting;
 import com.springhi.user.model.User;
 import com.springhi.user.model.UserSubscription;
+import com.springhi.user.repository.AppSettingRepository;
+import com.springhi.user.repository.PaymentHistoryRepository;
 import com.springhi.user.repository.PaymentMethodRepository;
 import com.springhi.user.repository.UserRepository;
 import com.springhi.user.repository.UserSubscriptionRepository;
@@ -49,12 +52,17 @@ public class StripeService {
     private final UserRepository userRepository;
     private final UserSubscriptionRepository subscriptionRepository;
     private final PaymentMethodRepository paymentMethodRepository;
+    private final PaymentHistoryRepository paymentHistoryRepository;
+    private final AppSettingRepository appSettingRepository;
 
     @Value("${app.stripe.enabled:false}")
     private boolean enabled;
 
     @Value("${app.stripe.secret-key:}")
     private String secretKey;
+
+    @Value("${app.stripe.link-enabled:true}")
+    private boolean linkEnabledDefault;
 
     @Value("${app.stripe.price-id.BASIC_MONTHLY:}")
     private String basicMonthlyPriceId;
@@ -68,12 +76,19 @@ public class StripeService {
     @Value("${app.stripe.price-id.PREMIUM_ANNUAL:}")
     private String premiumAnnualPriceId;
 
+    /** Persisted admin override key for the Stripe Link toggle (test and live mode). */
+    private static final String LINK_ENABLED_KEY = "stripe.link_enabled";
+
     public StripeService(UserRepository userRepository,
                          UserSubscriptionRepository subscriptionRepository,
-                         PaymentMethodRepository paymentMethodRepository) {
+                         PaymentMethodRepository paymentMethodRepository,
+                         PaymentHistoryRepository paymentHistoryRepository,
+                         AppSettingRepository appSettingRepository) {
         this.userRepository = userRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.paymentMethodRepository = paymentMethodRepository;
+        this.paymentHistoryRepository = paymentHistoryRepository;
+        this.appSettingRepository = appSettingRepository;
     }
 
     @PostConstruct
@@ -92,6 +107,37 @@ public class StripeService {
 
     public boolean isEnabled() {
         return enabled && secretKey != null && !secretKey.isBlank() && !secretKey.contains("REPLACE_ME");
+    }
+
+    /** Live (production) mode is determined by the secret-key prefix (sk_live vs sk_test). */
+    public boolean isLiveMode() {
+        return secretKey != null && secretKey.startsWith("sk_live");
+    }
+
+    /**
+     * Effective Stripe Link toggle for the card-collection UI.
+     * <ul>
+     *   <li>Returns the admin-persisted override ({@link #LINK_ENABLED_KEY}) when set — works in
+     *       both test and live mode so Link can be exercised in the sandbox.</li>
+     *   <li>With no override: LIVE mode defaults to {@link #linkEnabledDefault} (true); DEV/test
+     *       mode defaults to {@code false} so Link does not auto-fill a browser-saved card across
+     *       impersonated users unless an admin explicitly enables it.</li>
+     * </ul>
+     */
+    public boolean isLinkEnabledEffective() {
+        if (!isEnabled()) {
+            return false;
+        }
+        return appSettingRepository.findById(LINK_ENABLED_KEY)
+                .map(s -> Boolean.parseBoolean(s.getSettingValue()))
+                .orElse(isLiveMode() && linkEnabledDefault);
+    }
+
+    /** Admin switch: persist the Link toggle and return the new effective value (test and live mode). */
+    public boolean setLinkEnabled(boolean enabled) {
+        appSettingRepository.save(new AppSetting(LINK_ENABLED_KEY, String.valueOf(enabled)));
+        log.info("Admin set Stripe Link enabled={} (liveMode={})", enabled, isLiveMode());
+        return isLinkEnabledEffective();
     }
 
     public String priceIdFor(String plan, String cycle) {
@@ -124,8 +170,9 @@ public class StripeService {
      * subscriptions; it cannot be set on a subscription directly nor added to an existing customer).
      */
     public Customer ensureCustomer(UserSubscription sub, String testClockId) throws StripeException {
-        if (sub.getStripeCustomerId() != null && !sub.getStripeCustomerId().isBlank()) {
-            return Customer.retrieve(sub.getStripeCustomerId());
+        String existingCustomerId = sub.getStripeCustomerId();
+        if (existingCustomerId != null && !existingCustomerId.isBlank()) {
+            return Customer.retrieve(existingCustomerId);
         }
         Optional<User> userOpt = userRepository.findById(sub.getUserId());
         String name = userOpt.map(u -> {
@@ -149,14 +196,23 @@ public class StripeService {
         return customer;
     }
 
-    /** Create a SetupIntent to collect a new card via Stripe Elements (client secret returned to FE). */
+    /** Create a SetupIntent to collect a new card via Stripe Elements (client secret returned to FE).
+     *  No customer is bound to the SetupIntent: this keeps the PaymentElement a fresh card-entry form
+     *  instead of listing the customer's previously-saved cards (which would surface cards saved while
+     *  impersonating, or any lingering PM, as if they belonged to this account). The confirmed PM is
+     *  attached to the customer later in {@link #attachDefaultPaymentMethod}.
+     *  <p>Payment method types: {@code card} always, plus {@code link} only when
+     *  {@link #isLinkEnabledEffective()} is true (admin toggle on; defaults off in test mode, on in
+     *  live). ACH (us_bank_account) and every other Dashboard-enabled method are excluded by
+     *  omission. */
     public String createSetupIntentClientSecret(UserSubscription sub) throws StripeException {
-        Customer customer = ensureCustomer(sub);
-        SetupIntent intent = SetupIntent.create(SetupIntentCreateParams.builder()
-                .setCustomer(customer.getId())
+        SetupIntentCreateParams.Builder b = SetupIntentCreateParams.builder()
                 .addPaymentMethodType("card")
-                .setUsage(SetupIntentCreateParams.Usage.OFF_SESSION)
-                .build());
+                .setUsage(SetupIntentCreateParams.Usage.OFF_SESSION);
+        if (isLinkEnabledEffective()) {
+            b.addPaymentMethodType("link");
+        }
+        SetupIntent intent = SetupIntent.create(b.build());
         return intent.getClientSecret();
     }
 
@@ -299,5 +355,204 @@ public class StripeService {
         return Subscription.list(
                 com.stripe.param.SubscriptionListParams.builder().setCustomer(customerId).build())
                 .getData();
+    }
+
+    /**
+     * Sandbox cleanup: delete every Stripe resource and local row created by {@code StripeSandboxIT}
+     * (and the admin test-subscribe flow). Test data is identified by the {@code stripe_it_} username
+     * / email prefix (users, customers) and the {@code springhi-test-} test-clock name prefix. Safe
+     * to run repeatedly. Stripe exposes no PaymentMethod-delete API, so detached test-mode PMs remain
+     * on the account until purged via the dashboard "Delete all test data"; everything else is removed.
+     * Returns a summary map of what was removed.
+     */
+    public Map<String, Object> cleanupSandboxTestData() {
+        Map<String, Object> summary = new java.util.LinkedHashMap<>();
+        int usersRemoved = 0, subsCanceled = 0, customersDeleted = 0, clocksDeleted = 0, pmsDetached = 0;
+        int dbSubRows = 0, dbPmRows = 0, dbPayHistoryRows = 0;
+        List<String> errors = new java.util.ArrayList<>();
+
+        List<User> testUsers = userRepository.findByUsernameStartingWith("stripe_it_");
+        for (User u : testUsers) {
+            Long uid = u.getId();
+            try {
+                Optional<UserSubscription> subOpt = subscriptionRepository.findByUserId(uid);
+                if (subOpt.isPresent()) {
+                    UserSubscription sub = subOpt.get();
+                    if (sub.getStripeSubscriptionId() != null) {
+                        try {
+                            Subscription s = Subscription.retrieve(sub.getStripeSubscriptionId());
+                            if (!"canceled".equalsIgnoreCase(s.getStatus())) {
+                                s.cancel();
+                                subsCanceled++;
+                            }
+                        } catch (Exception e) {
+                            errors.add("cancel sub " + sub.getStripeSubscriptionId() + ": " + e.getMessage());
+                        }
+                    }
+                    if (sub.getStripeCustomerId() != null) {
+                        try {
+                            Customer.retrieve(sub.getStripeCustomerId()).delete();
+                            customersDeleted++;
+                        } catch (Exception e) {
+                            errors.add("delete customer " + sub.getStripeCustomerId() + ": " + e.getMessage());
+                        }
+                    }
+                    if (sub.getStripeTestClockId() != null) {
+                        try {
+                            com.stripe.model.testhelpers.TestClock.retrieve(sub.getStripeTestClockId()).delete();
+                            clocksDeleted++;
+                        } catch (Exception e) {
+                            errors.add("delete clock " + sub.getStripeTestClockId() + ": " + e.getMessage());
+                        }
+                    }
+                }
+
+                List<com.springhi.user.model.PaymentMethod> pms =
+                        paymentMethodRepository.findByUserIdOrderByCreatedAtDesc(uid);
+                for (com.springhi.user.model.PaymentMethod pm : pms) {
+                    String ref = pm.getCardNumberEncrypted();
+                    String pmId = ref != null && ref.startsWith("stripe:") ? ref.substring("stripe:".length()) : null;
+                    if (pmId != null) {
+                        try {
+                            com.stripe.model.PaymentMethod stripePm = com.stripe.model.PaymentMethod.retrieve(pmId);
+                            if (stripePm.getCustomer() != null) {
+                                stripePm.detach();
+                                pmsDetached++;
+                            }
+                        } catch (Exception e) {
+                            errors.add("detach pm " + pmId + ": " + e.getMessage());
+                        }
+                    }
+                    paymentMethodRepository.delete(pm);
+                    dbPmRows++;
+                }
+
+                List<com.springhi.user.model.PaymentHistory> history =
+                        paymentHistoryRepository.findByUserIdOrderByPaymentDateDesc(uid);
+                for (com.springhi.user.model.PaymentHistory ph : history) {
+                    paymentHistoryRepository.delete(ph);
+                    dbPayHistoryRows++;
+                }
+
+                if (subOpt.isPresent()) {
+                    subscriptionRepository.delete(subOpt.get());
+                    dbSubRows++;
+                }
+
+                userRepository.deleteById(uid);
+                usersRemoved++;
+            } catch (Exception e) {
+                errors.add("user " + uid + " (" + u.getUsername() + "): " + e.getMessage());
+            }
+        }
+
+        clocksDeleted += sweepOrphanedTestClocks(errors);
+        int[] orphanCust = sweepOrphanedTestCustomers(errors);
+        customersDeleted += orphanCust[0];
+        pmsDetached += orphanCust[1];
+
+        int dbOrphanSubRows = 0;
+        for (UserSubscription orphan : subscriptionRepository.findOrphanedSubscriptions()) {
+            try {
+                subscriptionRepository.delete(orphan);
+                dbOrphanSubRows++;
+            } catch (Exception e) {
+                errors.add("delete orphan sub row id=" + orphan.getId() + " userId=" + orphan.getUserId()
+                        + ": " + e.getMessage());
+            }
+        }
+
+        summary.put("usersRemoved", usersRemoved);
+        summary.put("stripeSubscriptionsCanceled", subsCanceled);
+        summary.put("stripeCustomersDeleted", customersDeleted);
+        summary.put("stripeTestClocksDeleted", clocksDeleted);
+        summary.put("stripePaymentMethodsDetached", pmsDetached);
+        summary.put("dbSubscriptionRowsDeleted", dbSubRows);
+        summary.put("dbOrphanedSubscriptionRowsDeleted", dbOrphanSubRows);
+        summary.put("dbPaymentMethodRowsDeleted", dbPmRows);
+        summary.put("dbPaymentHistoryRowsDeleted", dbPayHistoryRows);
+        if (!errors.isEmpty()) summary.put("errors", errors);
+        log.info("Sandbox cleanup: users={}, subsCanceled={}, customersDeleted={}, clocksDeleted={}, "
+                        + "pmsDetached={}, dbSubRows={}, dbOrphanSubRows={}, dbPmRows={}, dbPayHistoryRows={}, errors={}",
+                usersRemoved, subsCanceled, customersDeleted, clocksDeleted, pmsDetached,
+                dbSubRows, dbOrphanSubRows, dbPmRows, dbPayHistoryRows, errors.size());
+        return summary;
+    }
+
+    /** Delete every test clock whose name starts with {@code springhi-test-} (orphaned if its DB user is gone). */
+    private int sweepOrphanedTestClocks(List<String> errors) {
+        int deleted = 0;
+        String startingAfter = null;
+        try {
+            while (true) {
+                Map<String, Object> params = new HashMap<>();
+                params.put("limit", 100);
+                if (startingAfter != null) params.put("starting_after", startingAfter);
+                var page = com.stripe.model.testhelpers.TestClock.list(params);
+                var data = page.getData();
+                if (data.isEmpty()) break;
+                for (var c : data) {
+                    if (c.getName() != null && c.getName().startsWith("springhi-test-")) {
+                        try {
+                            c.delete();
+                            deleted++;
+                        } catch (Exception e) {
+                            errors.add("delete clock " + c.getId() + " (" + c.getName() + "): " + e.getMessage());
+                        }
+                    }
+                    startingAfter = c.getId();
+                }
+                if (!Boolean.TRUE.equals(page.getHasMore())) break;
+            }
+        } catch (Exception e) {
+            errors.add("sweep test clocks: " + e.getMessage());
+        }
+        return deleted;
+    }
+
+    /** Delete every Stripe customer whose email starts with {@code stripe_it_} (DB user already deleted). */
+    private int[] sweepOrphanedTestCustomers(List<String> errors) {
+        int customersDeleted = 0, pmsDetached = 0;
+        String startingAfter = null;
+        try {
+            while (true) {
+                Map<String, Object> params = new HashMap<>();
+                params.put("limit", 100);
+                if (startingAfter != null) params.put("starting_after", startingAfter);
+                var page = Customer.list(params);
+                var data = page.getData();
+                if (data.isEmpty()) break;
+                for (var c : data) {
+                    if (c.getEmail() != null && c.getEmail().startsWith("stripe_it_")) {
+                        try {
+                            Customer retrieved = Customer.retrieve(c.getId());
+                            // Detach surviving PMs first for an accurate detach count (customer delete also detaches).
+                            try {
+                                Map<String, Object> pmParams = new HashMap<>();
+                                pmParams.put("customer", c.getId());
+                                pmParams.put("limit", 100);
+                                for (var pm : com.stripe.model.PaymentMethod.list(pmParams).getData()) {
+                                    if (pm.getCustomer() != null) {
+                                        pm.detach();
+                                        pmsDetached++;
+                                    }
+                                }
+                            } catch (Exception ignored) {
+                                // best-effort; customer delete detaches any remaining PMs
+                            }
+                            retrieved.delete();
+                            customersDeleted++;
+                        } catch (Exception e) {
+                            errors.add("delete customer " + c.getId() + ": " + e.getMessage());
+                        }
+                    }
+                    startingAfter = c.getId();
+                }
+                if (!Boolean.TRUE.equals(page.getHasMore())) break;
+            }
+        } catch (Exception e) {
+            errors.add("sweep test customers: " + e.getMessage());
+        }
+        return new int[]{customersDeleted, pmsDetached};
     }
 }

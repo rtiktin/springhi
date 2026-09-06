@@ -51,7 +51,7 @@ export const saveProfile = async (profile: UserProfile): Promise<UserProfile> =>
     return response.data;
 };
 
-export const optimizePortfolio = async (portfolioId: number, provider: 'gemini' | 'claude' | 'chatgpt' = 'gemini'): Promise<OptimizationResult> => {
+export const optimizePortfolio = async (portfolioId: number, provider: 'gemini' | 'claude' | 'chatgpt' | 'grok' = 'gemini'): Promise<OptimizationResult> => {
     const response = await axios.post(`${BASE_URL}/portfolio/optimize`, {}, {
         headers: authHeader(),
         params: { portfolioId, provider },

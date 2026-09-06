@@ -13,6 +13,7 @@ import org.springframework.stereotype.Repository;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String username);
     Optional<User> findByEmail(String email);
+    List<User> findByUsernameStartingWith(String prefix);
 
     @Query("SELECT CASE WHEN COUNT(u) > 0 THEN true ELSE false END FROM User u WHERE u.userType = 4 AND (u.email = :email OR (u.firstName IS NOT NULL AND u.firstName = :firstName AND u.lastName IS NOT NULL AND u.lastName = :lastName))")
     boolean existsSuspendedByEmailOrName(@Param("email") String email, @Param("firstName") String firstName, @Param("lastName") String lastName);

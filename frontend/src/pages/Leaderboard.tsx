@@ -72,6 +72,7 @@ const aiBadgeLabel = (provider: string | null) => {
     if (p === 'claude') return 'Claude';
     if (p === 'chatgpt') return 'ChatGPT';
     if (p === 'gemini') return 'Gemini';
+    if (p === 'grok') return 'Grok';
     return 'AI';
 };
 

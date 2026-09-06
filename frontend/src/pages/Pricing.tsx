@@ -17,7 +17,7 @@ interface Plan {
 
 const STATIC_FEATURE_ROWS: { label: string; free: string; basic: string; premium: string }[] = [
     { label: 'Scheduled auto-optimization',   free: '—',             basic: '✓',             premium: '✓' },
-    { label: 'AI models',                     free: 'Claude · ChatGPT · Gemini', basic: 'Claude · ChatGPT · Gemini', premium: 'Claude · ChatGPT · Gemini' },
+    { label: 'AI models',                     free: 'Claude · ChatGPT · Gemini · Grok', basic: 'Claude · ChatGPT · Gemini · Grok', premium: 'Claude · ChatGPT · Gemini · Grok' },
     { label: 'Rebalancing frequencies',       free: '—',             basic: 'Daily to Yearly', premium: 'Daily to Yearly' },
     { label: 'Leaderboard visibility',        free: '✓',             basic: '✓',             premium: '✓' },
     { label: 'Full AI run transparency',      free: '✓',             basic: '✓',             premium: '✓' },

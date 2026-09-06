@@ -17,6 +17,7 @@ class PortfolioOptimizationServiceTest {
                 null,
                 null,
                 null,
+                null,
                 null
         );
     }

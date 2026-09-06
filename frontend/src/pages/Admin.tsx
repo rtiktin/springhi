@@ -7,7 +7,7 @@ import {
     adminGetTickets, adminGetTicketDetail, adminAddReply, adminUpdateStatus, adminGetTicketCounts,
 } from '../api/supportApi';
 import { downloadPayoutCsv } from '../api/referralApi';
-import { adminTestSubscribe, adminCreateTestClock, adminAdvanceTestClock, getStripeWebhookStatus, type StripeWebhookStatus } from '../api/stripeApi';
+import { adminTestSubscribe, adminCreateTestClock, adminAdvanceTestClock, adminCleanupSandbox, getStripeWebhookStatus, getStripeLinkSetting, setStripeLinkSetting, type StripeWebhookStatus, type StripeLinkSetting } from '../api/stripeApi';
 
 interface ReferralOverviewRow {
     userId: number;
@@ -92,6 +92,7 @@ const authHeader = () => ({
 
 const TYPE_LABELS: Record<number, string> = {
     10: 'admin',
+    9: 'sandbox',
     8: 'user',
     6: 'closed',
     4: 'suspended',
@@ -99,6 +100,7 @@ const TYPE_LABELS: Record<number, string> = {
 
 const TYPE_BADGE_COLOR: Record<number, string> = {
     10: '#6c47ff',
+    9: '#f59e0b',
     8: '#22c55e',
     6: '#6b7280',
     4: '#ef4444',
@@ -786,6 +788,7 @@ const Admin: React.FC = () => {
     const [stripeAdvanceDays, setStripeAdvanceDays] = useState('30');
     const [stripeCreateFrozen, setStripeCreateFrozen] = useState('');
     const [stripeWebhook, setStripeWebhook] = useState<StripeWebhookStatus | null>(null);
+    const [stripeLink, setStripeLink] = useState<StripeLinkSetting | null>(null);
 
     useEffect(() => {
         if (!isAdmin()) {
@@ -814,6 +817,7 @@ const Admin: React.FC = () => {
         if (tab !== 'stripe') return;
         const refresh = () => getStripeWebhookStatus().then(setStripeWebhook).catch(() => { /* ignore */ });
         refresh();
+        getStripeLinkSetting().then(setStripeLink).catch(() => { /* ignore */ });
         const handle = window.setInterval(refresh, 5000);
         return () => window.clearInterval(handle);
     }, [tab]);
@@ -906,6 +910,48 @@ const Admin: React.FC = () => {
             setStripeResult(`${r.note}\nclock: ${r.testClockId}\nfrozen at epoch ${r.frozenTime} (~${new Date(r.frozenTime * 1000).toLocaleString()})`);
         } catch (err: any) {
             setStripeResult(err.response?.data?.message ?? err.message ?? 'Advance clock failed.');
+        } finally {
+            setStripeBusy(false);
+        }
+    };
+
+    const handleStripeLinkToggle = async (enabled: boolean) => {
+        setStripeBusy(true);
+        try {
+            const r = await setStripeLinkSetting(enabled);
+            setStripeLink(r);
+            setStripeResult(`Stripe Link ${r.linkEnabled ? 'enabled' : 'disabled'} (${r.liveMode ? 'live' : 'test'} mode).`);
+        } catch (err: any) {
+            setStripeResult(err.response?.data?.message ?? err.message ?? 'Failed to update Stripe Link.');
+            getStripeLinkSetting().then(setStripeLink).catch(() => { /* ignore */ });
+        } finally {
+            setStripeBusy(false);
+        }
+    };
+
+    const handleStripeCleanup = async () => {
+        if (!window.confirm('Delete all Stripe + DB rows created by StripeSandboxIT (stripe_it_* users, their customers/subscriptions/test clocks/payment methods)? This cannot be undone.')) return;
+        setStripeBusy(true);
+        try {
+            const r = await adminCleanupSandbox();
+            if (r.message) {
+                setStripeResult(r.message);
+            } else {
+                const parts = [
+                    `users removed: ${r.usersRemoved ?? 0}`,
+                    `Stripe subs canceled: ${r.stripeSubscriptionsCanceled ?? 0}`,
+                    `Stripe customers deleted: ${r.stripeCustomersDeleted ?? 0}`,
+                    `Stripe test clocks deleted: ${r.stripeTestClocksDeleted ?? 0}`,
+                    `Stripe PMs detached: ${r.stripePaymentMethodsDetached ?? 0}`,
+                    `DB subscription rows: ${r.dbSubscriptionRowsDeleted ?? 0}`,
+                    `DB orphaned subscription rows (no user): ${r.dbOrphanedSubscriptionRowsDeleted ?? 0}`,
+                    `DB payment-method rows: ${r.dbPaymentMethodRowsDeleted ?? 0}`,
+                    `DB payment-history rows: ${r.dbPaymentHistoryRowsDeleted ?? 0}`,
+                ];
+                setStripeResult(`Cleanup complete.\n${parts.join('\n')}${r.errors && r.errors.length ? `\n\nErrors (${r.errors.length}):\n${r.errors.join('\n')}` : ''}`);
+            }
+        } catch (err: any) {
+            setStripeResult(err.response?.data?.message ?? err.message ?? 'Failed to run cleanup.');
         } finally {
             setStripeBusy(false);
         }
@@ -1227,6 +1273,7 @@ const Admin: React.FC = () => {
                                     >
                                         <option value="">All Types</option>
                                         <option value="10">Admin</option>
+                                        <option value="9">Sandbox</option>
                                         <option value="8">User</option>
                                         <option value="6">Closed</option>
                                         <option value="4">Suspended</option>
@@ -1884,6 +1931,28 @@ const Admin: React.FC = () => {
                                 )}
                             </div>
 
+                            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '1rem 1.1rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                    <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Stripe Link</h2>
+                                    <span style={{ fontSize: '0.78rem', color: stripeLink ? (stripeLink.liveMode ? 'var(--text-gray)' : '#e67e22') : 'var(--text-gray)' }}>
+                                        {stripeLink ? (stripeLink.liveMode ? 'live mode' : 'test mode') : '…'}
+                                    </span>
+                                </div>
+                                <p style={{ color: 'var(--text-gray)', fontSize: '0.85rem', marginBottom: '0.75rem' }}>
+                                    Link lets customers reuse saved cards. Turn it off to force a fresh card-entry form. In test mode it defaults off — check the box to enable Link for testing.
+                                </p>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-primary)', cursor: stripeLink && !stripeBusy ? 'pointer' : 'default' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={!!stripeLink?.linkEnabled}
+                                        disabled={!stripeLink || stripeBusy}
+                                        onChange={e => handleStripeLinkToggle(e.target.checked)}
+                                        style={{ accentColor: '#6c47ff' }}
+                                    />
+                                    Enable Stripe Link
+                                </label>
+                            </div>
+
                             <div>
                                 <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Stripe Sandbox — Test Subscribe</h2>
                                 <p style={{ color: 'var(--text-gray)', fontSize: '0.85rem', marginBottom: '0.85rem' }}>
@@ -1956,6 +2025,21 @@ const Admin: React.FC = () => {
                                 </div>
                                 <button onClick={handleStripeAdvanceClock} disabled={stripeBusy} style={{ background: '#6c47ff', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1.1rem', fontWeight: 600, fontSize: '0.88rem', cursor: stripeBusy ? 'default' : 'pointer', opacity: stripeBusy ? 0.7 : 1 }}>
                                     {stripeBusy ? 'Working…' : 'Advance Clock'}
+                                </button>
+                            </div>
+
+                            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.25rem' }}>
+                                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Cleanup Test Data</h2>
+                                <p style={{ color: 'var(--text-gray)', fontSize: '0.85rem', marginBottom: '0.85rem' }}>
+                                    Deletes every Stripe resource and DB row created by <code>StripeSandboxIT</code> and the test-subscribe flow:
+                                    <code>stripe_it_*</code> users, their Stripe customers/subscriptions/test clocks, payment methods, and the local
+                                    <code>user_subscriptions</code> / <code>payment_methods</code> / <code>payment_history</code> rows. Also sweeps
+                                    orphaned <code>springhi-test-*</code> test clocks, <code>stripe_it_*</code> customers, and
+                                    <code>user_subscriptions</code> rows with no matching user (left from failed runs). Detached test-mode payment
+                                    methods cannot be deleted via the API — purge them with the dashboard &ldquo;Delete all test data&rdquo;.
+                                </p>
+                                <button onClick={handleStripeCleanup} disabled={stripeBusy} style={{ background: '#b91c1c', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1.1rem', fontWeight: 600, fontSize: '0.88rem', cursor: stripeBusy ? 'default' : 'pointer', opacity: stripeBusy ? 0.7 : 1 }}>
+                                    {stripeBusy ? 'Working…' : 'Run Cleanup'}
                                 </button>
                             </div>
 

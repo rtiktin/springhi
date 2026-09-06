@@ -1,0 +1,75 @@
+package com.springhi.portfolio.service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+
+import java.util.List;
+import java.util.Map;
+
+@Service
+public class GrokService {
+
+    private static final Logger log = LoggerFactory.getLogger(GrokService.class);
+
+    private final WebClient webClient;
+    private final String apiKey;
+    private final String model;
+    private final int maxTokens;
+
+    public GrokService(
+            @Value("${grok.base-url:https://api.x.ai}") String baseUrl,
+            @Value("${grok.model:grok-2-latest}") String model,
+            @Value("${grok.api-key:}") String apiKey,
+            @Value("${grok.max-tokens:2048}") int maxTokens) {
+        this.apiKey = apiKey;
+        this.model = model;
+        this.maxTokens = maxTokens;
+        this.webClient = WebClient.builder().baseUrl(baseUrl).build();
+    }
+
+    public String generateContent(String prompt) {
+        Map<String, Object> requestBody = Map.of(
+                "model", model,
+                "max_tokens", maxTokens,
+                "temperature", 0.0,
+                "messages", List.of(
+                        Map.of("role", "user", "content", prompt)
+                )
+        );
+
+        log.info("Calling Grok model={}", model);
+
+        Map<?, ?> response;
+        try {
+            response = webClient.post()
+                    .uri("/v1/chat/completions")
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+        } catch (WebClientResponseException e) {
+            log.error("Grok API error {}: {}", e.getStatusCode(), e.getResponseBodyAsString());
+            throw new RuntimeException("Grok API error " + e.getStatusCode() + ": " + e.getResponseBodyAsString());
+        }
+
+        if (response == null) {
+            throw new RuntimeException("Grok returned null response");
+        }
+
+        try {
+            @SuppressWarnings("unchecked")
+            List<Map<?, ?>> choices = (List<Map<?, ?>>) response.get("choices");
+            Map<?, ?> message = (Map<?, ?>) choices.get(0).get("message");
+            return (String) message.get("content");
+        } catch (Exception e) {
+            log.error("Failed to parse Grok response: {}", response, e);
+            throw new RuntimeException("Failed to parse Grok response: " + e.getMessage());
+        }
+    }
+}

@@ -64,6 +64,7 @@ const ShareableCard: React.FC<ShareableCardProps> = ({
         if (prov === 'claude') return 'Claude AI';
         if (prov === 'chatgpt') return 'ChatGPT-4o';
         if (prov === 'gemini') return 'Gemini 2.0';
+        if (prov === 'grok') return 'Grok';
         return 'AI-Optimized';
     };
 

@@ -8,6 +8,8 @@ const authHeader = () => ({
 export interface StripePublicConfig {
     enabled: boolean;
     publishableKey: string;
+    linkEnabled: boolean;
+    liveMode: boolean;
 }
 
 export const getStripeConfig = async (): Promise<StripePublicConfig> => {
@@ -15,9 +17,38 @@ export const getStripeConfig = async (): Promise<StripePublicConfig> => {
     return res.data;
 };
 
-export const createSetupIntent = async (): Promise<string> => {
+export interface StripeLinkSetting {
+    liveMode: boolean;
+    linkEnabled: boolean;
+}
+
+/** Admin-only: read the effective Stripe Link toggle + live-mode flag. */
+export const getStripeLinkSetting = async (): Promise<StripeLinkSetting> => {
+    const res = await axios.get(`${BASE_URL}/stripe-link`, { headers: authHeader() });
+    return res.data;
+};
+
+/** Admin-only: turn Stripe Link on/off (test and live mode). */
+export const setStripeLinkSetting = async (enabled: boolean): Promise<StripeLinkSetting> => {
+    const res = await axios.post(`${BASE_URL}/stripe-link`, { enabled }, { headers: authHeader() });
+    return res.data;
+};
+
+export interface SetupIntentBillingDetails {
+    name?: string;
+    email?: string;
+    phone?: string;
+}
+
+export interface SetupIntentResult {
+    clientSecret: string;
+    /** Account-derived defaults used to prefill the PaymentElement's billing details. */
+    billingDetails: SetupIntentBillingDetails;
+}
+
+export const createSetupIntent = async (): Promise<SetupIntentResult> => {
     const res = await axios.post(`${BASE_URL}/setup-intent`, {}, { headers: authHeader() });
-    return res.data.clientSecret;
+    return { clientSecret: res.data.clientSecret, billingDetails: res.data.billingDetails ?? {} };
 };
 
 export const confirmPaymentMethod = async (paymentMethodId: string): Promise<unknown> => {
@@ -46,6 +77,26 @@ export const adminCreateTestClock = async (frozenTime?: number): Promise<{ testC
 
 export const adminAdvanceTestClock = async (testClockId: string, frozenTime: number): Promise<{ testClockId: string; frozenTime: number; note: string }> => {
     const res = await axios.post(`${BASE_URL}/test/clock/${encodeURIComponent(testClockId)}/advance`, { frozenTime }, { headers: authHeader() });
+    return res.data;
+};
+
+export interface SandboxCleanupResult {
+    usersRemoved?: number;
+    stripeSubscriptionsCanceled?: number;
+    stripeCustomersDeleted?: number;
+    stripeTestClocksDeleted?: number;
+    stripePaymentMethodsDetached?: number;
+    dbSubscriptionRowsDeleted?: number;
+    dbOrphanedSubscriptionRowsDeleted?: number;
+    dbPaymentMethodRowsDeleted?: number;
+    dbPaymentHistoryRowsDeleted?: number;
+    errors?: string[];
+    message?: string;
+}
+
+/** Admin-only: delete Stripe + DB rows created by StripeSandboxIT / the test-subscribe flow. */
+export const adminCleanupSandbox = async (): Promise<SandboxCleanupResult> => {
+    const res = await axios.post(`${BASE_URL}/test/cleanup`, {}, { headers: authHeader() });
     return res.data;
 };
 

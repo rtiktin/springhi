@@ -1,8 +1,8 @@
 spring:
   application:
     name: demo-web
-  config:
-    import: optional:classpath:application-local.yaml
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
   jackson:
     serialization:
       write-dates-as-timestamps: false

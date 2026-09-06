@@ -350,7 +350,7 @@ const Home: React.FC = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '2rem', maxWidth: 900, margin: '0 auto' }}>
                     {[
                         { step: '1', title: 'Create a portfolio', desc: 'Name it, set your risk profile, investment goals, and time horizon.' },
-                        { step: '2', title: 'Run AI optimization', desc: 'Pick Claude, ChatGPT, or Gemini. The AI recommends a mix of buys and sells matched to your profile.' },
+                        { step: '2', title: 'Run AI optimization', desc: 'Pick Claude, ChatGPT, Gemini, or Grok. The AI recommends a mix of buys and sells matched to your profile.' },
                         { step: '3', title: 'Execute & track', desc: 'Execute trades with one click. Watch your portfolio track real market prices in real time.' },
                         { step: '4', title: 'Compete & learn', desc: 'See how you rank vs. the S&P 500 and other investors — and study any competitor\'s exact strategy.' },
                     ].map(item => (

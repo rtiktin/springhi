@@ -34,6 +34,7 @@ public class PortfolioOptimizationService {
     private final GeminiService geminiService;
     private final ClaudeService claudeService;
     private final ChatGptService chatGptService;
+    private final GrokService grokService;
     private final PortfolioService portfolioService;
     private final PortfolioRecommendationRepository recommendationRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -41,11 +42,13 @@ public class PortfolioOptimizationService {
     public PortfolioOptimizationService(GeminiService geminiService,
                                         ClaudeService claudeService,
                                         ChatGptService chatGptService,
+                                        GrokService grokService,
                                         PortfolioService portfolioService,
                                         PortfolioRecommendationRepository recommendationRepository) {
         this.geminiService = geminiService;
         this.claudeService = claudeService;
         this.chatGptService = chatGptService;
+        this.grokService = grokService;
         this.portfolioService = portfolioService;
         this.recommendationRepository = recommendationRepository;
     }
@@ -80,6 +83,8 @@ public class PortfolioOptimizationService {
                 rawText = claudeService.generateContent(prompt);
             } else if ("chatgpt".equalsIgnoreCase(provider)) {
                 rawText = chatGptService.generateContent(prompt);
+            } else if ("grok".equalsIgnoreCase(provider)) {
+                rawText = grokService.generateContent(prompt);
             } else {
                 rawText = geminiService.generateContent(prompt);
             }

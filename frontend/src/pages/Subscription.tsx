@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import API_GATEWAY from '../api/apiBase';
-import { isAdmin } from '../utils/auth';
+import { getLoggedInUsername, isAdmin, isEmailVerified } from '../utils/auth';
 import StripeCardInput, { type StripeCardInputHandle } from '../components/StripeCardInput';
-import { getStripeConfig, createSetupIntent, confirmPaymentMethod, type StripePublicConfig } from '../api/stripeApi';
+import ImpersonationBanner from '../components/ImpersonationBanner';
+import { getStripeConfig, createSetupIntent, confirmPaymentMethod, type StripePublicConfig, type SetupIntentBillingDetails } from '../api/stripeApi';
+import { sendEmailVerification, verifyEmail, getAccountProfile, updateAccountProfile } from '../api/accountApi';
 
 interface Plan {
     planName: string;
@@ -39,10 +41,10 @@ interface SubscriptionStatus {
 }
 
 const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
-const username = () => localStorage.getItem('username') ?? '';
 
 const Subscription: React.FC = () => {
     const navigate = useNavigate();
+    const username = getLoggedInUsername();
     const [plans, setPlans] = useState<Plan[]>([]);
     const [status, setStatus] = useState<SubscriptionStatus | null>(null);
     const [usageStats, setUsageStats] = useState<{ portfolioCount: number; optimizationsThisMonth: number; projectedOptimizationsPerMonth: number; isFreeLimit?: boolean } | null>(null);
@@ -50,6 +52,17 @@ const Subscription: React.FC = () => {
     const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
     const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY');
     const [showPaymentForm, setShowPaymentForm] = useState(false);
+    const [showEmailVerifyPrompt, setShowEmailVerifyPrompt] = useState(false);
+    const [emailVerifyCodeSent, setEmailVerifyCodeSent] = useState(false);
+    const [emailVerifyCode, setEmailVerifyCode] = useState('');
+    const [emailVerifyLoading, setEmailVerifyLoading] = useState(false);
+    const [emailVerifyError, setEmailVerifyError] = useState('');
+    const [accountName, setAccountName] = useState<{ firstName: string; lastName: string } | null>(null);
+    const [showNamePrompt, setShowNamePrompt] = useState(false);
+    const [namePromptFirst, setNamePromptFirst] = useState('');
+    const [namePromptLast, setNamePromptLast] = useState('');
+    const [namePromptLoading, setNamePromptLoading] = useState(false);
+    const [namePromptError, setNamePromptError] = useState('');
     const [cardholderName, setCardholderName] = useState('');
     const [cardNumber, setCardNumber] = useState('');
     const [expiryMonth, setExpiryMonth] = useState('');
@@ -71,6 +84,11 @@ const Subscription: React.FC = () => {
     const [addCardSubmitting, setAddCardSubmitting] = useState(false);
     const [stripeConfig, setStripeConfig] = useState<StripePublicConfig | null>(null);
     const [setupIntentSecret, setSetupIntentSecret] = useState<string | null>(null);
+    const [setupIntentBilling, setSetupIntentBilling] = useState<SetupIntentBillingDetails>({});
+    // The Add/Replace Card modal gets its own SetupIntent: a SetupIntent is single-use, so it must
+    // not be shared with the subscribe modal (a consumed secret makes the PaymentElement fail to mount).
+    const [addCardSecret, setAddCardSecret] = useState<string | null>(null);
+    const [addCardBilling, setAddCardBilling] = useState<SetupIntentBillingDetails>({});
     const cardRef = useRef<StripeCardInputHandle>(null);
     const addCardRef = useRef<StripeCardInputHandle>(null);
 
@@ -92,26 +110,43 @@ const Subscription: React.FC = () => {
             setUsageStats(usageRes.data);
         }).catch(() => setError('Failed to load subscription info.'))
           .finally(() => setLoading(false));
+        getAccountProfile()
+            .then(p => setAccountName({ firstName: p.firstName ?? '', lastName: p.lastName ?? '' }))
+            .catch(() => { /* best-effort: the backend gate still catches a missing name */ });
     }, []);
 
     useEffect(() => {
         getStripeConfig().then(setStripeConfig).catch(() => { /* optional; legacy flow remains */ });
     }, []);
 
+    const fetchSetupIntent = (
+        onSecret: (s: string) => void,
+        onBilling: (b: SetupIntentBillingDetails) => void,
+        onError: (m: string) => void,
+    ) => {
+        createSetupIntent()
+            .then(res => { onSecret(res.clientSecret); onBilling(res.billingDetails); })
+            .catch(err => onError(err.response?.data?.message ?? 'Failed to start card collection.'));
+    };
+
+    // Subscribe modal: always fetch a fresh SetupIntent on open (single-use; never reuse a prior one).
     const ensureSetupIntent = () => {
-        if (stripeEnabled && !setupIntentSecret) {
-            createSetupIntent().then(setSetupIntentSecret).catch(err => {
-                setError(err.response?.data?.message ?? 'Failed to start card collection.');
-            });
-        }
+        if (!stripeEnabled) return;
+        fetchSetupIntent(setSetupIntentSecret, setSetupIntentBilling, setError);
     };
 
     const openAddCardModal = () => {
         setAddCardName(''); setAddCardNumber(''); setAddCardMonth('');
         setAddCardYear(''); setAddCardZip(''); setAddCardCvv('');
         setAddCardError('');
+        // Clear any previous (possibly consumed) secret so the modal shows "Loading…" until the
+        // fresh SetupIntent arrives, then mounts a clean PaymentElement.
+        setAddCardSecret(null);
+        setAddCardBilling({});
         setShowAddCardModal(true);
-        ensureSetupIntent();
+        if (stripeEnabled) {
+            fetchSetupIntent(setAddCardSecret, setAddCardBilling, setAddCardError);
+        }
     };
 
     const handleAddCard = async () => {
@@ -124,7 +159,8 @@ const Subscription: React.FC = () => {
                 const res: any = await confirmPaymentMethod(pmId);
                 setStatus(prev => prev ? { ...prev, paymentMethod: res?.paymentMethod ?? res } : prev);
                 setShowAddCardModal(false);
-                setSetupIntentSecret(null);
+                setAddCardSecret(null);
+                setAddCardBilling({});
                 setSuccess('Payment method saved successfully.');
             } else {
                 const brand = detectCardBrand(addCardNumber);
@@ -163,6 +199,28 @@ const Subscription: React.FC = () => {
             setSelectedPlan('FREE');
             setShowPaymentForm(false);
         } else {
+            if (!isEmailVerified()) {
+                setSelectedPlan(planName);
+                setShowPaymentForm(false);
+                setShowEmailVerifyPrompt(true);
+                setEmailVerifyCodeSent(false);
+                setEmailVerifyCode('');
+                setEmailVerifyError('');
+                setError('');
+                setSuccess('');
+                return;
+            }
+            if (accountName && (!accountName.firstName.trim() || !accountName.lastName.trim())) {
+                setSelectedPlan(planName);
+                setShowPaymentForm(false);
+                setShowNamePrompt(true);
+                setNamePromptFirst(accountName.firstName);
+                setNamePromptLast(accountName.lastName);
+                setNamePromptError('');
+                setError('');
+                setSuccess('');
+                return;
+            }
             setSelectedPlan(planName);
             setShowPaymentForm(true);
             setUseExistingCard(true);
@@ -172,10 +230,72 @@ const Subscription: React.FC = () => {
             setExpiryYear('');
             setBillingZip('');
             setCvv('');
+            setSetupIntentSecret(null);
+            setSetupIntentBilling({});
             ensureSetupIntent();
         }
         setError('');
         setSuccess('');
+    };
+
+    const handleSendVerifyCode = async () => {
+        setEmailVerifyLoading(true);
+        setEmailVerifyError('');
+        try {
+            await sendEmailVerification();
+            setEmailVerifyCodeSent(true);
+        } catch (err: any) {
+            setEmailVerifyError(err.response?.data?.message ?? 'Failed to send verification code.');
+        } finally {
+            setEmailVerifyLoading(false);
+        }
+    };
+
+    const handleVerifyCodeSubmit = async () => {
+        if (!emailVerifyCode.trim()) {
+            setEmailVerifyError('Enter the 6-digit verification code.');
+            return;
+        }
+        setEmailVerifyLoading(true);
+        setEmailVerifyError('');
+        try {
+            const res = await verifyEmail(emailVerifyCode.trim());
+            if (res.token) localStorage.setItem('token', res.token);
+            setShowEmailVerifyPrompt(false);
+            setEmailVerifyCode('');
+            setEmailVerifyCodeSent(false);
+            if (selectedPlan && selectedPlan !== 'FREE') {
+                handleSelectPlan(selectedPlan);
+            }
+        } catch (err: any) {
+            setEmailVerifyError(err.response?.data?.message ?? 'Verification failed.');
+        } finally {
+            setEmailVerifyLoading(false);
+        }
+    };
+
+    const handleNamePromptSubmit = async () => {
+        if (!namePromptFirst.trim() || !namePromptLast.trim()) {
+            setNamePromptError('Both first and last name are required.');
+            return;
+        }
+        setNamePromptLoading(true);
+        setNamePromptError('');
+        try {
+            const profile = await getAccountProfile();
+            profile.firstName = namePromptFirst.trim();
+            profile.lastName = namePromptLast.trim();
+            const updated = await updateAccountProfile(profile);
+            setAccountName({ firstName: updated.firstName ?? '', lastName: updated.lastName ?? '' });
+            setShowNamePrompt(false);
+            if (selectedPlan && selectedPlan !== 'FREE') {
+                handleSelectPlan(selectedPlan);
+            }
+        } catch (err: any) {
+            setNamePromptError(err.response?.data?.message ?? 'Failed to save your name. Please try again.');
+        } finally {
+            setNamePromptLoading(false);
+        }
     };
 
     const handleSubscribe = async () => {
@@ -246,6 +366,7 @@ const Subscription: React.FC = () => {
                 setBillingZip('');
                 setCvv('');
                 setSetupIntentSecret(null);
+                setSetupIntentBilling({});
                 if (isCycleDowngrade) {
                     const when = res.data?.nextBillingDate
                         ? new Date(res.data.nextBillingDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
@@ -265,7 +386,24 @@ const Subscription: React.FC = () => {
                     setSuccess('Subscription updated successfully!');
                 }
             })
-            .catch(err => setError(err.response?.data?.message ?? 'Subscription failed. Please try again.'))
+            .catch(err => {
+                const code = err.response?.data?.code;
+                if (code === 'EMAIL_NOT_VERIFIED') {
+                    setShowEmailVerifyPrompt(true);
+                    setEmailVerifyCodeSent(false);
+                    setEmailVerifyCode('');
+                    setEmailVerifyError('');
+                    setError('');
+                } else if (code === 'NAME_REQUIRED') {
+                    setShowNamePrompt(true);
+                    setNamePromptFirst(accountName?.firstName ?? '');
+                    setNamePromptLast(accountName?.lastName ?? '');
+                    setNamePromptError('');
+                    setError('');
+                } else {
+                    setError(err.response?.data?.message ?? 'Subscription failed. Please try again.');
+                }
+            })
             .finally(() => setSubmitting(false));
     };
 
@@ -306,10 +444,11 @@ const Subscription: React.FC = () => {
 
     return (
         <div className="portfolio-page">
+            <ImpersonationBanner />
             <header className="navbar">
                 <div className="navbar-brand" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                     <Link to="/" className="logo">SpringHi.ai</Link>
-                    {username() && <span className="nav-welcome" style={{ fontSize: '0.75rem', marginTop: '-0.2rem', opacity: 0.8 }}>Welcome back, {username()}</span>}
+                    {username && <span className="nav-welcome" style={{ fontSize: '0.75rem', marginTop: '-0.2rem', opacity: 0.8 }}>Welcome back, {username}</span>}
                 </div>
                 <nav className="portfolio-nav">
                     <Link to="/getting-started" className="btn-logout">Getting Started</Link>
@@ -421,7 +560,7 @@ const Subscription: React.FC = () => {
                                             onClick={openAddCardModal}
                                             style={{ background: 'var(--bg-input, #1e2035)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.25rem 0.7rem', fontSize: '0.82rem', cursor: 'pointer', fontWeight: 600 }}
                                         >
-                                            {status.paymentMethod ? 'Update' : 'Add Payment Method'}
+                                            {status.paymentMethod ? 'Replace Payment Method' : 'Add Payment Method'}
                                         </button>
                                     </div>
                                 </div>
@@ -570,7 +709,7 @@ const Subscription: React.FC = () => {
             {showPaymentForm && selectedPlan && selectedPlan !== 'FREE' && (
                 <div
                     style={{ position: 'fixed', inset: 0, background: '#0f1117', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
-                    onClick={() => { setShowPaymentForm(false); setSelectedPlan(null); setError(''); }}
+                    onClick={() => { setShowPaymentForm(false); setSelectedPlan(null); setError(''); setSetupIntentSecret(null); setSetupIntentBilling({}); }}
                 >
                     <div
                         style={{ background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)', padding: '1.75rem', width: '100%', maxWidth: 480, margin: '1rem', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}
@@ -587,7 +726,7 @@ const Subscription: React.FC = () => {
                                 <span style={{ background: '#1a1f71', color: '#fff', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.75rem', fontWeight: 700, letterSpacing: 1 }}>VISA</span>
                                 <span style={{ background: '#eb001b', color: '#fff', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.75rem', fontWeight: 700 }}>MC</span>
                                 <button
-                                    onClick={() => { setShowPaymentForm(false); setSelectedPlan(null); setError(''); }}
+                                    onClick={() => { setShowPaymentForm(false); setSelectedPlan(null); setError(''); setSetupIntentSecret(null); setSetupIntentBilling({}); }}
                                     style={{ background: 'transparent', border: 'none', color: 'var(--text-gray)', fontSize: '1.25rem', cursor: 'pointer', lineHeight: 1, marginLeft: '0.25rem' }}
                                     aria-label="Close"
                                 >×</button>
@@ -641,7 +780,7 @@ const Subscription: React.FC = () => {
                             {stripeEnabled ? (
                                 <div style={{ marginBottom: '1rem' }}>
                                     {setupIntentSecret ? (
-                                        <StripeCardInput ref={cardRef} publishableKey={stripeConfig!.publishableKey} clientSecret={setupIntentSecret} />
+                                        <StripeCardInput ref={cardRef} publishableKey={stripeConfig!.publishableKey} clientSecret={setupIntentSecret} defaultBillingDetails={setupIntentBilling} />
                                     ) : (
                                         <div style={{ color: 'var(--text-gray)', fontSize: '0.85rem' }}>Loading secure card input…</div>
                                     )}
@@ -796,7 +935,7 @@ const Subscription: React.FC = () => {
                                 {submitting ? 'Processing…' : `Subscribe — $${billingCycle === 'ANNUAL' ? plans.find(p => p.planName === selectedPlan)?.annualPrice : plans.find(p => p.planName === selectedPlan)?.monthlyPrice}/${billingCycle === 'ANNUAL' ? 'yr' : 'mo'}`}
                             </button>
                             <button
-                                onClick={() => { setShowPaymentForm(false); setSelectedPlan(null); setError(''); }}
+                                onClick={() => { setShowPaymentForm(false); setSelectedPlan(null); setError(''); setSetupIntentSecret(null); setSetupIntentBilling({}); }}
                                 style={{ background: 'transparent', color: 'var(--text-gray)', border: '1px solid var(--border)', borderRadius: 7, padding: '0.5rem 1rem', cursor: 'pointer' }}
                             >
                                 Cancel
@@ -808,7 +947,7 @@ const Subscription: React.FC = () => {
             {showAddCardModal && (
                 <div
                     style={{ position: 'fixed', inset: 0, background: '#0f1117', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
-                    onClick={() => setShowAddCardModal(false)}
+                    onClick={() => { setShowAddCardModal(false); setAddCardSecret(null); setAddCardBilling({}); }}
                 >
                     <div
                         style={{ background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)', padding: '1.75rem', width: '100%', maxWidth: 440, margin: '1rem', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}
@@ -817,21 +956,21 @@ const Subscription: React.FC = () => {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
                             <div>
                                 <h2 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-                                    {status?.paymentMethod ? 'Update Payment Method' : 'Add Payment Method'}
+                                    {status?.paymentMethod ? 'Replace Payment Method' : 'Add Payment Method'}
                                 </h2>
                                 <div style={{ fontSize: '0.82rem', color: 'var(--text-gray)', marginTop: 3 }}>Visa and Mastercard accepted</div>
                             </div>
                             <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                                 <span style={{ background: '#1a1f71', color: '#fff', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.75rem', fontWeight: 700, letterSpacing: 1 }}>VISA</span>
                                 <span style={{ background: '#eb001b', color: '#fff', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.75rem', fontWeight: 700 }}>MC</span>
-                                <button onClick={() => setShowAddCardModal(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-gray)', fontSize: '1.25rem', cursor: 'pointer', lineHeight: 1, marginLeft: '0.25rem' }} aria-label="Close">×</button>
+                                <button onClick={() => { setShowAddCardModal(false); setAddCardSecret(null); setAddCardBilling({}); }} style={{ background: 'transparent', border: 'none', color: 'var(--text-gray)', fontSize: '1.25rem', cursor: 'pointer', lineHeight: 1, marginLeft: '0.25rem' }} aria-label="Close">×</button>
                             </div>
                         </div>
 
                         {stripeEnabled ? (
                             <div style={{ marginBottom: '1rem' }}>
-                                {setupIntentSecret ? (
-                                    <StripeCardInput ref={addCardRef} publishableKey={stripeConfig!.publishableKey} clientSecret={setupIntentSecret} />
+                                {addCardSecret ? (
+                                    <StripeCardInput ref={addCardRef} publishableKey={stripeConfig!.publishableKey} clientSecret={addCardSecret} defaultBillingDetails={addCardBilling} />
                                 ) : (
                                     <div style={{ color: 'var(--text-gray)', fontSize: '0.85rem' }}>Loading secure card input…</div>
                                 )}
@@ -885,10 +1024,116 @@ const Subscription: React.FC = () => {
                             <button onClick={handleAddCard} disabled={addCardSubmitting} style={{ background: '#6c47ff', color: '#fff', border: 'none', borderRadius: 7, padding: '0.5rem 1.25rem', fontWeight: 700, fontSize: '0.9rem', cursor: addCardSubmitting ? 'default' : 'pointer', opacity: addCardSubmitting ? 0.7 : 1 }}>
                                 {addCardSubmitting ? 'Saving…' : 'Save Card'}
                             </button>
-                            <button onClick={() => setShowAddCardModal(false)} style={{ background: 'transparent', color: 'var(--text-gray)', border: '1px solid var(--border)', borderRadius: 7, padding: '0.5rem 1rem', cursor: 'pointer' }}>
+                            <button onClick={() => { setShowAddCardModal(false); setAddCardSecret(null); setAddCardBilling({}); }} style={{ background: 'transparent', color: 'var(--text-gray)', border: '1px solid var(--border)', borderRadius: 7, padding: '0.5rem 1rem', cursor: 'pointer' }}>
                                 Cancel
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {showNamePrompt && (
+                <div className="modal-overlay" onClick={() => setShowNamePrompt(false)}>
+                    <div className="modal-card" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2>Complete Your Name</h2>
+                            <button className="modal-close" onClick={() => setShowNamePrompt(false)}>✕</button>
+                        </div>
+                        <p style={{ color: 'var(--text-gray)', marginBottom: '1rem' }}>
+                            Please add your first and last name before starting a subscription. This appears on your receipts.
+                        </p>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                            <div>
+                                <label className="form-label">First Name <span className="field-required">*</span></label>
+                                <input
+                                    type="text"
+                                    className="profile-input"
+                                    value={namePromptFirst}
+                                    onChange={e => setNamePromptFirst(e.target.value)}
+                                    placeholder="First name"
+                                    autoFocus
+                                />
+                            </div>
+                            <div>
+                                <label className="form-label">Last Name <span className="field-required">*</span></label>
+                                <input
+                                    type="text"
+                                    className="profile-input"
+                                    value={namePromptLast}
+                                    onChange={e => setNamePromptLast(e.target.value)}
+                                    placeholder="Last name"
+                                />
+                            </div>
+                        </div>
+                        {namePromptError && <div className="error-msg" style={{ marginBottom: '1rem' }}>{namePromptError}</div>}
+                        <div style={{ display: 'flex', gap: '0.75rem' }}>
+                            <button className="btn-primary-full" onClick={handleNamePromptSubmit} disabled={namePromptLoading}>
+                                {namePromptLoading ? 'Saving…' : 'Save & Continue'}
+                            </button>
+                            <button
+                                className="btn-primary-full"
+                                style={{ background: 'var(--card-bg)', border: '1px solid var(--border)' }}
+                                onClick={() => setShowNamePrompt(false)}
+                                disabled={namePromptLoading}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showEmailVerifyPrompt && (
+                <div className="modal-overlay" onClick={() => setShowEmailVerifyPrompt(false)}>
+                    <div className="modal-card" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2>Verify Your Email</h2>
+                            <button className="modal-close" onClick={() => setShowEmailVerifyPrompt(false)}>✕</button>
+                        </div>
+                        <p style={{ color: 'var(--text-gray)', marginBottom: '1rem' }}>
+                            You need to verify your email address before starting a subscription.
+                        </p>
+                        {!emailVerifyCodeSent ? (
+                            <>
+                                <p style={{ color: 'var(--text-gray)', marginBottom: '1rem', fontSize: '0.88rem' }}>
+                                    We'll send a 6-digit verification code to your email on file.
+                                </p>
+                                {emailVerifyError && <div className="error-msg" style={{ marginBottom: '1rem' }}>{emailVerifyError}</div>}
+                                <button className="btn-primary-full" onClick={handleSendVerifyCode} disabled={emailVerifyLoading}>
+                                    {emailVerifyLoading ? 'Sending…' : 'Send Verification Code'}
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <p style={{ color: 'var(--text-gray)', marginBottom: '1rem', fontSize: '0.88rem' }}>
+                                    Enter the 6-digit code sent to your email.
+                                </p>
+                                <label className="form-label">Verification Code</label>
+                                <input
+                                    type="text"
+                                    className="profile-input"
+                                    value={emailVerifyCode}
+                                    onChange={e => setEmailVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                    placeholder="6-digit code"
+                                    autoFocus
+                                    style={{ marginBottom: '1rem' }}
+                                />
+                                {emailVerifyError && <div className="error-msg" style={{ marginBottom: '1rem' }}>{emailVerifyError}</div>}
+                                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                    <button className="btn-primary-full" onClick={handleVerifyCodeSubmit} disabled={emailVerifyLoading}>
+                                        {emailVerifyLoading ? 'Verifying…' : 'Verify'}
+                                    </button>
+                                    <button
+                                        className="btn-primary-full"
+                                        style={{ background: 'var(--card-bg)', border: '1px solid var(--border)' }}
+                                        onClick={() => setShowEmailVerifyPrompt(false)}
+                                        disabled={emailVerifyLoading}
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             )}

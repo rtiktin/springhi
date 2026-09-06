@@ -32,6 +32,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -78,6 +79,7 @@ class StripeSandboxIT {
     private String createdClockId;
     private String createdCustomerId;
     private String createdSubscriptionId;
+    private final Set<String> createdPaymentMethodIds = new HashSet<>();
     private long testStartEpoch;
 
     @BeforeAll
@@ -104,6 +106,48 @@ class StripeSandboxIT {
         }
     }
 
+    /**
+     * Backstop sweep: delete every test clock whose name starts with the IT prefix
+     * ({@code springhi-test-}). Catches clocks that slipped through per-test cleanup (a failed
+     * {@code TestClock.delete} in {@link #cleanupStripe()}, or orphaned clocks from prior runs) so
+     * the Stripe test-clock cap is never hit. Safe at {@code @AfterAll} time: every test's
+     * subscription has already been canceled and its clock deleted by {@link #cleanupStripe()}.
+     */
+    @AfterAll
+    void sweepOrphanedTestClocks() {
+        if (!stripeService.isEnabled()) return;
+        int deleted = 0;
+        String startingAfter = null;
+        try {
+            while (true) {
+                Map<String, Object> params = new HashMap<>();
+                params.put("limit", 100);
+                if (startingAfter != null) params.put("starting_after", startingAfter);
+                var page = com.stripe.model.testhelpers.TestClock.list(params);
+                var data = page.getData();
+                if (data.isEmpty()) break;
+                for (var c : data) {
+                    if (c.getName() != null && c.getName().startsWith("springhi-test-")) {
+                        try {
+                            c.delete();
+                            deleted++;
+                        } catch (Exception e) {
+                            log.warn("IT sweep: could not delete test clock {} ({}): {}",
+                                    c.getId(), c.getName(), e.getMessage());
+                        }
+                    }
+                    startingAfter = c.getId();
+                }
+                if (!Boolean.TRUE.equals(page.getHasMore())) break;
+            }
+            if (deleted > 0) {
+                log.info("IT sweep: deleted {} orphaned springhi-test-* test clock(s)", deleted);
+            }
+        } catch (Exception e) {
+            log.warn("IT sweep: failed to list/sweep test clocks: {}", e.getMessage());
+        }
+    }
+
     @BeforeEach
     void resetState() {
         Assumptions.assumeTrue(stripeService.isEnabled(),
@@ -112,6 +156,7 @@ class StripeSandboxIT {
         createdClockId = null;
         createdCustomerId = null;
         createdSubscriptionId = null;
+        createdPaymentMethodIds.clear();
         paymentHistoryRepository.findByUserIdOrderByPaymentDateDesc(userId)
                 .forEach(paymentHistoryRepository::delete);
         paymentMethodRepository.findByUserIdOrderByCreatedAtDesc(userId)
@@ -133,6 +178,21 @@ class StripeSandboxIT {
 
     @AfterEach
     void cleanupStripe() {
+        // Detach any PaymentMethods created this test. Stripe exposes no PaymentMethod-delete API, so
+        // detached test-mode PMs persist until purged via the dashboard "Delete all test data"; we at
+        // least ensure they are never left attached to a customer (customer deletion also detaches,
+        // but this makes cleanup explicit and survives a failed customer delete).
+        for (String pmId : createdPaymentMethodIds) {
+            try {
+                com.stripe.model.PaymentMethod pm = com.stripe.model.PaymentMethod.retrieve(pmId);
+                if (pm.getCustomer() != null) {
+                    pm.detach();
+                    log.info("IT cleanup: detached Stripe payment method {}", pmId);
+                }
+            } catch (Exception e) {
+                log.warn("IT cleanup: could not detach payment method {}: {}", pmId, e.getMessage());
+            }
+        }
         if (createdSubscriptionId != null) {
             try {
                 Subscription retrieved = Subscription.retrieve(createdSubscriptionId);
@@ -376,6 +436,7 @@ class StripeSandboxIT {
         stripeService.ensureCustomer(sub, clock.getId());
         createdCustomerId = sub.getStripeCustomerId();
         com.stripe.model.PaymentMethod pm = stripeService.createTestPaymentMethod(testToken);
+        createdPaymentMethodIds.add(pm.getId());
         stripeService.attachDefaultPaymentMethod(sub, pm.getId());
         Subscription created = stripeService.createSubscription(sub, stripeService.priceIdFor(plan, cycle), clock.getId());
         createdSubscriptionId = created.getId();
@@ -392,13 +453,18 @@ class StripeSandboxIT {
     /** Subscribe via the real service path (non-clock customer) using a sandbox success card (test token). */
     private Map<String, Object> subscribeViaService(String plan, String cycle) throws StripeException {
         com.stripe.model.PaymentMethod pm = stripeService.createTestPaymentMethod(SUCCESS_TOKEN);
-        Map<String, Object> res = subscriptionService.subscribeViaStripe(userId, plan, cycle, pm.getId(), false);
-        // Re-fetch the subscription row: subscribeViaStripe updates its own managed instance, so the
-        // pre-call instance is stale (stripeCustomerId/stripeSubscriptionId would read back as null).
-        UserSubscription sub = subscriptionRepository.findByUserId(userId).orElseThrow();
-        createdCustomerId = sub.getStripeCustomerId();
-        createdSubscriptionId = sub.getStripeSubscriptionId();
-        return res;
+        createdPaymentMethodIds.add(pm.getId());
+        try {
+            return subscriptionService.subscribeViaStripe(userId, plan, cycle, pm.getId(), false);
+        } finally {
+            // Capture whatever IDs landed on the sub row so @AfterEach can clean them up, even if the
+            // service threw after creating the customer/subscription (which would otherwise orphan in
+            // Stripe). subscribeViaStripe mutates its own managed instance, so always re-read the row.
+            subscriptionRepository.findByUserId(userId).ifPresent(sub -> {
+                if (sub.getStripeCustomerId() != null) createdCustomerId = sub.getStripeCustomerId();
+                if (sub.getStripeSubscriptionId() != null) createdSubscriptionId = sub.getStripeSubscriptionId();
+            });
+        }
     }
 
     /**

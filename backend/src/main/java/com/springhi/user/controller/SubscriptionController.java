@@ -18,6 +18,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -99,6 +100,22 @@ public class SubscriptionController {
                 return ResponseEntity.badRequest().body(Map.of("message", "planName is required"));
             }
 
+            if (!"FREE".equalsIgnoreCase(planName) && !((User) userDetails).isEmailVerified()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "message", "Please verify your email address before starting a subscription.",
+                        "code", "EMAIL_NOT_VERIFIED"));
+            }
+            if (!"FREE".equalsIgnoreCase(planName)) {
+                User u = (User) userDetails;
+                boolean missingName = (u.getFirstName() == null || u.getFirstName().isBlank())
+                        || (u.getLastName() == null || u.getLastName().isBlank());
+                if (missingName) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                            "message", "Please add your first and last name before starting a subscription.",
+                            "code", "NAME_REQUIRED"));
+                }
+            }
+
             Map<String, Object> result = subscriptionService.subscribe(
                     userId, planName, billingCycle, cardholderName, cardNumber,
                     expiryMonth, expiryYear, billingZip, useExistingCard, paymentMethodId);
@@ -162,10 +179,25 @@ public class SubscriptionController {
     @PostMapping("/setup-intent")
     public ResponseEntity<?> createSetupIntent(@AuthenticationPrincipal UserDetails userDetails) {
         if (userDetails == null) return ResponseEntity.status(403).build();
-        Long userId = ((User) userDetails).getId();
+        User user = (User) userDetails;
+        Long userId = user.getId();
         try {
             String clientSecret = subscriptionService.createSetupIntent(userId);
-            return ResponseEntity.ok(Map.of("clientSecret", clientSecret));
+            // Prefill the PaymentElement's billing details from the account so the user doesn't
+            // retype them. The Element is created with fields.billingDetails='auto', so it renders
+            // the fields it needs; these defaults pre-populate name/email/phone when present.
+            Map<String, String> billing = new LinkedHashMap<>();
+            String first = user.getFirstName();
+            String last = user.getLastName();
+            String full = ((first == null ? "" : first) + " " + (last == null ? "" : last)).trim();
+            if (!full.isBlank()) billing.put("name", full);
+            String email = user.getEmail();
+            if (email != null && !email.isBlank()) billing.put("email", email);
+            String phone = user.getPhone();
+            if (phone != null && !phone.isBlank()) billing.put("phone", phone);
+            return ResponseEntity.ok(Map.of(
+                    "clientSecret", clientSecret,
+                    "billingDetails", billing));
         } catch (IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("message", e.getMessage()));
         }
@@ -273,6 +305,20 @@ public class SubscriptionController {
         }
     }
 
+    /** Admin-only: delete Stripe + DB rows created by StripeSandboxIT / the test-subscribe flow. */
+    @PostMapping("/test/cleanup")
+    public ResponseEntity<?> cleanupSandboxData(@AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null || !isAdmin(userDetails)) return ResponseEntity.status(403).build();
+        if (!stripeService.isEnabled()) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("message", "Stripe is not enabled."));
+        }
+        try {
+            return ResponseEntity.ok(stripeService.cleanupSandboxTestData());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("message", e.getMessage()));
+        }
+    }
+
     /** Admin-only: volatile snapshot of the most recently received Stripe webhook event. */
     @GetMapping("/webhook/last")
     public ResponseEntity<Map<String, Object>> lastWebhook(
@@ -282,5 +328,33 @@ public class SubscriptionController {
         out.put("enabled", stripeService.isEnabled());
         out.put("configured", webhookSecret != null && !webhookSecret.isBlank() && !webhookSecret.contains("REPLACE_ME"));
         return ResponseEntity.ok(out);
+    }
+
+    /** Admin-only: read the effective Stripe Link toggle + whether the account is in live mode. */
+    @GetMapping("/stripe-link")
+    public ResponseEntity<?> getStripeLink(@AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null || !isAdmin(userDetails)) return ResponseEntity.status(403).build();
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("liveMode", stripeService.isLiveMode());
+        out.put("linkEnabled", stripeService.isLinkEnabledEffective());
+        return ResponseEntity.ok(out);
+    }
+
+    /** Admin-only: turn Stripe Link on/off (test and live mode; test mode defaults off). */
+    @PostMapping("/stripe-link")
+    public ResponseEntity<?> setStripeLink(
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null || !isAdmin(userDetails)) return ResponseEntity.status(403).build();
+        boolean enabled = Boolean.TRUE.equals(body.get("enabled"));
+        try {
+            boolean effective = stripeService.setLinkEnabled(enabled);
+            Map<String, Object> out = new java.util.LinkedHashMap<>();
+            out.put("liveMode", stripeService.isLiveMode());
+            out.put("linkEnabled", effective);
+            return ResponseEntity.ok(out);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
     }
 }

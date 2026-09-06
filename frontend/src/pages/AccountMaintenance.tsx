@@ -257,7 +257,9 @@ const AccountMaintenance: React.FC = () => {
                         <label className="form-label">Email Address</label>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             <span className="acct-readonly-value">{form.email ?? '—'}</span>
-                            {isEmailVerified() && (
+                            {isEmailVerified() ? (
+                                <span style={{ fontSize: '0.8rem', color: '#34d399', fontWeight: 600 }}>✓ Verified</span>
+                            ) : (
                                 <button
                                     className="btn-primary"
                                     style={{ fontSize: '0.82rem', padding: '0.35rem 0.9rem' }}

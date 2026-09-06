@@ -48,12 +48,13 @@ function checkReadiness(
 const fmt = (n: number | null) =>
     n != null ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
 
-type AiProvider = 'gemini' | 'claude' | 'chatgpt';
+type AiProvider = 'gemini' | 'claude' | 'chatgpt' | 'grok';
 
 const PROVIDER_LABELS: Record<AiProvider, string> = {
     gemini: 'Gemini',
     claude: 'Claude',
     chatgpt: 'ChatGPT',
+    grok: 'Grok',
 };
 
 const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigateToProfile, cashRefreshSignal }) => {
@@ -582,7 +583,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                     </p>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.5rem' }}>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-gray)' }}>AI Model:</span>
-                        {(['gemini', 'claude', 'chatgpt'] as AiProvider[]).map(p => (
+                        {(['gemini', 'claude', 'chatgpt', 'grok'] as AiProvider[]).map(p => (
                             <label key={p} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', fontSize: '0.85rem' }}>
                                 <input
                                     type="radio"

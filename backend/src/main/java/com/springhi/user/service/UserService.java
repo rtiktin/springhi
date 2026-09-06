@@ -69,6 +69,9 @@ public class UserService {
         if (request.getEmail() != null && !request.getEmail().isBlank()) {
             String newEmail = request.getEmail().trim().toLowerCase();
             if (!newEmail.equals(user.getEmail())) {
+                if (user.isEmailVerified()) {
+                    throw new RuntimeException("Your email address is already verified and cannot be changed. Please contact support to update it.");
+                }
                 repository.findByEmail(newEmail).ifPresent(existing -> {
                     throw new RuntimeException("Email address is already in use by another account.");
                 });

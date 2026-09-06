@@ -27,4 +27,7 @@ public interface UserSubscriptionRepository extends JpaRepository<UserSubscripti
 
     @Query("SELECT s FROM UserSubscription s WHERE s.planName IN ('BASIC','PREMIUM') AND s.startDate BETWEEN :start AND :end")
     List<UserSubscription> findPaidSubscriptionsCreatedBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    @Query("SELECT s FROM UserSubscription s WHERE s.userId NOT IN (SELECT u.id FROM User u)")
+    List<UserSubscription> findOrphanedSubscriptions();
 }

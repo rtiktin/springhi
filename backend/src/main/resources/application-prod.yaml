@@ -1,0 +1,27 @@
+# Production profile — live Stripe account, live price IDs, prod secrets.
+# Activate with SPRING_PROFILES_ACTIVE=prod. All sensitive values come from environment variables;
+# no real secrets are committed. Datasource, JWT, mail, and Telnyx already default to env vars in
+# application.yaml, so they are not repeated here.
+app:
+  referral:
+    taxid:
+      # Prod encryption key for referral tax IDs. MUST be set via env. If you copy encrypted tax IDs
+      # from dev, use the SAME key here (or re-encrypt them); otherwise set a fresh prod key.
+      secret: ${REFERRAL_TAXID_SECRET:}
+  subscription:
+    expiry-cron: "0 0 3 * * *"   # 3:00 AM daily
+  stripe:
+    enabled: true
+    # LIVE (production) keys — provide via environment variables; never commit real values.
+    secret-key: ${STRIPE_SECRET_KEY:}
+    publishable-key: ${STRIPE_PUBLISHABLE_KEY:}
+    webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+    # Link on by default in live mode; the admin can turn it off via the Stripe Link toggle.
+    link-enabled: ${STRIPE_LINK_ENABLED:true}
+    # Price IDs of the recurring Prices you create in the LIVE Stripe account. These are
+    # account-scoped — the sandbox price IDs from application-local.yaml will NOT work in live mode.
+    price-id:
+      BASIC_MONTHLY: ${STRIPE_PRICE_BASIC_MONTHLY:}
+      BASIC_ANNUAL: ${STRIPE_PRICE_BASIC_ANNUAL:}
+      PREMIUM_MONTHLY: ${STRIPE_PRICE_PREMIUM_MONTHLY:}
+      PREMIUM_ANNUAL: ${STRIPE_PRICE_PREMIUM_ANNUAL:}

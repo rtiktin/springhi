@@ -49,6 +49,12 @@ openai:
   api-key: ${OPENAI_API_KEY:}
   max-tokens: ${OPENAI_MAX_TOKENS:2048}
 
+grok:
+  base-url: ${GROK_BASE_URL:https://api.x.ai}
+  model: ${GROK_MODEL:grok-4.6}
+  api-key: ${GROK_API_KEY:}
+  max-tokens: ${GROK_MAX_TOKENS:2048}
+
 backend:
   url: ${BACKEND_URL:http://localhost:8080}
 

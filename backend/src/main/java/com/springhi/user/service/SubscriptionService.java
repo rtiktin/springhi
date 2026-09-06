@@ -322,6 +322,8 @@ public class SubscriptionService {
         Map<String, Object> cfg = new LinkedHashMap<>();
         cfg.put("enabled", stripeService.isEnabled());
         cfg.put("publishableKey", stripePublishableKey == null ? "" : stripePublishableKey);
+        cfg.put("linkEnabled", stripeService.isLinkEnabledEffective());
+        cfg.put("liveMode", stripeService.isLiveMode());
         return cfg;
     }
 

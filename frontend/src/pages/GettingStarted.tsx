@@ -41,7 +41,7 @@ const GettingStarted: React.FC = () => {
         {
             icon: <Cpu size={32} color="#f59e0b" />,
             title: "4. Run AI Optimization",
-            description: "Choose between Claude, ChatGPT, or Gemini. The AI analyzes your profile and generates a buy/sell plan.",
+            description: "Choose between Claude, ChatGPT, Gemini, or Grok. The AI analyzes your profile and generates a buy/sell plan.",
             link: "/portfolio",
             linkText: "Try AI Now"
         },

@@ -124,6 +124,9 @@ public class AuthService {
 
         String previousEmail = null;
         if (!targetEmail.equals(user.getEmail())) {
+            if (user.isEmailVerified()) {
+                throw new RuntimeException("Your email address is already verified and cannot be changed. Please contact support to update it.");
+            }
             if (repository.findByEmail(targetEmail).isPresent()) {
                 throw new RuntimeException("That email address is already in use by another account.");
             }
