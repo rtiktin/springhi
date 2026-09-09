@@ -6,6 +6,8 @@ import com.springhi.user.model.UserSubscription;
 import com.springhi.user.repository.PaymentHistoryRepository;
 import com.springhi.user.repository.PaymentMethodRepository;
 import com.springhi.user.repository.UserSubscriptionRepository;
+import com.stripe.model.Charge;
+import com.stripe.model.Dispute;
 import com.stripe.model.Event;
 import com.stripe.model.EventDataObjectDeserializer;
 import com.stripe.model.Invoice;
@@ -13,6 +15,8 @@ import com.stripe.model.InvoiceLineItem;
 import com.stripe.model.StripeObject;
 import com.stripe.model.Subscription;
 import com.stripe.model.SubscriptionItem;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -83,6 +87,8 @@ public class StripeWebhookService {
                 case "invoice.payment_failed" -> onInvoiceFailed(event);
                 case "customer.subscription.deleted" -> onSubscriptionDeleted(event);
                 case "customer.subscription.updated" -> onSubscriptionUpdated(event);
+                case "charge.refunded" -> onChargeRefunded(event);
+                case "charge.dispute.closed" -> onDisputeClosed(event);
                 default -> log.debug("Stripe webhook: ignoring unhandled event type {}", type);
             }
         } catch (Exception e) {
@@ -155,9 +161,17 @@ public class StripeWebhookService {
                 PaymentMethod pm = paymentMethodRepository.findFirstByUserIdAndIsDefaultTrue(sub.getUserId()).orElse(null);
                 if (pm != null) ph.setPaymentMethodId(pm.getId());
                 paymentHistoryRepository.save(ph);
-                referralService.accrueCommissionOnPayment(sub.getUserId(), ph.getId(), amount);
-                log.info("Stripe invoice.paid recorded: userId={} plan={} cycle={} amount={} reason={} nextBilling={} invoiceId={}",
-                        sub.getUserId(), sub.getPlanName(), sub.getBillingCycle(), amount, reason, nextBilling, invoice.getId());
+                // Referral fee basis = invoice subtotal excluding tax, after discounts (not gross
+                // amountPaid, which includes tax). Fall back to subtotal, then amountPaid, if absent.
+                Long basisCents = invoice.getTotalExcludingTax() != null
+                        ? invoice.getTotalExcludingTax()
+                        : (invoice.getSubtotal() != null ? invoice.getSubtotal() : invoice.getAmountPaid());
+                BigDecimal basis = basisCents != null
+                        ? BigDecimal.valueOf(basisCents).movePointLeft(2).setScale(2, RoundingMode.HALF_UP)
+                        : amount;
+                referralService.accrueCommissionOnPayment(sub.getUserId(), ph.getId(), invoice.getId(), basis, sub.getBillingCycle());
+                log.info("Stripe invoice.paid recorded: userId={} plan={} cycle={} amount={} basis={} reason={} nextBilling={} invoiceId={}",
+                        sub.getUserId(), sub.getPlanName(), sub.getBillingCycle(), amount, basis, reason, nextBilling, invoice.getId());
             }
         }
 
@@ -174,6 +188,54 @@ public class StripeWebhookService {
             log.warn("Stripe invoice.payment_failed: userId={} subscription={} marked PAST_DUE (invoice={})",
                     sub.getUserId(), sub.getStripeSubscriptionId(), invoice.getId());
         });
+    }
+
+    /**
+     * A refund on a referred user's subscription charge reverses the referral fee that invoice
+     * generated. The charge carries the originating invoice id; clawbackCommission is idempotent and
+     * full (not pro-rated), so repeated charge.refunded deliveries or multiple partial refunds on the
+     * same invoice do not double-clawback. Charges not tied to an invoice (direct charges) are skipped.
+     */
+    private void onChargeRefunded(Event event) {
+        Charge charge = asObject(event, Charge.class);
+        if (charge == null) return;
+        String invoiceId = resolveInvoiceId(charge);
+        if (invoiceId == null || invoiceId.isBlank()) {
+            log.debug("Stripe charge.refunded: no invoice on charge={} (not a subscription charge); no clawback", charge.getId());
+            return;
+        }
+        referralService.clawbackCommission(invoiceId, "REFUND");
+        log.info("Stripe charge.refunded processed: chargeId={} invoiceId={}", charge.getId(), invoiceId);
+    }
+
+    /**
+     * A lost chargeback (dispute closed, status=lost) is treated like a refund: claw back the fee.
+     * The Dispute object only carries the charge id (not expanded), so retrieve the charge to resolve
+     * its invoice. Won/open disputes do not claw back.
+     */
+    private void onDisputeClosed(Event event) {
+        Dispute dispute = asObject(event, Dispute.class);
+        if (dispute == null) return;
+        if (!"lost".equalsIgnoreCase(dispute.getStatus())) {
+            log.debug("Stripe charge.dispute.closed: dispute={} status={} (not lost); no clawback", dispute.getId(), dispute.getStatus());
+            return;
+        }
+        String chargeId = dispute.getCharge();
+        if (chargeId == null || chargeId.isBlank()) return;
+        Charge charge;
+        try {
+            charge = Charge.retrieve(chargeId);
+        } catch (Exception e) {
+            log.warn("Stripe charge.dispute.closed: could not retrieve charge={} to resolve invoice: {}", chargeId, e.getMessage());
+            return;
+        }
+        String invoiceId = resolveInvoiceId(charge);
+        if (invoiceId == null || invoiceId.isBlank()) {
+            log.debug("Stripe charge.dispute.closed: no invoice on charge={} (not a subscription charge); no clawback", chargeId);
+            return;
+        }
+        referralService.clawbackCommission(invoiceId, "DISPUTE");
+        log.info("Stripe charge.dispute.closed (lost) processed: disputeId={} chargeId={} invoiceId={}", dispute.getId(), chargeId, invoiceId);
     }
 
     private void onSubscriptionDeleted(Event event) {
@@ -296,6 +358,33 @@ public class StripeWebhookService {
             log.warn("Could not read plan from invoice {}: {}", invoice.getId(), e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Resolves the originating invoice id for a charge. stripe-java 32.2.0 exposes no
+     * {@code Charge.getInvoice()} (Charges are deprecated; the invoice link is in the raw object
+     * JSON only), so read the {@code invoice} string from the charge's raw JsonObject. Webhook-
+     * deserialized charges may have a null raw JSON, so fall back to retrieving the charge.
+     */
+    private String resolveInvoiceId(Charge charge) {
+        if (charge == null) return null;
+        String invoiceId = readInvoiceRaw(charge.getRawJsonObject());
+        if (invoiceId != null) return invoiceId;
+        if (charge.getId() == null || charge.getId().isBlank()) return null;
+        try {
+            Charge fetched = Charge.retrieve(charge.getId());
+            return readInvoiceRaw(fetched.getRawJsonObject());
+        } catch (Exception e) {
+            log.warn("Stripe clawback: could not retrieve charge={} to resolve invoice: {}", charge.getId(), e.getMessage());
+            return null;
+        }
+    }
+
+    private String readInvoiceRaw(JsonObject raw) {
+        if (raw == null) return null;
+        JsonElement inv = raw.get("invoice");
+        if (inv == null || inv.isJsonNull() || !inv.isJsonPrimitive()) return null;
+        return inv.getAsString();
     }
 
     private <T extends StripeObject> T asObject(Event event, Class<T> type) {

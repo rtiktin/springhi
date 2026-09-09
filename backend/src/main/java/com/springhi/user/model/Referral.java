@@ -39,6 +39,19 @@ public class Referral {
     @Column(name = "first_year_end")
     private LocalDate firstYearEnd;
 
+    // Anchors both the 31-day hold and the 12-month earning window to the referred user's FIRST
+    // paid invoice (set on first accrueCommissionOnPayment), not signup. Null until that invoice lands.
+    @Column(name = "first_paid_invoice_at")
+    private LocalDateTime firstPaidInvoiceAt;
+
+    // Self-referral fraud: the referred user's card fingerprint is re-checked at first accrual (it
+    // is not known until they add a payment method). A match against the referrer voids the referral.
+    @Column(name = "card_fingerprint_checked", nullable = false)
+    private boolean cardFingerprintChecked = false;
+
+    @Column(name = "voided", nullable = false)
+    private boolean voided = false;
+
     @Column(name = "converted_at")
     private LocalDateTime convertedAt;
 
@@ -71,6 +84,12 @@ public class Referral {
     public void setSignupAt(LocalDateTime signupAt) { this.signupAt = signupAt; }
     public LocalDate getFirstYearEnd() { return firstYearEnd; }
     public void setFirstYearEnd(LocalDate firstYearEnd) { this.firstYearEnd = firstYearEnd; }
+    public LocalDateTime getFirstPaidInvoiceAt() { return firstPaidInvoiceAt; }
+    public void setFirstPaidInvoiceAt(LocalDateTime firstPaidInvoiceAt) { this.firstPaidInvoiceAt = firstPaidInvoiceAt; }
+    public boolean isCardFingerprintChecked() { return cardFingerprintChecked; }
+    public void setCardFingerprintChecked(boolean cardFingerprintChecked) { this.cardFingerprintChecked = cardFingerprintChecked; }
+    public boolean isVoided() { return voided; }
+    public void setVoided(boolean voided) { this.voided = voided; }
     public LocalDateTime getConvertedAt() { return convertedAt; }
     public void setConvertedAt(LocalDateTime convertedAt) { this.convertedAt = convertedAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }

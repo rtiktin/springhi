@@ -12,9 +12,19 @@ export interface ReferralDashboard {
     uniqueClicks: number;
     signups: number;
     conversions: number;
+    pendingBalance: number;
     accruedBalance: number;
     paidOut: number;
+    clawedBack: number;
     active: boolean;
+    liveReferred: number;
+    minLiveReferred: number;
+    payoutThreshold: number;
+    connectEnabled: boolean;
+    connectEligible: boolean;
+    declaredCountry: string | null;
+    /** "CONNECT" | "CSV" | null (null = connect-mode but country not yet declared). */
+    payoutMethod: string | null;
 }
 
 export interface ReferralCodeInfo {

@@ -21,7 +21,9 @@ public class ReferralCommission {
     @Column(name = "referred_user_id", nullable = false)
     private Long referredUserId;
 
-    @Column(name = "payment_history_id", nullable = false, unique = true)
+    // Not unique: an annual subscription's upfront invoice is amortized into one accrual row per
+    // month (12 installments), all sharing this payment_history_id. Monthly invoices get 1 row.
+    @Column(name = "payment_history_id", nullable = false)
     private Long paymentHistoryId;
 
     @Column(name = "basis_amount", nullable = false, precision = 10, scale = 2)
@@ -32,6 +34,19 @@ public class ReferralCommission {
 
     @Column(name = "status", nullable = false, length = 16)
     private String status;
+
+    // Accrual lifecycle: PENDING (under 31-day hold) -> LOCKED (hold passed, payable) -> VOID
+    // (refunded while pending, never payable). Legacy ACCRUED/PAID statuses are tolerated as LOCKED
+    // for balance math. Set when a PENDING accrual matures past the hold period.
+    @Column(name = "locked_at")
+    private LocalDateTime lockedAt;
+
+    // When this PENDING accrual becomes eligible to mature to LOCKED. For a monthly invoice this is
+    // createdAt + holdDays; for an amortized annual invoice, installment i matures at
+    // firstPaidInvoiceAt + i months + holdDays, so the fee is recognized over the subscription term.
+    // Null on legacy rows: the lock job falls back to createdAt + holdDays.
+    @Column(name = "lock_eligible_at")
+    private LocalDateTime lockEligibleAt;
 
     @Column(name = "payout_id")
     private Long payoutId;
@@ -61,6 +76,10 @@ public class ReferralCommission {
     public void setCommissionAmount(BigDecimal commissionAmount) { this.commissionAmount = commissionAmount; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public LocalDateTime getLockedAt() { return lockedAt; }
+    public void setLockedAt(LocalDateTime lockedAt) { this.lockedAt = lockedAt; }
+    public LocalDateTime getLockEligibleAt() { return lockEligibleAt; }
+    public void setLockEligibleAt(LocalDateTime lockEligibleAt) { this.lockEligibleAt = lockEligibleAt; }
     public Long getPayoutId() { return payoutId; }
     public void setPayoutId(Long payoutId) { this.payoutId = payoutId; }
     public LocalDateTime getCreatedAt() { return createdAt; }

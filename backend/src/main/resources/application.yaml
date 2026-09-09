@@ -44,3 +44,28 @@ application:
   telnyx:
     api-key: ${TELNYX_API_KEY:}
     from-number: ${TELNYX_FROM_NUMBER:+15162000271}
+app:
+  referral:
+    base-url: ${APP_REFERRAL_BASE_URL:http://localhost:5173}
+    # Referral fee accrual + payout (Stripe Connect) configuration.
+    # The internal append-only ledger (referral_commissions + referral_payouts) is the source of
+    # truth; Stripe Connect is the payout rail only.
+    commission-rate: ${APP_REFERRAL_COMMISSION_RATE:0.30}          # 30% of invoice subtotal ex-tax, post-discount
+    payout-threshold: ${APP_REFERRAL_PAYOUT_THRESHOLD:50.00}       # pay full balance when >= threshold
+    hold-days: ${APP_REFERRAL_HOLD_DAYS:31}                        # accrual PENDING -> LOCKED after N days
+    min-live-referred: ${APP_REFERRAL_MIN_LIVE_REFERRED:2}         # >=N distinct live referred users before fees accrue
+    referral-window-months: ${APP_REFERRAL_WINDOW_MONTHS:12}       # 12-month earning window from first paid invoice
+    # connect = Stripe Connect Express transfers for referrers in connect-countries (source of truth
+    # is the internal ledger); csv = everyone paid via the CSV flow. Pre-approval, set csv so ALL
+    # referrers are paid via CSV. Post-approval, set connect: US referrers -> Connect, everyone else
+    # -> CSV. Connect transfer path is stubbed until platform approval.
+    payout-method: ${APP_REFERRAL_PAYOUT_METHOD:csv}
+    # ISO-3166 countries whose referrers are paid via Stripe Connect when payout-method=connect.
+    # Referrers everywhere else are paid via CSV. Accrual is not country-gated; country only selects
+    # the payout rail. The referrer declares their country in the payout profile to set the rail.
+    connect-countries: ${APP_REFERRAL_CONNECT_COUNTRIES:US}
+    click-flush-ms: ${APP_REFERRAL_CLICK_FLUSH_MS:60000}
+    lock-cron: ${APP_REFERRAL_LOCK_CRON:0 30 3 * * *}              # 3:30 AM daily: mature PENDING -> LOCKED
+    payout-cron: ${APP_REFERRAL_PAYOUT_CRON:0 0 0 L * *}          # last day of month, midnight
+    taxid:
+      secret: ${REFERRAL_TAXID_SECRET:dev-taxid-secret-change-me-to-32-bytes}

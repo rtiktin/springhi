@@ -156,8 +156,59 @@ const Referral: React.FC = () => {
                             <StatCard label="Unique Clicks" value={data.uniqueClicks} />
                             <StatCard label="Signups" value={data.signups} />
                             <StatCard label="Conversions" value={data.conversions} />
-                            <StatCard label="Accrued Balance" value={`$${Number(data.accruedBalance).toFixed(2)}`} />
+                            <StatCard label="Pending (in hold)" value={`$${Number(data.pendingBalance).toFixed(2)}`} />
+                            <StatCard label="Payable Balance" value={`$${Number(data.accruedBalance).toFixed(2)}`} />
                             <StatCard label="Paid Out" value={`$${Number(data.paidOut).toFixed(2)}`} />
+                            <StatCard label="Clawed Back" value={`$${Number(data.clawedBack).toFixed(2)}`} />
+                        </div>
+
+                        <div className="profile-form-card" style={{ marginBottom: '1.5rem' }}>
+                            <div className="profile-section-title">Payout Status</div>
+                            {(() => {
+                                const qualifierMet = data.liveReferred >= data.minLiveReferred;
+                                const thresholdMet = Number(data.accruedBalance) >= data.payoutThreshold;
+                                const methodLabel =
+                                    data.payoutMethod === 'CONNECT' ? 'Stripe Connect — direct deposit'
+                                    : data.payoutMethod === 'CSV' ? 'CSV payout — manual transfer'
+                                    : 'Not yet determined';
+                                const countryLabel = data.declaredCountry ? data.declaredCountry.toUpperCase() : 'Not declared';
+                                return (
+                                    <>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                                            <div style={{ padding: '0.6rem 0.8rem', borderRadius: 8, background: '#161618', border: '1px solid #3a3a3c' }}>
+                                                <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.7 }}>Payout method</div>
+                                                <div style={{ fontWeight: 700, marginTop: '0.2rem' }}>{methodLabel}</div>
+                                                <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '0.15rem' }}>
+                                                    {data.payoutMethod === null
+                                                        ? 'Declare your country below so we can choose your payout rail.'
+                                                        : data.connectEnabled
+                                                            ? (data.connectEligible ? 'Your country qualifies for direct Connect payouts.' : 'Your country uses CSV payouts (Connect not available there yet).')
+                                                            : 'Direct Connect payouts are not yet enabled; everyone is paid by CSV for now.'}
+                                                </div>
+                                            </div>
+                                            <div style={{ padding: '0.6rem 0.8rem', borderRadius: 8, background: '#161618', border: '1px solid #3a3a3c' }}>
+                                                <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.7 }}>Declared country</div>
+                                                <div style={{ fontWeight: 700, marginTop: '0.2rem' }}>{countryLabel}</div>
+                                                <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '0.15rem' }}>
+                                                    {data.declaredCountry ? 'Update below to change your payout rail.' : 'Set it in Payout Details below.'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                                            <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: 6, background: qualifierMet ? '#1f3d2b' : '#3d2b1f', color: qualifierMet ? '#22c55e' : '#f59e0b' }}>
+                                                {qualifierMet ? 'Qualified' : 'Not qualified'} — {data.liveReferred}/{data.minLiveReferred} live referrals
+                                            </span>
+                                            <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: 6, background: thresholdMet ? '#1f3d2b' : '#3d2b1f', color: thresholdMet ? '#22c55e' : '#f59e0b' }}>
+                                                {thresholdMet ? 'Above payout threshold' : 'Below payout threshold'} — ${Number(data.accruedBalance).toFixed(2)} / $${Number(data.payoutThreshold).toFixed(2)}
+                                            </span>
+                                        </div>
+                                        <p style={{ fontSize: '0.8rem', opacity: 0.75, marginTop: 0 }}>
+                                            You need at least {data.minLiveReferred} live (paying) referrals before any fee accrues, and a payable balance of at least ${Number(data.payoutThreshold).toFixed(2)} before a payout runs.
+                                            You'll be onboarded for payouts only once you reach the ${Number(data.payoutThreshold).toFixed(2)} threshold — not at signup.
+                                        </p>
+                                    </>
+                                );
+                            })()}
                         </div>
 
                         <div className="profile-form-card" style={{ marginBottom: '1.5rem' }}>
@@ -221,9 +272,12 @@ const Referral: React.FC = () => {
                             <div className="profile-section-title">How it works</div>
                             <ul style={{ margin: 0, paddingLeft: '1.25rem', lineHeight: 1.7, opacity: 0.85 }}>
                                 <li>Share your link. Anyone who signs up through it is attributed to you.</li>
-                                <li>When a referral pays for a subscription, you earn 30% of that payment.</li>
-                                <li>You keep earning 30% on each of their payments for their first 12 months.</li>
-                                <li>Payouts run monthly. Balances under $50 roll over until the next cycle.</li>
+                                <li>You need at least {data.minLiveReferred} live (paying) referrals before any fee accrues — no back-pay for earlier payments.</li>
+                                <li>When a referral pays, you earn 30% of their payment (subtotal, after discounts, before tax). Annual plans are split into 12 monthly installments.</li>
+                                <li>You keep earning 30% for the referral's first 12 months, starting at their first paid invoice.</li>
+                                <li>Each installment is held for 31 days, then locks in. Refunds or lost disputes claw back the matching fee in full.</li>
+                                <li>Declare your country in Payout Details — it picks your rail: {data.connectEnabled ? 'Stripe Connect (direct) for the US, CSV for everywhere else' : 'CSV for everyone for now'}.</li>
+                                <li>Payouts run monthly on the last day. You're onboarded for payouts once your payable balance reaches ${Number(data.payoutThreshold).toFixed(2)}; below that, it rolls over to the next cycle.</li>
                             </ul>
                         </div>
                     </>
