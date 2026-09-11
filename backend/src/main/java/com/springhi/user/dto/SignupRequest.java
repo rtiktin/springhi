@@ -20,6 +20,7 @@ public class SignupRequest {
     private String firstName;
     private String lastName;
     private String referralCode;
+    private String adCode;
 
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
@@ -33,4 +34,6 @@ public class SignupRequest {
     public void setLastName(String lastName) { this.lastName = lastName; }
     public String getReferralCode() { return referralCode; }
     public void setReferralCode(String referralCode) { this.referralCode = referralCode; }
+    public String getAdCode() { return adCode; }
+    public void setAdCode(String adCode) { this.adCode = adCode; }
 }

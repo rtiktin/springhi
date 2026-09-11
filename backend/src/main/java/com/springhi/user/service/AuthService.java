@@ -36,6 +36,7 @@ public class AuthService {
     private final JavaMailSender mailSender;
     private final TelnyxService telnyxService;
     private final ReferralService referralService;
+    private final AdService adService;
 
     @Value("${application.mail.from}")
     private String mailFrom;
@@ -54,7 +55,8 @@ public class AuthService {
                        UserPhoneHistoryRepository phoneHistoryRepository,
                        JavaMailSender mailSender,
                        TelnyxService telnyxService,
-                       ReferralService referralService) {
+                       ReferralService referralService,
+                       AdService adService) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -65,6 +67,7 @@ public class AuthService {
         this.mailSender = mailSender;
         this.telnyxService = telnyxService;
         this.referralService = referralService;
+        this.adService = adService;
     }
 
     @Transactional
@@ -91,6 +94,7 @@ public class AuthService {
         repository.save(user);
 
         referralService.attributeSignup(user.getId(), request.getReferralCode());
+        adService.attributeSignup(user.getId(), request.getAdCode());
 
         String jwtToken = jwtService.generateToken(user);
         return new AuthResponse(jwtToken);

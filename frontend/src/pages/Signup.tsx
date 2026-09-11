@@ -65,6 +65,7 @@ const Signup: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const referralCode = searchParams.get('ref') || localStorage.getItem('referralCode') || '';
+  const adCode = searchParams.get('ad') || localStorage.getItem('adCode') || '';
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -84,9 +85,10 @@ const Signup: React.FC = () => {
     setError('');
     try {
       const { confirmPassword: _, ...rest } = formData;
-      const payload = { ...rest, referralCode: referralCode || undefined };
+      const payload = { ...rest, referralCode: referralCode || undefined, adCode: adCode || undefined };
       await axios.post('http://localhost:9000/api/v1/auth/signup', payload);
       localStorage.removeItem('referralCode');
+      localStorage.removeItem('adCode');
       navigate('/login');
     } catch (err: any) {
       const msg: string = err.response?.data?.message || '';

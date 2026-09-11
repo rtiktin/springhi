@@ -8,6 +8,7 @@ import {
 } from '../api/supportApi';
 import { downloadPayoutCsv } from '../api/referralApi';
 import { adminTestSubscribe, adminCreateTestClock, adminAdvanceTestClock, adminCleanupSandbox, getStripeWebhookStatus, getStripeLinkSetting, setStripeLinkSetting, type StripeWebhookStatus, type StripeLinkSetting } from '../api/stripeApi';
+import AdsPanel from '../components/AdsPanel';
 
 interface ReferralOverviewRow {
     userId: number;
@@ -107,7 +108,7 @@ const TYPE_BADGE_COLOR: Record<number, string> = {
     3: '#b91c1c',
 };
 
-type AdminTab = 'users' | 'portfolios' | 'stats' | 'config' | 'support' | 'payments' | 'referrals' | 'stripe';
+type AdminTab = 'users' | 'portfolios' | 'stats' | 'config' | 'support' | 'payments' | 'referrals' | 'stripe' | 'ads';
 
 interface AdminPaymentHistory {
     id: number;
@@ -1225,6 +1226,7 @@ const Admin: React.FC = () => {
                     <button style={tabStyle('support')} onClick={() => setTab('support')}>Support</button>
                     <button style={tabStyle('referrals')} onClick={() => setTab('referrals')}>Referrals</button>
                     <button style={tabStyle('stripe')} onClick={() => setTab('stripe')}>Stripe Sandbox</button>
+                    <button style={tabStyle('ads')} onClick={() => setTab('ads')}>Ads</button>
                 </div>
 
                 <div style={{ background: 'var(--bg-card)', borderRadius: '0 8px 8px 8px', border: '1px solid var(--border)', borderTop: 'none', padding: '1.5rem' }}>
@@ -1906,6 +1908,8 @@ const Admin: React.FC = () => {
                             )}
                         </>
                     )}
+
+                    {tab === 'ads' && <AdsPanel />}
 
                     {tab === 'stripe' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: 640 }}>

@@ -35,6 +35,10 @@ spring:
           uri: ${BACKEND_URL:http://localhost:8080}
           predicates:
             - Path=/api/v1/referral/**
+        - id: ads-service
+          uri: ${BACKEND_URL:http://localhost:8080}
+          predicates:
+            - Path=/api/v1/ads/**
         - id: portfolio-service
           uri: ${PORTFOLIO_URL:http://localhost:8081}
           predicates:

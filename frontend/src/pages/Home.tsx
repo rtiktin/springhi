@@ -142,6 +142,12 @@ const ScreenshotCarousel: React.FC = () => {
 const Home: React.FC = () => {
     const username = getLoggedInUsername();
 
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const ad = params.get('ad');
+        if (ad) localStorage.setItem('adCode', ad);
+    }, []);
+
     return (
         <div className="home-container" style={{ fontFamily: "'Inter', system-ui, sans-serif", background: '#0a0a0b', color: '#fff', minHeight: '100vh' }}>
 
