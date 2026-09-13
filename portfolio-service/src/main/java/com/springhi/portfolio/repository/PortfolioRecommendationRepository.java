@@ -47,4 +47,12 @@ public interface PortfolioRecommendationRepository extends JpaRepository<Portfol
 
     @Query("SELECT r.generatedAt FROM PortfolioRecommendation r WHERE r.portfolioId = :portfolioId GROUP BY r.generatedAt ORDER BY r.generatedAt DESC")
     List<LocalDateTime> findDistinctGeneratedAtByPortfolioIdOrderByDesc(@Param("portfolioId") Long portfolioId);
+
+    // Leaderboard view: only runs that have at least one non-pending recommendation (i.e. the owner
+    // has acted on the run). Fully-pending runs (generated but not executed/skipped) are excluded so
+    // leaderboard viewers never see another user's not-yet-executed optimization plan.
+    @Query("SELECT r.generatedAt FROM PortfolioRecommendation r " +
+            "WHERE r.portfolioId = :portfolioId AND r.status <> 'PENDING' " +
+            "GROUP BY r.generatedAt ORDER BY r.generatedAt DESC")
+    List<LocalDateTime> findDistinctGeneratedAtByPortfolioIdExcludingPendingOrderByDesc(@Param("portfolioId") Long portfolioId);
 }

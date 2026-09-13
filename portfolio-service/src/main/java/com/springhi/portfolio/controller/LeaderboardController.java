@@ -105,7 +105,7 @@ public class LeaderboardController {
             @AuthenticationPrincipal UserPrincipal principal) {
         if (principal == null) return ResponseEntity.status(403).build();
         List<String> timestamps = recommendationRepository
-                .findDistinctGeneratedAtByPortfolioIdOrderByDesc(portfolioId)
+                .findDistinctGeneratedAtByPortfolioIdExcludingPendingOrderByDesc(portfolioId)
                 .stream().map(LocalDateTime::toString).toList();
         return ResponseEntity.ok(timestamps);
     }
@@ -119,7 +119,11 @@ public class LeaderboardController {
         LocalDateTime ts = LocalDateTime.parse(generatedAt);
         List<PortfolioRecommendation> runRecs = recommendationRepository
                 .findByPortfolioIdAndGeneratedAtOrderByActionDescIdAsc(portfolioId, ts);
-        List<RecommendationDto> recs = runRecs.stream().map(RecommendationDto::from).toList();
+        // Leaderboard viewers never see pending (not-yet-executed) recommendations; only show recs
+        // the owner has acted on. Profile/schedule/confidence are still derived from the full run.
+        List<RecommendationDto> recs = runRecs.stream()
+                .filter(r -> !"PENDING".equalsIgnoreCase(r.getStatus()))
+                .map(RecommendationDto::from).toList();
         PortfolioProfileDto profileDto = runRecs.stream()
                 .filter(r -> r.getSnapshotRiskLevel() != null || r.getSnapshotGoal() != null
                         || r.getSnapshotHorizonYears() != null || r.getSnapshotAdditionalComments() != null)
