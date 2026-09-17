@@ -103,14 +103,23 @@ public class ReferralService {
     @Value("${app.referral.referral-window-months:12}")
     private int referralWindowMonths;
 
-    @Value("${app.referral.payout-method:csv}")
-    private String payoutMethod;
+    // Payout rail per referrer bucket, selected by the referrer's declared payout-profile country:
+    //   domestic      -> referrers whose country is in domestic-countries (default US)
+    //   international -> referrers everywhere else
+    // Each is "csv" (default) or "connect" (Stripe Connect Express; stubbed until platform approval).
+    // Set both to "csv" to pay everyone via CSV (pre-approval default). Later, flip domestic (or
+    // both) to "connect" to route those referrers through Stripe Connect.
+    @Value("${app.referral.payout-method.domestic:csv}")
+    private String payoutMethodDomestic;
 
-    // ISO-3166 countries whose referrers are paid via Stripe Connect (when payout-method=connect).
-    // Everyone else is paid via the CSV path. Accrual is NOT country-gated — a referrer accrues a
-    // balance regardless of country; country only selects the payout rail at payout time.
-    @Value("${app.referral.connect-countries:US}")
-    private String connectCountriesCsv;
+    @Value("${app.referral.payout-method.international:csv}")
+    private String payoutMethodInternational;
+
+    // ISO-3166 countries treated as "domestic" for payout-rail selection (default US). Accrual is
+    // NOT country-gated — a referrer accrues a balance regardless of country; country only selects
+    // the payout rail (domestic vs international) at payout time.
+    @Value("${app.referral.domestic-countries:US}")
+    private String domesticCountriesCsv;
 
     private final ConcurrentHashMap<String, ClickBucket> clickBuffer = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, LocalDate> uniqueSeen = new ConcurrentHashMap<>();
@@ -220,12 +229,14 @@ public class ReferralService {
         BigDecimal paid = nz(referralPayoutRepository.sumAmountByReferrerAndStatusIn(userId, CONFIRMED_PAYOUT_STATUSES));
         BigDecimal clawedBack = nz(clawbackRepository.sumAmountByReferrer(userId));
 
-        // Payout rail is decided by the referrer's declared country (US -> Connect when enabled,
-        // everyone else -> CSV). null = connect-mode but country not yet declared.
+        // Payout rail is decided by the referrer's declared country (domestic -> domestic method,
+        // everyone else -> international method). null = a Connect bucket is enabled but country
+        // not yet declared.
         ReferralPayoutProfile profile = payoutProfileRepository.findByUserId(userId).orElse(null);
         String declaredCountry = profile != null ? profile.getCountry() : null;
         String payoutMethodForUser = effectivePayoutMethod(profile);
-        boolean connectEnabled = "connect".equalsIgnoreCase(payoutMethod);
+        boolean connectEnabled = "connect".equalsIgnoreCase(payoutMethodDomestic)
+                || "connect".equalsIgnoreCase(payoutMethodInternational);
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("code", rc.getCode());
@@ -243,9 +254,9 @@ public class ReferralService {
         m.put("minLiveReferred", minLiveReferred);
         m.put("payoutThreshold", payoutThreshold);
         m.put("connectEnabled", connectEnabled);
-        m.put("connectEligible", isConnectCountry(declaredCountry));
+        m.put("connectEligible", "CONNECT".equals(payoutMethodForUser));
         m.put("declaredCountry", declaredCountry);
-        // "CONNECT" | "CSV" | null (null only when connectEnabled but no country declared yet).
+        // "CONNECT" | "CSV" | null (null only when a Connect bucket is enabled but no country declared yet).
         m.put("payoutMethod", payoutMethodForUser);
         return m;
     }
@@ -334,7 +345,7 @@ public class ReferralService {
         }
 
         // No country gate at accrual: a referrer accrues a balance regardless of country. Country only
-        // selects the payout rail (Connect for connect-countries, CSV elsewhere) at payout time.
+        // selects the payout rail (domestic vs international bucket) at payout time.
 
         // Flip the referral to CONVERTED regardless of whether a fee accrues (the referred user did
         // pay), but only accrue a fee once the >=2 distinct live referred users qualifier is met.
@@ -474,31 +485,41 @@ public class ReferralService {
     }
 
     /**
-     * The payout rail for a referrer, decided by their declared payout-profile country:
+     * The payout rail for a referrer, decided by their declared payout-profile country and the
+     * per-bucket payout-method config:
      * <ul>
-     *   <li>global {@code payout-method=csv} (pre-Connect-approval) -> "CSV" for everyone;</li>
-     *   <li>{@code payout-method=connect} -> "CONNECT" for referrers in {@code connect-countries}
-     *       (default US), "CSV" for everyone else;</li>
-     *   <li>{@code connect} with no country declared -> null (undetermined): skip payout until they
-     *       declare a country so the right onboarding is shown.</li>
+     *   <li>both buckets "csv" -> "CSV" for everyone (country not required, since the rail is the
+     *       same either way — CSV onboarding via {@link #isPayoutReady} still applies);</li>
+     *   <li>either bucket "connect" -> the referrer's country selects the bucket: "CONNECT" for
+     *       {@code domestic-countries} (default US), "CSV" for international. {@code null}
+     *       (undetermined) when no country is declared yet, so the right onboarding is shown and
+     *       payout is skipped until they declare one.</li>
      * </ul>
-     * The referrer must declare their country (in the payout profile) before the method is chosen.
+     * The referrer must declare their country (in the payout profile) before a Connect rail is chosen.
      */
     private String effectivePayoutMethod(ReferralPayoutProfile profile) {
-        if (!"connect".equalsIgnoreCase(payoutMethod)) return "CSV";
+        String domesticMethod = normalizePayoutMethod(payoutMethodDomestic);
+        String internationalMethod = normalizePayoutMethod(payoutMethodInternational);
+        if ("CSV".equals(domesticMethod) && "CSV".equals(internationalMethod)) {
+            return "CSV";
+        }
         String country = profile != null ? profile.getCountry() : null;
         if (country == null || country.isBlank()) return null;
-        return connectCountries().contains(country.trim().toUpperCase()) ? "CONNECT" : "CSV";
+        return isDomesticCountry(country) ? domesticMethod : internationalMethod;
     }
 
-    private boolean isConnectCountry(String country) {
+    private String normalizePayoutMethod(String raw) {
+        return "connect".equalsIgnoreCase(raw) ? "CONNECT" : "CSV";
+    }
+
+    private boolean isDomesticCountry(String country) {
         if (country == null || country.isBlank()) return false;
-        return connectCountries().contains(country.trim().toUpperCase());
+        return domesticCountries().contains(country.trim().toUpperCase());
     }
 
-    private Set<String> connectCountries() {
-        if (connectCountriesCsv == null || connectCountriesCsv.isBlank()) return Set.of();
-        return Arrays.stream(connectCountriesCsv.split(","))
+    private Set<String> domesticCountries() {
+        if (domesticCountriesCsv == null || domesticCountriesCsv.isBlank()) return Set.of();
+        return Arrays.stream(domesticCountriesCsv.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .map(String::toUpperCase)
@@ -525,12 +546,13 @@ public class ReferralService {
                 continue;
             }
             ReferralPayoutProfile profile = payoutProfileRepository.findByUserId(referrerId).orElse(null);
-            // Payout rail is chosen by the referrer's declared country. null = connect-mode with no
-            // country declared -> can't pick a rail; skip and leave the balance for next month.
+            // Payout rail is chosen by the referrer's declared country (domestic vs international
+            // bucket). null = a Connect bucket is enabled with no country declared -> can't pick a
+            // rail; skip and leave the balance for next month.
             String method = effectivePayoutMethod(profile);
             if (method == null) {
                 skippedNotReady++;
-                log.info("Skipping payout: referrerUserId={} balance={} country not declared (connect-mode)", referrerId, balance);
+                log.info("Skipping payout: referrerUserId={} balance={} country not declared (a Connect bucket is enabled)", referrerId, balance);
                 continue;
             }
             if ("CONNECT".equals(method)) {
