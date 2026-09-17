@@ -46,10 +46,10 @@ public class Referral {
 
     // Self-referral fraud: the referred user's card fingerprint is re-checked at first accrual (it
     // is not known until they add a payment method). A match against the referrer voids the referral.
-    @Column(name = "card_fingerprint_checked", nullable = false)
+    @Column(name = "card_fingerprint_checked", nullable = false, columnDefinition = "boolean not null default false")
     private boolean cardFingerprintChecked = false;
 
-    @Column(name = "voided", nullable = false)
+    @Column(name = "voided", nullable = false, columnDefinition = "boolean not null default false")
     private boolean voided = false;
 
     @Column(name = "converted_at")
