@@ -90,28 +90,52 @@ public class MarketDataService {
         if (!flagExists) {
             LocalDate end = LocalDate.now();
             LocalDate start = end.minusYears(1).minusMonths(1);
-            Map<LocalDate, java.math.BigDecimal> bars = CryptoSymbols.isCrypto(symbol)
-                    ? alpacaService.fetchCryptoDailyCloses(symbol, start, end)
-                    : alpacaService.fetchHistoricalDailyCloses(symbol, start, end);
+            Map<LocalDate, java.math.BigDecimal> bars = fetchDailyCloses(symbol, start, end);
             if (!bars.isEmpty()) {
-                for (Map.Entry<LocalDate, java.math.BigDecimal> entry : bars.entrySet()) {
-                    MarketQuote q = marketQuoteRepository
-                            .findBySymbolAndQuoteTypeAndTradingDay(symbol, "DAILY", entry.getKey())
-                            .orElse(new MarketQuote());
-                    q.setSymbol(symbol);
-                    q.setQuoteType("DAILY");
-                    q.setTradingDay(entry.getKey());
-                    q.setPrice(entry.getValue());
-                    q.setFetchedAt(LocalDateTime.now());
-                    marketQuoteRepository.save(q);
-                }
+                saveDailyBars(symbol, bars);
                 symbolHistoryStatusRepository.save(new SymbolHistoryStatus(symbol, LocalDateTime.now()));
                 log.info("Backfilled {} historical daily bars for {}", bars.size(), symbol);
             } else {
-                log.warn("Alpaca returned no historical bars for {} — backfill skipped, will retry on next request", symbol);
+                log.warn("No historical bars for {} — backfill skipped, will retry on next request", symbol);
             }
+        } else {
+            appendRecentDailyBars(symbol);
         }
         return marketQuoteRepository.findBySymbolAndQuoteTypeOrderByTradingDayAsc(symbol, "DAILY");
+    }
+
+    private void appendRecentDailyBars(String symbol) {
+        LocalDate today = LocalDate.now();
+        LocalDate lastStored = marketQuoteRepository
+                .findTopBySymbolAndQuoteTypeAndTradingDayLessThanEqualOrderByTradingDayDesc(symbol, "DAILY", today)
+                .map(MarketQuote::getTradingDay)
+                .orElse(null);
+        if (lastStored == null || !lastStored.isBefore(today)) return;
+        Map<LocalDate, java.math.BigDecimal> bars = fetchDailyCloses(symbol, lastStored.plusDays(1), today);
+        if (!bars.isEmpty()) {
+            saveDailyBars(symbol, bars);
+            log.info("Appended {} new daily bar(s) for {} ({} -> {})", bars.size(), symbol, lastStored.plusDays(1), today);
+        }
+    }
+
+    private Map<LocalDate, java.math.BigDecimal> fetchDailyCloses(String symbol, LocalDate start, LocalDate end) {
+        return CryptoSymbols.isCrypto(symbol)
+                ? alpacaService.fetchCryptoDailyCloses(symbol, start, end)
+                : alpacaService.fetchHistoricalDailyCloses(symbol, start, end);
+    }
+
+    private void saveDailyBars(String symbol, Map<LocalDate, java.math.BigDecimal> bars) {
+        for (Map.Entry<LocalDate, java.math.BigDecimal> entry : bars.entrySet()) {
+            MarketQuote q = marketQuoteRepository
+                    .findBySymbolAndQuoteTypeAndTradingDay(symbol, "DAILY", entry.getKey())
+                    .orElse(new MarketQuote());
+            q.setSymbol(symbol);
+            q.setQuoteType("DAILY");
+            q.setTradingDay(entry.getKey());
+            q.setPrice(entry.getValue());
+            q.setFetchedAt(LocalDateTime.now());
+            marketQuoteRepository.save(q);
+        }
     }
 
     private MarketQuote save(String symbol, AlpacaSnapshotResponse.Snapshot snapshot) {
