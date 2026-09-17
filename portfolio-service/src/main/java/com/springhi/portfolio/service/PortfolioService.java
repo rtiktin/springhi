@@ -308,7 +308,7 @@ public class PortfolioService {
             asset.setSymbol(transaction.getSymbol());
             asset.setQuantity(BigDecimal.ZERO);
             asset.setAveragePrice(BigDecimal.ZERO);
-            asset.setAssetType("STOCK");
+            asset.setAssetType(CryptoSymbols.isCrypto(transaction.getSymbol()) ? "CRYPTO" : "STOCK");
             alpacaService.fetchCompanyName(transaction.getSymbol())
                     .ifPresent(asset::setCompanyName);
         }

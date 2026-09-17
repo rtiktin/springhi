@@ -304,4 +304,125 @@ public class AlpacaService {
             return Map.of();
         }
     }
+
+    public Optional<AlpacaSnapshotResponse.Snapshot> fetchCryptoSnapshot(String symbol) {
+        String ySymbol = CryptoSymbols.yahooSymbol(symbol);
+        JsonNode root = fetchJson("https://query1.finance.yahoo.com/v8/finance/chart/" + ySymbol + "?interval=1d");
+        if (root == null) return Optional.empty();
+        JsonNode result = root.path("chart").path("result").path(0);
+        if (result.isMissingNode() || result.isNull()) {
+            log.warn("No crypto snapshot from Yahoo for {} ({})", symbol, ySymbol);
+            return Optional.empty();
+        }
+        JsonNode meta = result.path("meta");
+        JsonNode quote = result.path("indicators").path("quote").path(0);
+        JsonNode timestamps = result.path("timestamp");
+        int count = timestamps.isArray() ? timestamps.size() : 0;
+
+        AlpacaSnapshotResponse.Bar dailyBar = cryptoBar(quote, timestamps, count - 1);
+        AlpacaSnapshotResponse.Bar prevDailyBar = cryptoBar(quote, timestamps, count - 2);
+
+        BigDecimal latestPrice = scalar(meta, "regularMarketPrice");
+        if (latestPrice == null && dailyBar != null) latestPrice = dailyBar.close();
+        AlpacaSnapshotResponse.Trade latestTrade = latestPrice != null
+                ? new AlpacaSnapshotResponse.Trade(latestPrice, null, java.time.Instant.now().toString())
+                : null;
+
+        if (dailyBar == null && latestTrade == null) {
+            log.warn("No usable crypto data from Yahoo for {}", symbol);
+            return Optional.empty();
+        }
+        return Optional.of(new AlpacaSnapshotResponse.Snapshot(dailyBar, prevDailyBar, latestTrade));
+    }
+
+    public Map<LocalDate, BigDecimal> fetchCryptoDailyCloses(String symbol, LocalDate start, LocalDate end) {
+        Map<LocalDate, BigDecimal> result = new LinkedHashMap<>();
+        long period1 = start.atStartOfDay().toEpochSecond(ZoneOffset.UTC);
+        long period2 = end.plusDays(1).atStartOfDay().toEpochSecond(ZoneOffset.UTC);
+        String ySymbol = CryptoSymbols.yahooSymbol(symbol);
+        JsonNode root = fetchJson("https://query1.finance.yahoo.com/v8/finance/chart/" + ySymbol
+                + "?period1=" + period1 + "&period2=" + period2 + "&interval=1d");
+        if (root == null) return result;
+        JsonNode result0 = root.path("chart").path("result").path(0);
+        if (result0.isMissingNode() || result0.isNull()) return result;
+        JsonNode timestamps = result0.path("timestamp");
+        JsonNode closes = result0.path("indicators").path("quote").path(0).path("close");
+        if (!timestamps.isArray() || !closes.isArray()) return result;
+        int n = Math.min(timestamps.size(), closes.size());
+        for (int i = 0; i < n; i++) {
+            JsonNode t = timestamps.get(i);
+            JsonNode c = closes.get(i);
+            if (t == null || t.isNull() || c == null || c.isNull() || c.isMissingNode()) continue;
+            long epoch = t.asLong(0);
+            double close = c.asDouble(0);
+            if (epoch > 0 && close > 0) {
+                LocalDate date = java.time.Instant.ofEpochSecond(epoch).atZone(ZoneOffset.UTC).toLocalDate();
+                result.put(date, BigDecimal.valueOf(close));
+            }
+        }
+        log.info("Fetched {} crypto daily bars for {} from Yahoo", result.size(), symbol);
+        return result;
+    }
+
+    private JsonNode fetchJson(String urlStr) {
+        try {
+            HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("User-Agent", BROWSER_USER_AGENT);
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setConnectTimeout(8_000);
+            conn.setReadTimeout(8_000);
+            conn.setInstanceFollowRedirects(true);
+            if (conn.getResponseCode() != 200) {
+                log.info("HTTP {} from {}", conn.getResponseCode(), urlStr);
+                return null;
+            }
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                return MAPPER.readTree(reader.lines().collect(Collectors.joining("\n")));
+            }
+        } catch (Exception e) {
+            log.warn("Fetch failed for {}: {}", urlStr, e.getMessage());
+            return null;
+        }
+    }
+
+    private AlpacaSnapshotResponse.Bar cryptoBar(JsonNode quote, JsonNode timestamps, int i) {
+        if (i < 0 || quote == null || quote.isMissingNode()) return null;
+        BigDecimal open = arrayDecimal(quote, "open", i);
+        BigDecimal high = arrayDecimal(quote, "high", i);
+        BigDecimal low = arrayDecimal(quote, "low", i);
+        BigDecimal close = arrayDecimal(quote, "close", i);
+        Long volume = arrayLong(quote, "volume", i);
+        String ts = null;
+        if (timestamps != null && timestamps.isArray() && i < timestamps.size()) {
+            JsonNode t = timestamps.get(i);
+            if (t != null && !t.isNull()) {
+                long epoch = t.asLong(0);
+                if (epoch > 0) ts = java.time.Instant.ofEpochSecond(epoch).toString();
+            }
+        }
+        if (open == null && high == null && low == null && close == null && volume == null && ts == null) {
+            return null;
+        }
+        return new AlpacaSnapshotResponse.Bar(open, high, low, close, volume, ts);
+    }
+
+    private BigDecimal scalar(JsonNode parent, String field) {
+        JsonNode n = parent.path(field);
+        return (n.isMissingNode() || n.isNull()) ? null : BigDecimal.valueOf(n.asDouble(0));
+    }
+
+    private BigDecimal arrayDecimal(JsonNode holder, String field, int i) {
+        JsonNode arr = holder.path(field);
+        if (!arr.isArray() || i < 0 || i >= arr.size()) return null;
+        JsonNode n = arr.get(i);
+        return (n == null || n.isNull() || n.isMissingNode()) ? null : BigDecimal.valueOf(n.asDouble(0));
+    }
+
+    private Long arrayLong(JsonNode holder, String field, int i) {
+        JsonNode arr = holder.path(field);
+        if (!arr.isArray() || i < 0 || i >= arr.size()) return null;
+        JsonNode n = arr.get(i);
+        return (n == null || n.isNull() || n.isMissingNode()) ? null : n.asLong(0);
+    }
 }

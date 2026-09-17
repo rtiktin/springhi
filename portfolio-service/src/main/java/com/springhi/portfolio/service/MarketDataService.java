@@ -48,16 +48,31 @@ public class MarketDataService {
     }
 
     public Optional<MarketQuote> fetchAndSave(String symbol) {
+        if (CryptoSymbols.isCrypto(symbol)) {
+            return alpacaService.fetchCryptoSnapshot(symbol)
+                    .map(snapshot -> save(symbol, snapshot));
+        }
         return alpacaService.fetchSnapshot(symbol)
                 .map(snapshot -> save(symbol, snapshot));
     }
 
     public Map<String, MarketQuote> refreshQuotes(List<String> symbols) {
         if (symbols == null || symbols.isEmpty()) return Map.of();
-        Map<String, AlpacaSnapshotResponse.Snapshot> snapshots = alpacaService.fetchSnapshots(symbols);
         java.util.Map<String, MarketQuote> result = new java.util.HashMap<>();
-        snapshots.forEach((symbol, snapshot) -> result.put(symbol, save(symbol, snapshot)));
-        log.info("Refreshed prices for {} symbol(s)", result.size());
+        List<String> stocks = new java.util.ArrayList<>();
+        List<String> cryptos = new java.util.ArrayList<>();
+        for (String s : symbols) {
+            if (CryptoSymbols.isCrypto(s)) cryptos.add(s); else stocks.add(s);
+        }
+        if (!stocks.isEmpty()) {
+            Map<String, AlpacaSnapshotResponse.Snapshot> snapshots = alpacaService.fetchSnapshots(stocks);
+            snapshots.forEach((symbol, snapshot) -> result.put(symbol, save(symbol, snapshot)));
+        }
+        for (String symbol : cryptos) {
+            alpacaService.fetchCryptoSnapshot(symbol)
+                    .ifPresent(snapshot -> result.put(symbol, save(symbol, snapshot)));
+        }
+        log.info("Refreshed prices for {} symbol(s) ({} stocks, {} crypto)", result.size(), stocks.size(), cryptos.size());
         return result;
     }
 
@@ -75,7 +90,9 @@ public class MarketDataService {
         if (!flagExists) {
             LocalDate end = LocalDate.now();
             LocalDate start = end.minusYears(1).minusMonths(1);
-            Map<LocalDate, java.math.BigDecimal> bars = alpacaService.fetchHistoricalDailyCloses(symbol, start, end);
+            Map<LocalDate, java.math.BigDecimal> bars = CryptoSymbols.isCrypto(symbol)
+                    ? alpacaService.fetchCryptoDailyCloses(symbol, start, end)
+                    : alpacaService.fetchHistoricalDailyCloses(symbol, start, end);
             if (!bars.isEmpty()) {
                 for (Map.Entry<LocalDate, java.math.BigDecimal> entry : bars.entrySet()) {
                     MarketQuote q = marketQuoteRepository
