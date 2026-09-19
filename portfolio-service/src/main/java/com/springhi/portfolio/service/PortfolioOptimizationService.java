@@ -16,9 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -53,18 +51,28 @@ public class PortfolioOptimizationService {
         this.recommendationRepository = recommendationRepository;
     }
 
-    public List<RecommendationDto> getTodayRecommendations(Long portfolioId) {
-        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        LocalDateTime endOfDay = LocalDate.now().atTime(LocalTime.MAX);
-        return recommendationRepository
-                .findByPortfolioIdAndGeneratedAtBetweenOrderByActionDescIdAsc(portfolioId, startOfDay, endOfDay)
-                .stream()
+    public List<RecommendationDto> getPendingRecommendations(Long portfolioId) {
+        List<PortfolioRecommendation> pending = recommendationRepository
+                .findByPortfolioIdAndStatusOrderByActionDescIdAsc(portfolioId, "PENDING");
+        if (pending.isEmpty()) {
+            return Collections.emptyList();
+        }
+        LocalDateTime latest = pending.stream()
+                .map(PortfolioRecommendation::getGeneratedAt)
+                .filter(d -> d != null)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
+        if (latest == null) {
+            return pending.stream().map(RecommendationDto::from).collect(Collectors.toList());
+        }
+        return pending.stream()
+                .filter(r -> latest.equals(r.getGeneratedAt()))
                 .map(RecommendationDto::from)
                 .collect(Collectors.toList());
     }
 
     @Transactional
-    public OptimizationResponse optimize(Long userId, Long portfolioId, String provider) {
+    public OptimizationResponse optimize(Long userId, Long portfolioId, String provider, boolean replacePending) {
         PortfolioProfileDto portfolioProfile = portfolioService.getOrCreatePortfolioProfile(portfolioId, userId);
         List<AssetWithPrice> holdings = portfolioService.getUserAssetsWithPrices(portfolioId);
         BigDecimal cashBalance = portfolioService.getCashBalance(portfolioId);
@@ -88,14 +96,14 @@ public class PortfolioOptimizationService {
             } else {
                 rawText = geminiService.generateContent(prompt);
             }
-            String json = extractJson(rawText);
+            String json = extractJson(rawText, provider);
             List<SecurityRecommendation> recs = objectMapper.readValue(json,
                     new TypeReference<List<SecurityRecommendation>>() {});
 
             recs = normalizeBuyWeights(recs);
             Integer confidence = extractConfidence(rawText);
 
-            List<RecommendationDto> saved = persistRecommendations(userId, portfolioId, recs, holdings, cashBalance, portfolioMarketValue, portfolioProfile, provider, confidence);
+            List<RecommendationDto> saved = persistRecommendations(userId, portfolioId, recs, holdings, cashBalance, portfolioMarketValue, portfolioProfile, provider, confidence, replacePending);
             return new OptimizationResponse(saved, null);
         } catch (Exception e) {
             log.error("Optimization failed for portfolioId={}: {}", portfolioId, e.getMessage(), e);
@@ -111,8 +119,11 @@ public class PortfolioOptimizationService {
                                                             BigDecimal portfolioMarketValue,
                                                             PortfolioProfileDto profile,
                                                             String provider,
-                                                            Integer confidence) {
-        recommendationRepository.deletePendingForPortfolio(portfolioId);
+                                                            Integer confidence,
+                                                            boolean replacePending) {
+        if (replacePending) {
+            recommendationRepository.deletePendingForPortfolio(portfolioId);
+        }
 
         Map<String, AssetWithPrice> holdingMap = holdings.stream()
                 .collect(Collectors.toMap(AssetWithPrice::getSymbol, h -> h));
@@ -176,10 +187,10 @@ public class PortfolioOptimizationService {
                                BigDecimal cashBalance, BigDecimal portfolioMarketValue) {
         StringBuilder sb = new StringBuilder();
 
-        sb.append("Task: Produce a portfolio rebalancing plan. Return SELL recommendations for positions to exit or trim, and BUY recommendations for new or underweight positions.\n");
+        sb.append("Task: Produce a portfolio rebalancing plan. Return SELL recommendations for positions to exit or trim, and BUY recommendations for new or underweight positions. BUYs are funded ONLY from Available Cash plus the proceeds of your SELL recommendations.\n");
         sb.append("Output: Minified JSON array only. No prose. No markdown. No code blocks.\n");
         sb.append("Keys: t (ticker), n (full name), s (sector), action (\"BUY\" or \"SELL\"), w (weight as number, see rules below), r (rationale max 8 words).\n");
-        sb.append("Weight rules: For BUY entries, w = % of available cash to deploy (all BUY weights must sum to 100). For SELL entries, w = 0.\n");
+        sb.append("Weight rules: For BUY entries, w = % of the deployable budget (Available Cash + estimated SELL proceeds) to allocate; when BUYs are present their weights must sum to 100. For SELL entries, w = 0. If you recommend no BUYs, return only SELLs (or an empty array) — do not pad with zero-weight BUYs.\n");
         sb.append("After the JSON array on a new line output exactly: confidence=N where N is your overall confidence (0-100) that this plan fits the client profile and market conditions.\n\n");
 
         sb.append("Client Profile:\n");
@@ -259,9 +270,12 @@ public class PortfolioOptimizationService {
         sb.append("1. Recommend SELL for any holdings that no longer fit the client's goals or are overweight.\n");
         sb.append("2. Recommend BUY for securities that should be added or increased to meet the client's goals.\n");
         sb.append("3. Do not recommend BUY for securities already held unless they are significantly underweight.\n");
-        sb.append("4. BUY weights represent % of available cash (including expected sell proceeds) to allocate. All BUY weights must sum to exactly 100.\n");
-        sb.append("5. Aim for 8-15 total recommendations (combined SELL + BUY). Diversify across sectors.\n");
-        sb.append("6. If the portfolio already well matches the client profile, recommend only incremental changes.\n");
+        sb.append("4. Funding constraint: total BUY deployment is capped at Available Cash + proceeds from your SELL recommendations. If your BUYs need more capital than the cash on hand, you MUST recommend SELLs to fund them. Never recommend BUYs that cannot be funded.\n");
+        sb.append("5. If Available Cash is small and you choose not to sell, recommend NO BUYs (return only SELLs or an empty array) instead of spreading a tiny cash balance across many BUYs.\n");
+        sb.append("6. If the portfolio already matches the client profile well, recommend few or no changes — return an empty array or only minor SELLs/BUYs. Do not force unnecessary trades.\n");
+        sb.append("7. When changes are warranted, aim for 8-15 total recommendations (combined SELL + BUY). Diversify across sectors. BUY weights represent % of the deployable budget (Available Cash + expected sell proceeds) and must sum to exactly 100.\n");
+        sb.append("8. Portfolio concentration: the portfolio should hold no more than 25 distinct securities at one time unless the client's Additional Notes explicitly request otherwise. If current holdings plus your BUYs would exceed 25, recommend SELLs to reduce the count or recommend fewer BUYs.\n");
+        sb.append("9. Minimum trade size: do not recommend a BUY for a single ticker whose total deployment would be less than $50, unless the total portfolio value (Available Cash + Total Holdings Market Value) is under $1000. Prefer fewer, larger BUYs over many tiny ones.\n");
 
         return sb.toString();
     }
@@ -283,15 +297,32 @@ public class PortfolioOptimizationService {
         }).collect(Collectors.toList());
     }
 
-    private String extractJson(String text) {
-        if (text == null) throw new RuntimeException("Empty response from Gemini");
-        text = text.strip();
-        int start = text.indexOf('[');
-        int end = text.lastIndexOf(']');
-        if (start == -1 || end == -1 || end <= start) {
-            throw new RuntimeException("No JSON array found in Gemini response: " + text.substring(0, Math.min(200, text.length())));
+    private String extractJson(String text, String provider) {
+        String label = (provider == null || provider.isBlank()) ? "AI" : provider;
+        if (text == null || text.isBlank()) {
+            log.error("Empty {} response (rawText is null/blank)", label);
+            throw new RuntimeException("Empty response from " + label);
         }
-        return text.substring(start, end + 1);
+        String stripped = text.strip();
+        // Strip markdown code fences ```json ... ``` or ``` ... ```
+        String fence = "```";
+        if (stripped.contains(fence)) {
+            int openFence = stripped.indexOf(fence);
+            int lineEnd = stripped.indexOf('\n', openFence + fence.length());
+            int contentFrom = lineEnd >= 0 ? lineEnd + 1 : openFence + fence.length();
+            int closeFence = stripped.lastIndexOf(fence);
+            if (closeFence > contentFrom) {
+                stripped = stripped.substring(contentFrom, closeFence).strip();
+            }
+        }
+        int start = stripped.indexOf('[');
+        int end = stripped.lastIndexOf(']');
+        if (start == -1 || end == -1 || end <= start) {
+            log.error("No JSON array found in {} response. Full raw text: {}", label, stripped);
+            throw new RuntimeException("No JSON array found in " + label + " response: "
+                    + stripped.substring(0, Math.min(500, stripped.length())));
+        }
+        return stripped.substring(start, end + 1);
     }
 
     Integer extractConfidence(String rawText) {

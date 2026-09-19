@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { optimizePortfolio, getProfile } from '../api/profileApi';
 import type { Recommendation, UserProfile } from '../api/profileApi';
@@ -88,6 +88,10 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
     const [verifyPhoneCode, setVerifyPhoneCode] = useState('');
     const [pendingOptimize, setPendingOptimize] = useState(false);
 
+    const profileSectionRef = useRef<HTMLHeadingElement>(null);
+    const [optimizeGen, setOptimizeGen] = useState(0);
+    const lastScrolledGen = useRef(0);
+
     const loadCash = () => getCashBalance(portfolioId).then(c => {
         setCashBalance(c);
         setError(prev => prev.includes('Insufficient funds') ? '' : prev);
@@ -128,8 +132,9 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                 setVerifyEmail2(account.email);
                 setUserPhone(account.phone ?? '');
             }
-            if (recs && recs.length > 0) {
-                setRecommendations(recs);
+            const pendingRecs = recs?.filter((r: Recommendation) => r.status === 'PENDING') ?? [];
+            if (pendingRecs.length > 0) {
+                setRecommendations(pendingRecs);
                 setRan(true);
             }
             if (quota) setOptimizationQuota(quota);
@@ -225,6 +230,16 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
         }
     }, [pendingOptimize]);
 
+    useEffect(() => {
+        if (optimizeGen > 0 && optimizeGen !== lastScrolledGen.current
+            && !loading && recommendations.length > 0 && portfolioProfile) {
+            lastScrolledGen.current = optimizeGen;
+            requestAnimationFrame(() => {
+                profileSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+        }
+    }, [optimizeGen, loading, recommendations, portfolioProfile]);
+
     const handleOptimize = () => {
         if (optimizationQuota) {
             const { used, max, scheduled, isFree } = optimizationQuota;
@@ -275,6 +290,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                 setRecommendations([]);
             } else {
                 setRecommendations(result.recommendations);
+                setOptimizeGen(g => g + 1);
             }
             setRan(true);
             setOptimizationQuota(prev => prev ? { ...prev, used: prev.used + 1 } : prev);
@@ -669,12 +685,12 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
             {loading && <div className="portfolio-loading">Consulting {aiProvider ? PROVIDER_LABELS[aiProvider] : 'AI'}…</div>}
             {error && !loading && <div className="error-msg">{error}</div>}
             {ran && !loading && !error && recommendations.length === 0 && (
-                <div className="optimize-empty">No recommendations returned.</div>
+                <div className="optimize-empty">No changes recommended — your portfolio already aligns with your profile.</div>
             )}
 
             {ran && !loading && recommendations.length > 0 && portfolioProfile && (
                 <>
-                    <h3 style={{ color: 'var(--text-light)', marginBottom: '0.75rem', fontSize: '0.95rem', marginTop: '1rem' }}>
+                    <h3 ref={profileSectionRef} style={{ color: 'var(--text-light)', marginBottom: '0.75rem', fontSize: '0.95rem', marginTop: '1rem' }}>
                         Portfolio Profile used for this optimization
                     </h3>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 1.5rem', background: 'var(--bg-card)', borderRadius: 8, padding: '1rem', fontSize: '0.88rem', marginBottom: '1rem' }}>

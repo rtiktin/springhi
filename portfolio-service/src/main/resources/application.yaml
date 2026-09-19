@@ -47,7 +47,7 @@ openai:
   base-url: ${OPENAI_BASE_URL:https://api.openai.com}
   model: ${OPENAI_MODEL:gpt-5.5}
   api-key: ${OPENAI_API_KEY:}
-  max-tokens: ${OPENAI_MAX_TOKENS:2048}
+  max-tokens: ${OPENAI_MAX_TOKENS:8000}
 
 grok:
   base-url: ${GROK_BASE_URL:https://api.x.ai}

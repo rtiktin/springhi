@@ -14,6 +14,73 @@ const StatCard: React.FC<{ label: string; value: React.ReactNode }> = ({ label, 
 
 const inputStyle: React.CSSProperties = { padding: '0.5rem 0.75rem', borderRadius: 8, border: '1px solid #3a3a3c', background: '#161618', color: '#fff' };
 
+const US_STATES = new Set(['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC','PR']);
+const SSN_RE = /^\d{3}-?\d{2}-?\d{4}$/;
+const EIN_RE = /^\d{2}-?\d{7}$/;
+const ZIP_RE = /^\d{5}(-\d{4})?$/;
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+const US_STATE_OPTIONS: { code: string; name: string }[] = [
+    { code: 'AL', name: 'Alabama' }, { code: 'AK', name: 'Alaska' }, { code: 'AZ', name: 'Arizona' }, { code: 'AR', name: 'Arkansas' }, { code: 'CA', name: 'California' },
+    { code: 'CO', name: 'Colorado' }, { code: 'CT', name: 'Connecticut' }, { code: 'DE', name: 'Delaware' }, { code: 'DC', name: 'District of Columbia' }, { code: 'FL', name: 'Florida' },
+    { code: 'GA', name: 'Georgia' }, { code: 'HI', name: 'Hawaii' }, { code: 'ID', name: 'Idaho' }, { code: 'IL', name: 'Illinois' }, { code: 'IN', name: 'Indiana' },
+    { code: 'IA', name: 'Iowa' }, { code: 'KS', name: 'Kansas' }, { code: 'KY', name: 'Kentucky' }, { code: 'LA', name: 'Louisiana' }, { code: 'ME', name: 'Maine' },
+    { code: 'MD', name: 'Maryland' }, { code: 'MA', name: 'Massachusetts' }, { code: 'MI', name: 'Michigan' }, { code: 'MN', name: 'Minnesota' }, { code: 'MS', name: 'Mississippi' },
+    { code: 'MO', name: 'Missouri' }, { code: 'MT', name: 'Montana' }, { code: 'NE', name: 'Nebraska' }, { code: 'NV', name: 'Nevada' }, { code: 'NH', name: 'New Hampshire' },
+    { code: 'NJ', name: 'New Jersey' }, { code: 'NM', name: 'New Mexico' }, { code: 'NY', name: 'New York' }, { code: 'NC', name: 'North Carolina' }, { code: 'ND', name: 'North Dakota' },
+    { code: 'OH', name: 'Ohio' }, { code: 'OK', name: 'Oklahoma' }, { code: 'OR', name: 'Oregon' }, { code: 'PA', name: 'Pennsylvania' }, { code: 'PR', name: 'Puerto Rico' },
+    { code: 'RI', name: 'Rhode Island' }, { code: 'SC', name: 'South Carolina' }, { code: 'SD', name: 'South Dakota' }, { code: 'TN', name: 'Tennessee' }, { code: 'TX', name: 'Texas' },
+    { code: 'UT', name: 'Utah' }, { code: 'VT', name: 'Vermont' }, { code: 'VA', name: 'Virginia' }, { code: 'WA', name: 'Washington' }, { code: 'WV', name: 'West Virginia' },
+    { code: 'WI', name: 'Wisconsin' }, { code: 'WY', name: 'Wyoming' },
+];
+
+const COUNTRY_OPTIONS: { code: string; name: string }[] = [
+    { code: 'AF', name: 'Afghanistan' }, { code: 'AL', name: 'Albania' }, { code: 'DZ', name: 'Algeria' }, { code: 'AD', name: 'Andorra' }, { code: 'AO', name: 'Angola' },
+    { code: 'AR', name: 'Argentina' }, { code: 'AM', name: 'Armenia' }, { code: 'AU', name: 'Australia' }, { code: 'AT', name: 'Austria' }, { code: 'AZ', name: 'Azerbaijan' },
+    { code: 'BS', name: 'Bahamas' }, { code: 'BH', name: 'Bahrain' }, { code: 'BD', name: 'Bangladesh' }, { code: 'BB', name: 'Barbados' }, { code: 'BY', name: 'Belarus' },
+    { code: 'BE', name: 'Belgium' }, { code: 'BZ', name: 'Belize' }, { code: 'BJ', name: 'Benin' }, { code: 'BT', name: 'Bhutan' }, { code: 'BO', name: 'Bolivia' },
+    { code: 'BA', name: 'Bosnia and Herzegovina' }, { code: 'BW', name: 'Botswana' }, { code: 'BR', name: 'Brazil' }, { code: 'BN', name: 'Brunei' }, { code: 'BG', name: 'Bulgaria' },
+    { code: 'BF', name: 'Burkina Faso' }, { code: 'BI', name: 'Burundi' }, { code: 'KH', name: 'Cambodia' }, { code: 'CM', name: 'Cameroon' }, { code: 'CA', name: 'Canada' },
+    { code: 'CV', name: 'Cape Verde' }, { code: 'CL', name: 'Chile' }, { code: 'CN', name: 'China' }, { code: 'CO', name: 'Colombia' }, { code: 'KM', name: 'Comoros' },
+    { code: 'CG', name: 'Congo' }, { code: 'CD', name: 'Congo (DRC)' }, { code: 'CR', name: 'Costa Rica' }, { code: 'HR', name: 'Croatia' }, { code: 'CU', name: 'Cuba' },
+    { code: 'CY', name: 'Cyprus' }, { code: 'CZ', name: 'Czechia' }, { code: 'DK', name: 'Denmark' }, { code: 'DJ', name: 'Djibouti' }, { code: 'DO', name: 'Dominican Republic' },
+    { code: 'EC', name: 'Ecuador' }, { code: 'EG', name: 'Egypt' }, { code: 'SV', name: 'El Salvador' }, { code: 'EE', name: 'Estonia' }, { code: 'SZ', name: 'Eswatini' },
+    { code: 'ET', name: 'Ethiopia' }, { code: 'FJ', name: 'Fiji' }, { code: 'FI', name: 'Finland' }, { code: 'FR', name: 'France' }, { code: 'GA', name: 'Gabon' },
+    { code: 'GM', name: 'Gambia' }, { code: 'GE', name: 'Georgia' }, { code: 'DE', name: 'Germany' }, { code: 'GH', name: 'Ghana' }, { code: 'GR', name: 'Greece' },
+    { code: 'GT', name: 'Guatemala' }, { code: 'GN', name: 'Guinea' }, { code: 'GY', name: 'Guyana' }, { code: 'HT', name: 'Haiti' }, { code: 'HN', name: 'Honduras' },
+    { code: 'HK', name: 'Hong Kong' }, { code: 'HU', name: 'Hungary' }, { code: 'IS', name: 'Iceland' }, { code: 'IN', name: 'India' }, { code: 'ID', name: 'Indonesia' },
+    { code: 'IR', name: 'Iran' }, { code: 'IQ', name: 'Iraq' }, { code: 'IE', name: 'Ireland' }, { code: 'IL', name: 'Israel' }, { code: 'IT', name: 'Italy' },
+    { code: 'JM', name: 'Jamaica' }, { code: 'JP', name: 'Japan' }, { code: 'JO', name: 'Jordan' }, { code: 'KZ', name: 'Kazakhstan' }, { code: 'KE', name: 'Kenya' },
+    { code: 'KW', name: 'Kuwait' }, { code: 'KG', name: 'Kyrgyzstan' }, { code: 'LA', name: 'Laos' }, { code: 'LV', name: 'Latvia' }, { code: 'LB', name: 'Lebanon' },
+    { code: 'LS', name: 'Lesotho' }, { code: 'LR', name: 'Liberia' }, { code: 'LY', name: 'Libya' }, { code: 'LI', name: 'Liechtenstein' }, { code: 'LT', name: 'Lithuania' },
+    { code: 'LU', name: 'Luxembourg' }, { code: 'MO', name: 'Macao' }, { code: 'MG', name: 'Madagascar' }, { code: 'MW', name: 'Malawi' }, { code: 'MY', name: 'Malaysia' },
+    { code: 'MV', name: 'Maldives' }, { code: 'ML', name: 'Mali' }, { code: 'MT', name: 'Malta' }, { code: 'MR', name: 'Mauritania' }, { code: 'MU', name: 'Mauritius' },
+    { code: 'MX', name: 'Mexico' }, { code: 'MD', name: 'Moldova' }, { code: 'MC', name: 'Monaco' }, { code: 'MN', name: 'Mongolia' }, { code: 'ME', name: 'Montenegro' },
+    { code: 'MA', name: 'Morocco' }, { code: 'MZ', name: 'Mozambique' }, { code: 'MM', name: 'Myanmar' }, { code: 'NA', name: 'Namibia' }, { code: 'NP', name: 'Nepal' },
+    { code: 'NL', name: 'Netherlands' }, { code: 'NZ', name: 'New Zealand' }, { code: 'NI', name: 'Nicaragua' }, { code: 'NE', name: 'Niger' }, { code: 'NG', name: 'Nigeria' },
+    { code: 'MK', name: 'North Macedonia' }, { code: 'NO', name: 'Norway' }, { code: 'OM', name: 'Oman' }, { code: 'PK', name: 'Pakistan' }, { code: 'PS', name: 'Palestine' },
+    { code: 'PA', name: 'Panama' }, { code: 'PY', name: 'Paraguay' }, { code: 'PE', name: 'Peru' }, { code: 'PH', name: 'Philippines' }, { code: 'PL', name: 'Poland' },
+    { code: 'PT', name: 'Portugal' }, { code: 'QA', name: 'Qatar' }, { code: 'RO', name: 'Romania' }, { code: 'RU', name: 'Russia' }, { code: 'RW', name: 'Rwanda' },
+    { code: 'SA', name: 'Saudi Arabia' }, { code: 'SN', name: 'Senegal' }, { code: 'RS', name: 'Serbia' }, { code: 'SC', name: 'Seychelles' }, { code: 'SL', name: 'Sierra Leone' },
+    { code: 'SG', name: 'Singapore' }, { code: 'SK', name: 'Slovakia' }, { code: 'SI', name: 'Slovenia' }, { code: 'SO', name: 'Somalia' }, { code: 'ZA', name: 'South Africa' },
+    { code: 'KR', name: 'South Korea' }, { code: 'SS', name: 'South Sudan' }, { code: 'ES', name: 'Spain' }, { code: 'LK', name: 'Sri Lanka' }, { code: 'SD', name: 'Sudan' },
+    { code: 'SR', name: 'Suriname' }, { code: 'SE', name: 'Sweden' }, { code: 'CH', name: 'Switzerland' }, { code: 'SY', name: 'Syria' }, { code: 'TW', name: 'Taiwan' },
+    { code: 'TJ', name: 'Tajikistan' }, { code: 'TZ', name: 'Tanzania' }, { code: 'TH', name: 'Thailand' }, { code: 'TL', name: 'Timor-Leste' }, { code: 'TG', name: 'Togo' },
+    { code: 'TT', name: 'Trinidad and Tobago' }, { code: 'TN', name: 'Tunisia' }, { code: 'TR', name: 'Turkey' }, { code: 'TM', name: 'Turkmenistan' }, { code: 'UG', name: 'Uganda' },
+    { code: 'UA', name: 'Ukraine' }, { code: 'AE', name: 'United Arab Emirates' }, { code: 'GB', name: 'United Kingdom' }, { code: 'UY', name: 'Uruguay' }, { code: 'UZ', name: 'Uzbekistan' },
+    { code: 'VE', name: 'Venezuela' }, { code: 'VN', name: 'Vietnam' }, { code: 'YE', name: 'Yemen' }, { code: 'ZM', name: 'Zambia' }, { code: 'ZW', name: 'Zimbabwe' },
+];
+
+const normalizeStateCode = (raw?: string | null): string => {
+    const v = (raw ?? '').trim().toUpperCase();
+    return US_STATES.has(v) ? v : '';
+};
+const normalizeCountryCode = (raw?: string | null, international?: boolean): string => {
+    if (!international) return 'US';
+    const v = (raw ?? '').trim().toUpperCase();
+    return COUNTRY_OPTIONS.some(c => c.code === v) ? v : '';
+};
+
 const Referral: React.FC = () => {
     const username = getLoggedInUsername();
     const navigate = useNavigate();
@@ -43,9 +110,9 @@ const Referral: React.FC = () => {
                     addressLine1: p.addressLine1,
                     addressLine2: p.addressLine2,
                     city: p.city,
-                    state: p.state,
+                    state: normalizeStateCode(p.state),
                     postalCode: p.postalCode,
-                    country: p.country,
+                    country: normalizeCountryCode(p.country, p.international),
                 });
             })
             .catch(() => { /* payout profile optional until provided */ });
@@ -55,13 +122,65 @@ const Referral: React.FC = () => {
         const { name, value, type } = e.target;
         const isCheckbox = type === 'checkbox';
         const checked = (e.target as HTMLInputElement).checked;
+        if (isCheckbox && name === 'international') {
+            setProfileForm(prev => ({ ...prev, international: checked, country: checked ? '' : 'US' }));
+            return;
+        }
         setProfileForm(prev => ({ ...prev, [name]: isCheckbox ? checked : value }));
+    };
+
+    const validateProfileForm = (): string | null => {
+        const f = profileForm;
+        const name = (f.payableName ?? '').trim();
+        if (!name) return 'Payable name is required.';
+        const email = (f.payoutEmail ?? '').trim();
+        if (!email) return 'Payout email is required.';
+        if (!EMAIL_RE.test(email)) return 'Invalid payout email.';
+        const country = (f.country ?? '').trim().toUpperCase();
+        if (f.international) {
+            if (!country) return 'Country is required when you are not a US resident.';
+            if (country === 'US') return "Country is US — uncheck 'not a US resident' to enter US details.";
+            if (!(f.addressLine1 ?? '').trim()) return 'Street address is required.';
+            if (!(f.city ?? '').trim()) return 'City is required.';
+            return null;
+        }
+        if (country !== 'US') {
+            return "Country must be US for domestic payouts — or check 'not a US resident' if you are outside the US.";
+        }
+        if (!(f.addressLine1 ?? '').trim()) return 'Address line 1 is required for domestic payouts.';
+        if (!(f.city ?? '').trim()) return 'City is required for domestic payouts.';
+        const state = (f.state ?? '').trim().toUpperCase();
+        if (!state) return 'State is required for domestic payouts.';
+        if (!US_STATES.has(state)) return `Invalid US state code: ${f.state}. Use a 2-letter state abbreviation (e.g. CA, NY).`;
+        const zip = (f.postalCode ?? '').trim();
+        if (!zip) return 'Postal code is required for domestic payouts.';
+        if (!ZIP_RE.test(zip)) return `Invalid US ZIP code: ${zip}.`;
+        const hasTaxIdOnFile = !!profile?.hasTaxId;
+        const taxId = (taxIdInput ?? '').trim();
+        if (!hasTaxIdOnFile && !taxId) {
+            return 'Tax ID is required for domestic payouts (SSN for individuals, EIN for corporations).';
+        }
+        if (taxId) {
+            const isCorp = (f.entityType ?? 'INDIVIDUAL').toUpperCase() === 'CORPORATION';
+            if (isCorp) {
+                if (!EIN_RE.test(taxId)) return 'EIN must be 9 digits, formatted as XX-XXXXXXX.';
+            } else {
+                if (!SSN_RE.test(taxId)) return 'SSN must be 9 digits, formatted as XXX-XX-XXXX.';
+            }
+        }
+        return null;
     };
 
     const saveProfile = async (e: React.FormEvent) => {
         e.preventDefault();
         setProfileSaving(true);
         setProfileMsg(null);
+        const validationError = validateProfileForm();
+        if (validationError) {
+            setProfileMsg({ text: validationError, error: true });
+            setProfileSaving(false);
+            return;
+        }
         try {
             const payload: PayoutProfilePayload = { ...profileForm, taxId: taxIdInput || undefined };
             const saved = await savePayoutProfile(payload);
@@ -231,34 +350,51 @@ const Referral: React.FC = () => {
                                     <input name="payableName" placeholder="Payable name" value={profileForm.payableName ?? ''} onChange={handleProfileChange} style={inputStyle} />
                                     <input name="payoutEmail" type="email" placeholder="Payout email" value={profileForm.payoutEmail ?? ''} onChange={handleProfileChange} style={inputStyle} />
                                 </div>
-                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
-                                        <input type="checkbox" name="international" checked={!!profileForm.international} onChange={handleProfileChange} /> I am international (no SSN/EIN required)
-                                    </label>
-                                    <label style={{ fontSize: '0.85rem' }}>Entity type:
-                                        <select name="entityType" value={profileForm.entityType ?? 'INDIVIDUAL'} onChange={handleProfileChange} style={{ marginLeft: '0.4rem', ...inputStyle }}>
-                                            <option value="INDIVIDUAL">Individual</option>
-                                            <option value="CORPORATION">Corporation</option>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.85rem' }}>
+                                    <input type="checkbox" name="international" checked={!!profileForm.international} onChange={handleProfileChange} style={{ margin: 0, width: 'auto', flex: '0 0 auto' }} />
+                                    {profileForm.international ? 'Not a US resident (no SSN/EIN required)' : 'US resident'}
+                                </label>
+                                {profileForm.international ? (
+                                    <>
+                                        <select name="country" value={profileForm.country ?? ''} onChange={handleProfileChange} style={inputStyle}>
+                                            <option value="" disabled>Select your country</option>
+                                            {COUNTRY_OPTIONS.map(c => <option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}
                                         </select>
-                                    </label>
-                                </div>
-                                <input
-                                    name="taxId"
-                                    placeholder={profile?.hasTaxId ? `Tax ID on file (••••${profile.taxIdLast4 ?? ''}) — re-enter to replace` : 'SSN or EIN'}
-                                    value={taxIdInput}
-                                    onChange={e => setTaxIdInput(e.target.value)}
-                                    style={inputStyle}
-                                />
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
-                                    <input name="addressLine1" placeholder="Address line 1" value={profileForm.addressLine1 ?? ''} onChange={handleProfileChange} style={inputStyle} />
-                                    <input name="addressLine2" placeholder="Address line 2" value={profileForm.addressLine2 ?? ''} onChange={handleProfileChange} style={inputStyle} />
-                                </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.6rem' }}>
-                                    <input name="city" placeholder="City" value={profileForm.city ?? ''} onChange={handleProfileChange} style={inputStyle} />
-                                    <input name="state" placeholder="State / Province" value={profileForm.state ?? ''} onChange={handleProfileChange} style={inputStyle} />
-                                    <input name="postalCode" placeholder="Postal code" value={profileForm.postalCode ?? ''} onChange={handleProfileChange} style={inputStyle} />
-                                    <input name="country" placeholder="Country" value={profileForm.country ?? ''} onChange={handleProfileChange} style={inputStyle} />
-                                </div>
+                                        <input name="addressLine1" placeholder="Street address" value={profileForm.addressLine1 ?? ''} onChange={handleProfileChange} style={inputStyle} />
+                                        <input name="addressLine2" placeholder="Address line 2 (optional)" value={profileForm.addressLine2 ?? ''} onChange={handleProfileChange} style={inputStyle} />
+                                        <input name="city" placeholder="City" value={profileForm.city ?? ''} onChange={handleProfileChange} style={inputStyle} />
+                                    </>
+                                ) : (
+                                    <>
+                                        <label style={{ fontSize: '0.85rem' }}>Entity type:
+                                            <select name="entityType" value={profileForm.entityType ?? 'INDIVIDUAL'} onChange={handleProfileChange} style={{ marginLeft: '0.4rem', ...inputStyle }}>
+                                                <option value="INDIVIDUAL">Individual</option>
+                                                <option value="CORPORATION">Corporation</option>
+                                            </select>
+                                        </label>
+                                        <input
+                                            name="taxId"
+                                            placeholder={profile?.hasTaxId
+                                                ? `Tax ID on file (••••${profile.taxIdLast4 ?? ''}) — re-enter to replace`
+                                                : ((profileForm.entityType ?? 'INDIVIDUAL').toUpperCase() === 'CORPORATION' ? 'EIN (XX-XXXXXXX)' : 'SSN (XXX-XX-XXXX)')}
+                                            value={taxIdInput}
+                                            onChange={e => setTaxIdInput(e.target.value)}
+                                            style={inputStyle}
+                                        />
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                                            <input name="addressLine1" placeholder="Address line 1" value={profileForm.addressLine1 ?? ''} onChange={handleProfileChange} style={inputStyle} />
+                                            <input name="addressLine2" placeholder="Address line 2 (optional)" value={profileForm.addressLine2 ?? ''} onChange={handleProfileChange} style={inputStyle} />
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.6rem' }}>
+                                            <input name="city" placeholder="City" value={profileForm.city ?? ''} onChange={handleProfileChange} style={inputStyle} />
+                                            <select name="state" value={profileForm.state ?? ''} onChange={handleProfileChange} style={inputStyle}>
+                                                <option value="" disabled>Select state</option>
+                                                {US_STATE_OPTIONS.map(s => <option key={s.code} value={s.code}>{s.name} ({s.code})</option>)}
+                                            </select>
+                                            <input name="postalCode" placeholder="ZIP code" value={profileForm.postalCode ?? ''} onChange={handleProfileChange} style={inputStyle} />
+                                        </div>
+                                    </>
+                                )}
                                 {profileMsg && (
                                     <div style={profileMsg.error ? { color: '#ef4444', fontSize: '0.85rem' } : { color: '#22c55e', fontSize: '0.85rem' }}>{profileMsg.text}</div>
                                 )}

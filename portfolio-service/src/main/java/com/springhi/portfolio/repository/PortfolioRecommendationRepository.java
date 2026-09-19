@@ -22,6 +22,9 @@ public interface PortfolioRecommendationRepository extends JpaRepository<Portfol
     List<PortfolioRecommendation> findByPortfolioIdAndGeneratedAtBetweenOrderByActionDescIdAsc(
             Long portfolioId, LocalDateTime start, LocalDateTime end);
 
+    List<PortfolioRecommendation> findByPortfolioIdAndStatusOrderByActionDescIdAsc(
+            Long portfolioId, String status);
+
     List<PortfolioRecommendation> findByTransactionIdIn(Collection<Long> transactionIds);
 
     List<PortfolioRecommendation> findByPortfolioIdAndGeneratedAtOrderByActionDescIdAsc(

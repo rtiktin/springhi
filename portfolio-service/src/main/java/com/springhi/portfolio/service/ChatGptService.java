@@ -65,8 +65,25 @@ public class ChatGptService {
         try {
             @SuppressWarnings("unchecked")
             List<Map<?, ?>> choices = (List<Map<?, ?>>) response.get("choices");
-            Map<?, ?> message = (Map<?, ?>) choices.get(0).get("message");
-            return (String) message.get("content");
+            Map<?, ?> choice = choices.get(0);
+            Map<?, ?> message = (Map<?, ?>) choice.get("message");
+            String content = message.get("content") instanceof String c ? c : null;
+            String refusal = message.get("refusal") instanceof String r ? r : null;
+            String finishReason = choice.get("finish_reason") instanceof String f ? f : null;
+
+            if (content == null || content.isBlank()) {
+                log.error("ChatGPT returned empty content. model={}, finish_reason={}, refusal={}, usage={}, rawResponse={}",
+                        model, finishReason, refusal, response.get("usage"), response);
+                if (refusal != null && !refusal.isBlank()) {
+                    throw new RuntimeException("ChatGPT refused to respond: " + refusal);
+                }
+                throw new RuntimeException("ChatGPT returned empty content (finish_reason=" + finishReason
+                        + "). The reasoning model likely exhausted max_completion_tokens=" + maxTokens
+                        + " before emitting output — raise OPENAI_MAX_TOKENS.");
+            }
+            return content;
+        } catch (RuntimeException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Failed to parse ChatGPT response: {}", response, e);
             throw new RuntimeException("Failed to parse ChatGPT response: " + e.getMessage());

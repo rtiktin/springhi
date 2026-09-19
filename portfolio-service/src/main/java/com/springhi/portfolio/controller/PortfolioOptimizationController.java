@@ -85,7 +85,7 @@ public class PortfolioOptimizationController {
         }
 
         log.info("Portfolio optimization requested for portfolioId={}, userId={}, provider={}", portfolioId, principal.getId(), provider);
-        OptimizationResponse result = optimizationService.optimize(principal.getId(), portfolioId, provider);
+        OptimizationResponse result = optimizationService.optimize(principal.getId(), portfolioId, provider, true);
         return ResponseEntity.ok(result);
     }
 
@@ -95,7 +95,7 @@ public class PortfolioOptimizationController {
             @AuthenticationPrincipal UserPrincipal principal) {
         if (principal == null) return ResponseEntity.status(403).build();
         portfolioService.validatePortfolioOwnership(principal.getId(), portfolioId);
-        return ResponseEntity.ok(optimizationService.getTodayRecommendations(portfolioId));
+        return ResponseEntity.ok(optimizationService.getPendingRecommendations(portfolioId));
     }
 
     @PostMapping("/recommendations/{id}/execute")

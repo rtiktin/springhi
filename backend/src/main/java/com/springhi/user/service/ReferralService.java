@@ -70,6 +70,17 @@ public class ReferralService {
     private static final Set<String> CONFIRMED_PAYOUT_STATUSES = Set.of("COMPLETED", "CONFIRMED");
     private static final java.util.regex.Pattern EMAIL_RE =
             java.util.regex.Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+    // Domestic (US) payout-detail validation. SSN for individuals, EIN for corporations.
+    private static final java.util.regex.Pattern SSN_RE =
+            java.util.regex.Pattern.compile("^\\d{3}-?\\d{2}-?\\d{4}$");
+    private static final java.util.regex.Pattern EIN_RE =
+            java.util.regex.Pattern.compile("^\\d{2}-?\\d{7}$");
+    private static final java.util.regex.Pattern US_ZIP_RE =
+            java.util.regex.Pattern.compile("^\\d{5}(-\\d{4})?$");
+    private static final Set<String> US_STATES = Set.of(
+            "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
+            "MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC",
+            "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC","PR");
 
     private final ReferralCodeRepository referralCodeRepository;
     private final ReferralRepository referralRepository;
@@ -684,6 +695,7 @@ public class ReferralService {
             p.setTaxIdEncrypted(taxIdEncryptor.encrypt(taxId));
             p.setTaxIdLast4(TaxIdEncryptor.last4(taxId));
         }
+        validatePayoutProfile(p, taxId);
         payoutProfileRepository.save(p);
         log.info("Saved referral payout profile: userId={} readyForPayout={} taxInfoComplete={}",
                 userId, isPayoutReady(p), taxInfoComplete(p));
@@ -736,12 +748,77 @@ public class ReferralService {
         if (p == null) return false;
         if (p.isInternational()) return true;
         boolean hasTaxId = p.getTaxIdEncrypted() != null && !p.getTaxIdEncrypted().isBlank();
-        if ("CORPORATION".equalsIgnoreCase(p.getEntityType())) {
-            return hasTaxId;
-        }
         boolean addressOk = notBlank(p.getAddressLine1()) && notBlank(p.getCity()) && notBlank(p.getState())
                 && notBlank(p.getPostalCode()) && notBlank(p.getCountry());
         return hasTaxId && addressOk;
+    }
+
+    private void validatePayoutProfile(ReferralPayoutProfile p, String rawTaxId) {
+        if (!notBlank(p.getPayableName())) {
+            throw new IllegalArgumentException("Payable name is required.");
+        }
+        if (!notBlank(p.getPayoutEmail())) {
+            throw new IllegalArgumentException("Payout email is required.");
+        }
+        if (!EMAIL_RE.matcher(p.getPayoutEmail()).matches()) {
+            throw new IllegalArgumentException("Invalid payout email.");
+        }
+        if (p.isInternational()) {
+            if (!notBlank(p.getCountry())) {
+                throw new IllegalArgumentException("Country is required when you are not a US resident.");
+            }
+            if ("US".equalsIgnoreCase(p.getCountry())) {
+                throw new IllegalArgumentException(
+                        "Country is US — uncheck 'not a US resident' to enter US details.");
+            }
+            if (!notBlank(p.getAddressLine1())) {
+                throw new IllegalArgumentException("Street address is required.");
+            }
+            if (!notBlank(p.getCity())) {
+                throw new IllegalArgumentException("City is required.");
+            }
+            return;
+        }
+        String country = p.getCountry();
+        if (!"US".equalsIgnoreCase(country)) {
+            throw new IllegalArgumentException(
+                    "Country must be US for domestic payouts — or check 'I am international' if you are outside the US.");
+        }
+        if (!notBlank(p.getAddressLine1())) {
+            throw new IllegalArgumentException("Address line 1 is required for domestic payouts.");
+        }
+        if (!notBlank(p.getCity())) {
+            throw new IllegalArgumentException("City is required for domestic payouts.");
+        }
+        if (!notBlank(p.getState())) {
+            throw new IllegalArgumentException("State is required for domestic payouts.");
+        }
+        if (!US_STATES.contains(p.getState().toUpperCase())) {
+            throw new IllegalArgumentException("Invalid US state code: " + p.getState()
+                    + ". Use a 2-letter state abbreviation (e.g. CA, NY).");
+        }
+        if (!notBlank(p.getPostalCode())) {
+            throw new IllegalArgumentException("Postal code is required for domestic payouts.");
+        }
+        if (!US_ZIP_RE.matcher(p.getPostalCode()).matches()) {
+            throw new IllegalArgumentException("Invalid US ZIP code: " + p.getPostalCode() + ".");
+        }
+        boolean hasTaxId = notBlank(p.getTaxIdEncrypted()) || notBlank(rawTaxId);
+        if (!hasTaxId) {
+            throw new IllegalArgumentException(
+                    "Tax ID is required for domestic payouts (SSN for individuals, EIN for corporations).");
+        }
+        if (notBlank(rawTaxId)) {
+            if ("CORPORATION".equalsIgnoreCase(p.getEntityType())) {
+                if (!EIN_RE.matcher(rawTaxId).matches()) {
+                    throw new IllegalArgumentException("EIN must be 9 digits, formatted as XX-XXXXXXX.");
+                }
+            } else {
+                if (!SSN_RE.matcher(rawTaxId).matches()) {
+                    throw new IllegalArgumentException("SSN must be 9 digits, formatted as XXX-XX-XXXX.");
+                }
+            }
+        }
     }
 
     private boolean notBlank(String s) {

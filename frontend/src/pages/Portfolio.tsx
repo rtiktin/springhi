@@ -742,8 +742,8 @@ const Portfolio: React.FC = () => {
                                 onClick={() => {
                                     setActiveTab('aiOptimizations');
                                     setProfileBannerMsg('');
-                                    if (activePortfolioId && !aiRunsLoaded) {
-                                        setAiRunsLoading(true);
+                                    if (activePortfolioId) {
+                                        if (!aiRunsLoaded) setAiRunsLoading(true);
                                         setAiRunsError('');
                                         getAiRunTimestamps(activePortfolioId)
                                             .then(ts => { setAiRunTimestamps(ts); setAiRunsLoaded(true); })

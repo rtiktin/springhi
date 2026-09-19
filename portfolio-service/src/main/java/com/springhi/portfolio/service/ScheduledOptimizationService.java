@@ -69,7 +69,7 @@ public class ScheduledOptimizationService {
                 schedule.getId(), schedule.getPortfolioId(), schedule.getAiProvider());
 
         OptimizationResponse response = optimizationService.optimize(
-                schedule.getUserId(), schedule.getPortfolioId(), schedule.getAiProvider());
+                schedule.getUserId(), schedule.getPortfolioId(), schedule.getAiProvider(), false);
 
         List<RecommendationDto> recs = response.recommendations();
         if (recs == null || recs.isEmpty()) {
