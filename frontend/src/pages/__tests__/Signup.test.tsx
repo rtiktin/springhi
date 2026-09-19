@@ -15,8 +15,6 @@ describe('Signup Page', () => {
       </BrowserRouter>
     );
 
-    expect(screen.getByPlaceholderText(/First Name/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Last Name/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Username/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Email/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Password/i)).toBeInTheDocument();
@@ -32,8 +30,6 @@ describe('Signup Page', () => {
       </BrowserRouter>
     );
 
-    fireEvent.change(screen.getByPlaceholderText(/First Name/i), { target: { value: 'John' } });
-    fireEvent.change(screen.getByPlaceholderText(/Last Name/i), { target: { value: 'Doe' } });
     fireEvent.change(screen.getByPlaceholderText(/Username/i), { target: { value: 'johndoe' } });
     fireEvent.change(screen.getByPlaceholderText(/Email/i), { target: { value: 'john@example.com' } });
     fireEvent.change(screen.getByPlaceholderText(/Password/i), { target: { value: 'password123' } });
@@ -44,8 +40,6 @@ describe('Signup Page', () => {
       expect(mockedAxios.post).toHaveBeenCalledWith(
         'http://localhost:8080/api/v1/auth/signup',
         expect.objectContaining({
-          firstName: 'John',
-          lastName: 'Doe',
           username: 'johndoe',
           email: 'john@example.com',
           password: 'password123'

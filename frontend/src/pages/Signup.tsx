@@ -2,23 +2,11 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 
-type FormFields = 'firstName' | 'lastName' | 'username' | 'email' | 'password' | 'confirmPassword';
+type FormFields = 'username' | 'email' | 'password' | 'confirmPassword';
 type FieldErrors = Partial<Record<FormFields, string>>;
 
 function validate(fields: Record<FormFields, string>): FieldErrors {
   const errs: FieldErrors = {};
-
-  if (!fields.firstName.trim()) {
-    errs.firstName = 'First name is required.';
-  } else if (!/^[A-Za-z\s'-]{1,50}$/.test(fields.firstName.trim())) {
-    errs.firstName = 'First name may only contain letters.';
-  }
-
-  if (!fields.lastName.trim()) {
-    errs.lastName = 'Last name is required.';
-  } else if (!/^[A-Za-z\s'-]{1,50}$/.test(fields.lastName.trim())) {
-    errs.lastName = 'Last name may only contain letters.';
-  }
 
   if (!fields.username.trim()) {
     errs.username = 'Username is required.';
@@ -54,7 +42,7 @@ function validate(fields: Record<FormFields, string>): FieldErrors {
 }
 
 const empty: Record<FormFields, string> = {
-  firstName: '', lastName: '', username: '', email: '', password: '', confirmPassword: '',
+  username: '', email: '', password: '', confirmPassword: '',
 };
 
 const Signup: React.FC = () => {
@@ -84,14 +72,19 @@ const Signup: React.FC = () => {
     }
     setError('');
     try {
-      const { confirmPassword: _, ...rest } = formData;
-      const payload = { ...rest, referralCode: referralCode || undefined, adCode: adCode || undefined };
+      const payload = {
+        username: formData.username,
+        email: formData.email,
+        password: formData.password,
+        referralCode: referralCode || undefined,
+        adCode: adCode || undefined,
+      };
       await axios.post('http://localhost:9000/api/v1/auth/signup', payload);
       localStorage.removeItem('referralCode');
       localStorage.removeItem('adCode');
       navigate('/login');
-    } catch (err: any) {
-      const msg: string = err.response?.data?.message || '';
+    } catch (e: unknown) {
+      const msg: string = (e as { response?: { data?: { message?: string } } })?.response?.data?.message || '';
       if (msg.toLowerCase().includes('username')) {
         setFieldErrors(prev => ({ ...prev, username: 'This username is already taken.' }));
       } else if (msg.toLowerCase().includes('email')) {
@@ -133,10 +126,6 @@ const Signup: React.FC = () => {
         {error && <div className="error-msg">{error}</div>}
 
         <form onSubmit={handleSubmit} noValidate>
-          <div className="input-group">
-            {field('firstName', 'First Name')}
-            {field('lastName', 'Last Name')}
-          </div>
           {field('username', 'Username')}
           <p className="password-hint">3–30 characters, letters, numbers, and underscores only.</p>
           {field('email', 'Email', 'email')}
