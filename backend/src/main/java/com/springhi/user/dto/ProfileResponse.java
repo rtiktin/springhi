@@ -22,6 +22,7 @@ public class ProfileResponse {
     private LocalDateTime updatedAt;
     private boolean emailVerified;
     private boolean phoneVerified;
+    private boolean optimizationDisclaimerAccepted;
 
     public ProfileResponse() {}
 
@@ -61,4 +62,6 @@ public class ProfileResponse {
     public void setEmailVerified(boolean emailVerified) { this.emailVerified = emailVerified; }
     public boolean isPhoneVerified() { return phoneVerified; }
     public void setPhoneVerified(boolean phoneVerified) { this.phoneVerified = phoneVerified; }
+    public boolean isOptimizationDisclaimerAccepted() { return optimizationDisclaimerAccepted; }
+    public void setOptimizationDisclaimerAccepted(boolean optimizationDisclaimerAccepted) { this.optimizationDisclaimerAccepted = optimizationDisclaimerAccepted; }
 }

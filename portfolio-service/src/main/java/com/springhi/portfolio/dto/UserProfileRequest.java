@@ -12,5 +12,6 @@ public record UserProfileRequest(
         String additionalComments,
         BigDecimal availableCash,
         String currency,
-        List<String> sectorConstraints
+        List<String> sectorConstraints,
+        boolean taxOptimization
 ) {}

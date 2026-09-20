@@ -34,6 +34,7 @@ public class PortfolioProfileService {
             if (ip.sectorConstraints() != null && !ip.sectorConstraints().isEmpty()) {
                 p.setSectorConstraints(String.join(",", ip.sectorConstraints()));
             }
+            p.setTaxOptimization(ip.taxOptimization());
         });
         return PortfolioProfileDto.from(profileRepository.save(p));
     }

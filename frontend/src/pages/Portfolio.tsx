@@ -28,7 +28,7 @@ import {
 } from '../api/portfolioApi';
 import type { Portfolio as PortfolioType, AiRunDetails, AssetWithPrice } from '../api/portfolioApi';
 import { getProfile, saveProfile, optimizePortfolio } from '../api/profileApi';
-import { getAccountProfile, sendEmailVerification, verifyEmail, sendPhoneVerification, verifyPhone } from '../api/accountApi';
+import { getAccountProfile, sendEmailVerification, verifyEmail, sendPhoneVerification, verifyPhone, acceptOptimizationDisclaimer } from '../api/accountApi';
 import { isPhoneVerified } from '../utils/auth';
 
 type Tab = 'holdings' | 'transactions' | 'aiOptimizations' | 'optimize' | 'profile';
@@ -44,6 +44,7 @@ const Portfolio: React.FC = () => {
     const [showCashForm, setShowCashForm] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
     const [optimizeKey, setOptimizeKey] = useState(0);
+    const [optimizeScrollOnLoad, setOptimizeScrollOnLoad] = useState(false);
 
     const [aiRunTimestamps, setAiRunTimestamps] = useState<string[]>([]);
     const [aiRunsLoaded, setAiRunsLoaded] = useState(false);
@@ -77,6 +78,7 @@ const Portfolio: React.FC = () => {
         liquidityNeeds: null as string | null,
         sectorInput: '',
         additionalComments: '',
+        taxOptimization: true as boolean,
     });
     const [wizardError, setWizardError] = useState('');
     const [wizardSaving, setWizardSaving] = useState(false);
@@ -94,6 +96,11 @@ const Portfolio: React.FC = () => {
     const [wizardPhoneSent, setWizardPhoneSent] = useState(false);
     const [wizardPhoneSending, setWizardPhoneSending] = useState(false);
     const [wizardTotalCreated, setWizardTotalCreated] = useState(0);
+    const [wizardDisclaimerAccepted, setWizardDisclaimerAccepted] = useState(false);
+    const [showWizardDisclaimer, setShowWizardDisclaimer] = useState(false);
+    const [wizardDisclaimerChecked, setWizardDisclaimerChecked] = useState(false);
+    const [wizardDisclaimerLoading, setWizardDisclaimerLoading] = useState(false);
+    const [wizardDisclaimerError, setWizardDisclaimerError] = useState('');
 
     const openWizard = async () => {
         try {
@@ -121,6 +128,7 @@ const Portfolio: React.FC = () => {
             liquidityNeeds: investorProfile?.liquidityNeeds || null,
             sectorInput: (investorProfile?.sectorConstraints ?? []).join(', '),
             additionalComments: investorProfile?.additionalComments || '',
+            taxOptimization: investorProfile?.taxOptimization ?? true,
         });
     };
     const closeWizard = () => setWizardStep(null);
@@ -252,6 +260,7 @@ const Portfolio: React.FC = () => {
                 getPortfoliosCreatedCount().catch(() => 0),
             ]);
             setWizardTotalCreated(totalCreated);
+            setWizardDisclaimerAccepted(!!acct?.optimizationDisclaimerAccepted);
             const emailOk = acct?.emailVerified === true || isEmailVerified();
             const phoneOk = acct?.phoneVerified === true || isPhoneVerified();
             if (!emailOk) {
@@ -359,6 +368,7 @@ const Portfolio: React.FC = () => {
                 sectorConstraints: sectors,
                 currency: 'USD',
                 portfolioId: created.id,
+                taxOptimization: wizardProfile.taxOptimization,
             });
             const existingInvestorProfile = await getProfile().catch(() => null);
             const isBlank = !existingInvestorProfile || (
@@ -379,6 +389,7 @@ const Portfolio: React.FC = () => {
                     availableCash: existingInvestorProfile?.availableCash ?? 0,
                     currency: existingInvestorProfile?.currency ?? 'USD',
                     sectorConstraints: sectors,
+                    taxOptimization: wizardProfile.taxOptimization,
                 }).catch(() => {});
             }
             const [updated, quota, optQuota] = await Promise.all([listPortfolios(), getPortfolioQuota(), getOptimizationQuota()]);
@@ -421,7 +432,11 @@ const Portfolio: React.FC = () => {
         }
     };
 
-    const handleWizardRunAI = async () => {
+    useEffect(() => {
+        if (optimizeScrollOnLoad) setOptimizeScrollOnLoad(false);
+    }, [optimizeScrollOnLoad]);
+
+    const runWizardAI = async () => {
         if (!wizardCreatedId) return;
         setWizardStep('ai-running');
         setWizardError('');
@@ -429,6 +444,7 @@ const Portfolio: React.FC = () => {
             await optimizePortfolio(wizardCreatedId, wizardAiModel);
             closeWizard();
             setActiveTab('optimize');
+            setOptimizeScrollOnLoad(true);
             setOptimizeKey(k => k + 1);
             setRefreshKey(k => k + 1);
         } catch (err: unknown) {
@@ -440,6 +456,37 @@ const Portfolio: React.FC = () => {
                 setActiveTab('optimize');
                 setWizardError('AI optimization failed. You can try again from the AI Optimize tab.');
             }
+        }
+    };
+
+    const handleWizardRunAI = async () => {
+        if (!wizardCreatedId) return;
+        if (!wizardDisclaimerAccepted) {
+            setWizardDisclaimerChecked(false);
+            setWizardDisclaimerError('');
+            setShowWizardDisclaimer(true);
+            return;
+        }
+        await runWizardAI();
+    };
+
+    const handleAgreeWizardDisclaimer = async () => {
+        if (!wizardDisclaimerChecked) {
+            setWizardDisclaimerError('Please check the box to confirm you have read and agree to the disclaimer.');
+            return;
+        }
+        setWizardDisclaimerLoading(true);
+        setWizardDisclaimerError('');
+        try {
+            await acceptOptimizationDisclaimer();
+            setWizardDisclaimerAccepted(true);
+            setShowWizardDisclaimer(false);
+            runWizardAI();
+        } catch (e: unknown) {
+            const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            setWizardDisclaimerError(msg ?? 'Failed to record your acceptance. Please try again.');
+        } finally {
+            setWizardDisclaimerLoading(false);
         }
     };
 
@@ -939,7 +986,7 @@ const Portfolio: React.FC = () => {
                         )}
                         {activeTab === 'optimize' && (
                             <>
-                                <OptimizePanel key={`opt-${activePortfolioId}-${optimizeKey}`} portfolioId={activePortfolioId} onTradeSuccess={handleTradeSuccess} onNavigateToProfile={() => setActiveTab('profile')} cashRefreshSignal={refreshKey} />
+                                <OptimizePanel key={`opt-${activePortfolioId}-${optimizeKey}`} portfolioId={activePortfolioId} onTradeSuccess={handleTradeSuccess} onNavigateToProfile={() => setActiveTab('profile')} cashRefreshSignal={refreshKey} scrollToProfileOnLoad={optimizeScrollOnLoad} />
                                 <ScheduleManager portfolioId={activePortfolioId} onUpgradeRequired={msg => setUpgradeModal({ message: msg })} />
                             </>
                         )}
@@ -1125,6 +1172,18 @@ const Portfolio: React.FC = () => {
                             onChange={e => setWizardProfile(p => ({ ...p, sectorInput: e.target.value }))}
                             style={{ marginBottom: '1rem' }}
                         />
+
+                        <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', marginBottom: '1rem' }}>
+                            <input
+                                type="checkbox"
+                                checked={wizardProfile.taxOptimization}
+                                onChange={e => setWizardProfile(p => ({ ...p, taxOptimization: e.target.checked }))}
+                            />
+                            <span>Tax Optimization</span>
+                            <span style={{ color: 'var(--text-gray)', fontSize: '0.82rem', fontWeight: 400 }}>
+                                — prefer long-term holdings (&gt;1 year) and tax-loss harvesting when recommending sells
+                            </span>
+                        </label>
 
                         <label className="form-label">Additional Notes (optional — replaces required fields above)</label>
                         <textarea
@@ -1390,6 +1449,40 @@ const Portfolio: React.FC = () => {
                             <button onClick={() => setUpgradeModal(null)}
                                 style={{ background: 'transparent', color: 'var(--text-gray)', border: '1px solid var(--border)', borderRadius: 7, padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.9rem' }}>
                                 Not Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showWizardDisclaimer && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100 }}
+                    onClick={() => { if (!wizardDisclaimerLoading) setShowWizardDisclaimer(false); }}>
+                    <div style={{ background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)', padding: '2rem', width: '100%', maxWidth: 540, margin: '1rem', boxShadow: '0 20px 60px rgba(0,0,0,0.5)', maxHeight: '85vh', overflowY: 'auto' }}
+                        onClick={e => e.stopPropagation()}>
+                        <div style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '0.75rem' }}>⚠️</div>
+                        <h2 style={{ textAlign: 'center', fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-primary)', marginBottom: '0.75rem' }}>AI Optimization Disclaimer</h2>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-gray)', lineHeight: 1.6, marginBottom: '1.25rem' }}>
+                            <p style={{ marginBottom: '0.6rem' }}>The portfolio recommendations generated here are produced by artificial intelligence and are provided for informational and educational purposes only.</p>
+                            <p style={{ marginBottom: '0.6rem' }}><strong>They are not personalized investment, financial, legal, or tax advice.</strong> SpringHi does not act as your investment adviser or broker and does not owe you a fiduciary duty.</p>
+                            <p style={{ marginBottom: '0.6rem' }}>AI models can make errors or produce unsuitable outputs. All investments carry risk, including the possible loss of principal, and <strong>past performance does not guarantee future results.</strong> You are solely responsible for any trades you place and for all outcomes.</p>
+                            <p style={{ marginBottom: '0.6rem' }}>Before acting on any recommendation, you should independently evaluate it and consider consulting a licensed financial professional. By continuing, you acknowledge that you understand these risks and agree that SpringHi is not liable for any losses arising from your use of AI-generated recommendations.</p>
+                        </div>
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '1rem', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={wizardDisclaimerChecked} disabled={wizardDisclaimerLoading}
+                                onChange={e => { setWizardDisclaimerChecked(e.target.checked); setWizardDisclaimerError(''); }}
+                                style={{ marginTop: '0.15rem', width: 18, height: 18, cursor: 'pointer' }} />
+                            <span>I have read and agree to the AI optimization disclaimer.</span>
+                        </label>
+                        {wizardDisclaimerError && <p style={{ color: '#e5484d', fontSize: '0.85rem', marginBottom: '0.75rem' }}>{wizardDisclaimerError}</p>}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                            <button onClick={handleAgreeWizardDisclaimer} disabled={wizardDisclaimerLoading}
+                                style={{ background: '#6c47ff', color: '#fff', borderRadius: 7, padding: '0.6rem 1rem', fontWeight: 700, fontSize: '0.95rem', border: 'none', cursor: wizardDisclaimerLoading ? 'wait' : 'pointer', opacity: wizardDisclaimerLoading ? 0.7 : 1 }}>
+                                {wizardDisclaimerLoading ? 'Saving…' : 'Agree & Continue'}
+                            </button>
+                            <button onClick={() => setShowWizardDisclaimer(false)} disabled={wizardDisclaimerLoading}
+                                style={{ background: 'transparent', color: 'var(--text-gray)', border: '1px solid var(--border)', borderRadius: 7, padding: '0.5rem 1rem', cursor: wizardDisclaimerLoading ? 'not-allowed' : 'pointer', fontSize: '0.9rem' }}>
+                                Cancel
                             </button>
                         </div>
                     </div>

@@ -53,6 +53,11 @@ public class User implements UserDetails {
     private boolean phoneVerified = false;
 
     @Column(nullable = false)
+    private boolean optimizationDisclaimerAccepted = false;
+
+    private LocalDateTime optimizationDisclaimerAcceptedAt;
+
+    @Column(nullable = false)
     private boolean suspendedForChargebacks = false;
 
     @Column(columnDefinition = "TEXT")
@@ -112,6 +117,10 @@ public class User implements UserDetails {
     public void setEmailVerified(boolean emailVerified) { this.emailVerified = emailVerified; }
     public boolean isPhoneVerified() { return phoneVerified; }
     public void setPhoneVerified(boolean phoneVerified) { this.phoneVerified = phoneVerified; }
+    public boolean isOptimizationDisclaimerAccepted() { return optimizationDisclaimerAccepted; }
+    public void setOptimizationDisclaimerAccepted(boolean optimizationDisclaimerAccepted) { this.optimizationDisclaimerAccepted = optimizationDisclaimerAccepted; }
+    public LocalDateTime getOptimizationDisclaimerAcceptedAt() { return optimizationDisclaimerAcceptedAt; }
+    public void setOptimizationDisclaimerAcceptedAt(LocalDateTime optimizationDisclaimerAcceptedAt) { this.optimizationDisclaimerAcceptedAt = optimizationDisclaimerAcceptedAt; }
     public boolean isSuspendedForChargebacks() { return suspendedForChargebacks; }
     public void setSuspendedForChargebacks(boolean suspendedForChargebacks) { this.suspendedForChargebacks = suspendedForChargebacks; }
     public String getAdminNotes() { return adminNotes; }

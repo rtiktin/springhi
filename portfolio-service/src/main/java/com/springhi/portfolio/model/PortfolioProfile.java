@@ -37,8 +37,8 @@ public class PortfolioProfile {
     @Column(length = 1000)
     private String sectorConstraints;
 
-    @Column(columnDefinition = "boolean default false")
-    private boolean taxOptimization = false;
+    @Column(columnDefinition = "boolean default true")
+    private boolean taxOptimization = true;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

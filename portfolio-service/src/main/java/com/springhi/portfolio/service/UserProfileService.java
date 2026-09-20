@@ -42,6 +42,7 @@ public class UserProfileService {
         } else {
             profile.setSectorConstraints(null);
         }
+        profile.setTaxOptimization(request.taxOptimization());
 
         return toResponse(userProfileRepository.save(profile));
     }
@@ -62,7 +63,8 @@ public class UserProfileService {
                 p.getAdditionalComments(),
                 p.getAvailableCash(),
                 p.getCurrency(),
-                sectors
+                sectors,
+                p.isTaxOptimization()
         );
     }
 }

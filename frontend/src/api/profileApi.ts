@@ -17,6 +17,7 @@ export interface UserProfile {
     availableCash: number;
     currency: string;
     sectorConstraints: string[];
+    taxOptimization: boolean;
 }
 
 export interface Recommendation {

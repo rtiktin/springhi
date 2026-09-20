@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { optimizePortfolio, getProfile } from '../api/profileApi';
 import type { Recommendation, UserProfile } from '../api/profileApi';
-import { getAccountProfile, sendEmailVerification, verifyEmail, sendPhoneVerification, verifyPhone } from '../api/accountApi';
+import { getAccountProfile, sendEmailVerification, verifyEmail, sendPhoneVerification, verifyPhone, acceptOptimizationDisclaimer } from '../api/accountApi';
 import { isEmailVerified, isPhoneVerified } from '../utils/auth';
 import { getQuote } from '../api/marketApi';
 import {
@@ -28,11 +28,11 @@ interface Props {
     onTradeSuccess?: () => void;
     onNavigateToProfile?: () => void;
     cashRefreshSignal?: number;
+    scrollToProfileOnLoad?: boolean;
 }
 
 function checkReadiness(
     profile: Awaited<ReturnType<typeof getProfile>>,
-    _account: Awaited<ReturnType<typeof getAccountProfile>> | null,
 ): ReadinessIssue[] {
     const issues: ReadinessIssue[] = [];
     if (!profile || !profile.horizonYears) {
@@ -57,7 +57,7 @@ const PROVIDER_LABELS: Record<AiProvider, string> = {
     grok: 'Grok',
 };
 
-const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigateToProfile, cashRefreshSignal }) => {
+const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigateToProfile, cashRefreshSignal, scrollToProfileOnLoad }) => {
     const [loading, setLoading] = useState(false);
     const [checking, setChecking] = useState(true);
     const [readinessIssues, setReadinessIssues] = useState<ReadinessIssue[]>([]);
@@ -87,10 +87,17 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
     const [verifyError, setVerifyError] = useState('');
     const [verifyPhoneCode, setVerifyPhoneCode] = useState('');
     const [pendingOptimize, setPendingOptimize] = useState(false);
+    const [optimizationDisclaimerAccepted, setOptimizationDisclaimerAccepted] = useState(false);
+    const [showDisclaimerModal, setShowDisclaimerModal] = useState(false);
+    const [disclaimerChecked, setDisclaimerChecked] = useState(false);
+    const [disclaimerLoading, setDisclaimerLoading] = useState(false);
+    const [disclaimerError, setDisclaimerError] = useState('');
 
     const profileSectionRef = useRef<HTMLHeadingElement>(null);
     const [optimizeGen, setOptimizeGen] = useState(0);
     const lastScrolledGen = useRef(0);
+    const shouldScrollOnLoad = useRef(scrollToProfileOnLoad ?? false);
+    const didAutoScrollOnLoad = useRef(false);
 
     const loadCash = () => getCashBalance(portfolioId).then(c => {
         setCashBalance(c);
@@ -112,6 +119,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
             ));
         });
         loadHoldingsValue();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [cashRefreshSignal]);
 
     useEffect(() => {
@@ -126,12 +134,13 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
         ]).then(([prof, account, , recs, portProf, quota]) => {
             setProfile(prof);
             setPortfolioProfile(portProf);
-            setReadinessIssues(checkReadiness(prof, account));
+            setReadinessIssues(checkReadiness(prof));
             if (account?.email) {
                 setUserEmail(account.email);
                 setVerifyEmail2(account.email);
                 setUserPhone(account.phone ?? '');
             }
+            setOptimizationDisclaimerAccepted(!!account?.optimizationDisclaimerAccepted);
             const pendingRecs = recs?.filter((r: Recommendation) => r.status === 'PENDING') ?? [];
             if (pendingRecs.length > 0) {
                 setRecommendations(pendingRecs);
@@ -139,6 +148,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
             }
             if (quota) setOptimizationQuota(quota);
         }).finally(() => setChecking(false));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const openVerifyModal = (startStep: 'email' | 'phone-send' = 'email') => {
@@ -228,19 +238,27 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
             setPendingOptimize(false);
             runOptimize();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [pendingOptimize]);
 
     useEffect(() => {
-        if (optimizeGen > 0 && optimizeGen !== lastScrolledGen.current
-            && !loading && recommendations.length > 0 && portfolioProfile) {
+        if (loading || recommendations.length === 0 || !portfolioProfile) return;
+        if (optimizeGen > 0 && optimizeGen !== lastScrolledGen.current) {
             lastScrolledGen.current = optimizeGen;
+            requestAnimationFrame(() => {
+                profileSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+            return;
+        }
+        if (shouldScrollOnLoad.current && !didAutoScrollOnLoad.current) {
+            didAutoScrollOnLoad.current = true;
             requestAnimationFrame(() => {
                 profileSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             });
         }
     }, [optimizeGen, loading, recommendations, portfolioProfile]);
 
-    const handleOptimize = () => {
+    const proceedToOptimize = () => {
         if (optimizationQuota) {
             const { used, max, scheduled, isFree } = optimizationQuota;
             if (used + scheduled >= max) {
@@ -259,6 +277,36 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
             return;
         }
         runOptimize();
+    };
+
+    const handleOptimize = () => {
+        if (!optimizationDisclaimerAccepted) {
+            setDisclaimerChecked(false);
+            setDisclaimerError('');
+            setShowDisclaimerModal(true);
+            return;
+        }
+        proceedToOptimize();
+    };
+
+    const handleAgreeDisclaimer = async () => {
+        if (!disclaimerChecked) {
+            setDisclaimerError('Please check the box to confirm you have read and agree to the disclaimer.');
+            return;
+        }
+        setDisclaimerLoading(true);
+        setDisclaimerError('');
+        try {
+            await acceptOptimizationDisclaimer();
+            setOptimizationDisclaimerAccepted(true);
+            setShowDisclaimerModal(false);
+            proceedToOptimize();
+        } catch (e: unknown) {
+            const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            setDisclaimerError(msg ?? 'Failed to record your acceptance. Please try again.');
+        } finally {
+            setDisclaimerLoading(false);
+        }
     };
 
     const runOptimize = async () => {
@@ -325,7 +373,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
         const failed: string[] = [];
         let succeeded = 0;
 
-        let holdingsMap = new Map<string, number>();
+        const holdingsMap = new Map<string, number>();
         try {
             const h = await getHoldings(portfolioId);
             h.forEach(h => holdingsMap.set(h.symbol, h.quantity));
@@ -930,6 +978,40 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                             <button onClick={() => setUpgradeModal(null)}
                                 style={{ background: 'transparent', color: 'var(--text-gray)', border: '1px solid var(--border)', borderRadius: 7, padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.9rem' }}>
                                 Not Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showDisclaimerModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}
+                    onClick={() => { if (!disclaimerLoading) setShowDisclaimerModal(false); }}>
+                    <div style={{ background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)', padding: '2rem', width: '100%', maxWidth: 540, margin: '1rem', boxShadow: '0 20px 60px rgba(0,0,0,0.5)', maxHeight: '85vh', overflowY: 'auto' }}
+                        onClick={e => e.stopPropagation()}>
+                        <div style={{ fontSize: '2rem', textAlign: 'center', marginBottom: '0.75rem' }}>⚠️</div>
+                        <h2 style={{ textAlign: 'center', fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-primary)', marginBottom: '0.75rem' }}>AI Optimization Disclaimer</h2>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-gray)', lineHeight: 1.6, marginBottom: '1.25rem' }}>
+                            <p style={{ marginBottom: '0.6rem' }}>The portfolio recommendations generated here are produced by artificial intelligence and are provided for informational and educational purposes only.</p>
+                            <p style={{ marginBottom: '0.6rem' }}><strong>They are not personalized investment, financial, legal, or tax advice.</strong> SpringHi does not act as your investment adviser or broker and does not owe you a fiduciary duty.</p>
+                            <p style={{ marginBottom: '0.6rem' }}>AI models can make errors or produce unsuitable outputs. All investments carry risk, including the possible loss of principal, and <strong>past performance does not guarantee future results.</strong> You are solely responsible for any trades you place and for all outcomes.</p>
+                            <p style={{ marginBottom: '0.6rem' }}>Before acting on any recommendation, you should independently evaluate it and consider consulting a licensed financial professional. By continuing, you acknowledge that you understand these risks and agree that SpringHi is not liable for any losses arising from your use of AI-generated recommendations.</p>
+                        </div>
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-primary)', marginBottom: '1rem', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={disclaimerChecked} disabled={disclaimerLoading}
+                                onChange={e => { setDisclaimerChecked(e.target.checked); setDisclaimerError(''); }}
+                                style={{ marginTop: '0.15rem', width: 18, height: 18, cursor: 'pointer' }} />
+                            <span>I have read and agree to the AI optimization disclaimer.</span>
+                        </label>
+                        {disclaimerError && <p style={{ color: '#e5484d', fontSize: '0.85rem', marginBottom: '0.75rem' }}>{disclaimerError}</p>}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                            <button onClick={handleAgreeDisclaimer} disabled={disclaimerLoading}
+                                style={{ background: '#6c47ff', color: '#fff', borderRadius: 7, padding: '0.6rem 1rem', fontWeight: 700, fontSize: '0.95rem', border: 'none', cursor: disclaimerLoading ? 'wait' : 'pointer', opacity: disclaimerLoading ? 0.7 : 1 }}>
+                                {disclaimerLoading ? 'Saving…' : 'Agree & Continue'}
+                            </button>
+                            <button onClick={() => setShowDisclaimerModal(false)} disabled={disclaimerLoading}
+                                style={{ background: 'transparent', color: 'var(--text-gray)', border: '1px solid var(--border)', borderRadius: 7, padding: '0.5rem 1rem', cursor: disclaimerLoading ? 'not-allowed' : 'pointer', fontSize: '0.9rem' }}>
+                                Cancel
                             </button>
                         </div>
                     </div>

@@ -21,6 +21,7 @@ const emptyProfile: UserProfile = {
     availableCash: 0,
     currency: 'USD',
     sectorConstraints: [],
+    taxOptimization: true,
 };
 
 interface ProfileFieldErrors {
@@ -64,7 +65,7 @@ const ProfileEdit: React.FC = () => {
             .catch(() => {});
     }, []);
 
-    const handleChange = (field: keyof UserProfile, value: string | number | string[]) => {
+    const handleChange = (field: keyof UserProfile, value: string | number | string[] | boolean) => {
         setProfile(prev => ({ ...prev, [field]: value }));
         if (field in fieldErrors) {
             setFieldErrors(prev => ({ ...prev, [field]: undefined }));
@@ -214,6 +215,21 @@ const ProfileEdit: React.FC = () => {
                             placeholder="e.g. tech, healthcare, energy"
                             onChange={e => setSectorInput(e.target.value)}
                         />
+                    </div>
+
+                    <div className="profile-field" style={{ marginTop: '0.5rem' }}>
+                        <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer' }}>
+                            <input
+                                type="checkbox"
+                                checked={profile.taxOptimization}
+                                onChange={e => handleChange('taxOptimization', e.target.checked)}
+                                style={{ width: 18, height: 18, cursor: 'pointer' }}
+                            />
+                            <span>Tax Optimization</span>
+                            <span style={{ color: 'var(--text-gray)', fontSize: '0.82rem', fontWeight: 400 }}>
+                                — prefer long-term holdings (&gt;1 year) and tax-loss harvesting when recommending sells
+                            </span>
+                        </label>
                     </div>
 
                     <div className="profile-field" style={{ marginTop: '0.5rem' }}>

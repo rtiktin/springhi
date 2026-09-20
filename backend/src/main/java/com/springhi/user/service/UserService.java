@@ -96,6 +96,17 @@ public class UserService {
         return toResponse(user);
     }
 
+    @Transactional
+    public ProfileResponse acceptOptimizationDisclaimer(String username) {
+        User user = repository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
+        user.setOptimizationDisclaimerAccepted(true);
+        user.setOptimizationDisclaimerAcceptedAt(java.time.LocalDateTime.now());
+        repository.save(user);
+        log.info("User {} accepted the AI optimization disclaimer", username);
+        return toResponse(user);
+    }
+
     public List<AdminUserDto> getAllUsers() {
         return repository.findAllByOrderByCreatedAtDesc().stream()
                 .map(AdminUserDto::from)
@@ -198,6 +209,7 @@ public class UserService {
         r.setUpdatedAt(user.getUpdatedAt());
         r.setEmailVerified(user.isEmailVerified());
         r.setPhoneVerified(user.isPhoneVerified());
+        r.setOptimizationDisclaimerAccepted(user.isOptimizationDisclaimerAccepted());
         return r;
     }
 }

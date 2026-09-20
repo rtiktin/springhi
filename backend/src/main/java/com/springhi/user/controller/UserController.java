@@ -82,6 +82,13 @@ public class UserController {
         }
     }
 
+    @PostMapping("/optimization-disclaimer/accept")
+    public ResponseEntity<ProfileResponse> acceptOptimizationDisclaimer(Principal principal) {
+        if (principal == null) return ResponseEntity.status(401).build();
+        log.debug("POST /optimization-disclaimer/accept for username={}", principal.getName());
+        return ResponseEntity.ok(userService.acceptOptimizationDisclaimer(principal.getName()));
+    }
+
     @PostMapping("/email/send-verification")
     public ResponseEntity<?> sendEmailVerification(
             Principal principal,

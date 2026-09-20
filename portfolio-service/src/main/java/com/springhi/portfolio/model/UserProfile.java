@@ -32,6 +32,9 @@ public class UserProfile {
     @Column(columnDefinition = "TEXT")
     private String sectorConstraints;
 
+    @Column(columnDefinition = "boolean default true")
+    private boolean taxOptimization = true;
+
     public UserProfile() {}
 
     public Long getId() { return id; }
@@ -56,4 +59,6 @@ public class UserProfile {
     public void setCurrency(String currency) { this.currency = currency; }
     public String getSectorConstraints() { return sectorConstraints; }
     public void setSectorConstraints(String sectorConstraints) { this.sectorConstraints = sectorConstraints; }
+    public boolean isTaxOptimization() { return taxOptimization; }
+    public void setTaxOptimization(boolean taxOptimization) { this.taxOptimization = taxOptimization; }
 }

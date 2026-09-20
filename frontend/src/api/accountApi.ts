@@ -24,6 +24,7 @@ export interface AccountProfile {
     updatedAt?: string;
     emailVerified?: boolean;
     phoneVerified?: boolean;
+    optimizationDisclaimerAccepted?: boolean;
 }
 
 export const getAccountProfile = async (): Promise<AccountProfile> => {
@@ -53,5 +54,10 @@ export const sendPhoneVerification = async (phone?: string): Promise<{ token: st
 
 export const verifyPhone = async (code: string): Promise<{ token: string }> => {
     const response = await axios.post(`${BASE_URL}/phone/verify`, { code }, { headers: authHeader() });
+    return response.data;
+};
+
+export const acceptOptimizationDisclaimer = async (): Promise<AccountProfile> => {
+    const response = await axios.post(`${BASE_URL}/optimization-disclaimer/accept`, {}, { headers: authHeader() });
     return response.data;
 };
