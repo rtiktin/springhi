@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 
 const Login: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -13,6 +14,9 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const successMessage = (location.state as { message?: string })?.message;
+  const qp = new URLSearchParams(window.location.search);
+  const referralCode = qp.get('ref') || localStorage.getItem('referralCode') || '';
+  const adCode = qp.get('ad') || localStorage.getItem('adCode') || '';
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -26,8 +30,9 @@ const Login: React.FC = () => {
       const response = await axios.post('http://localhost:9000/api/v1/auth/signin', formData);
       localStorage.setItem('token', response.data.token);
       navigate('/portfolio');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }
@@ -61,6 +66,24 @@ const Login: React.FC = () => {
             {loading ? 'Logging in…' : 'Log In'}
           </button>
         </form>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: '1rem 0' }}>
+          <div style={{ flex: 1, height: 1, background: '#333' }} />
+          <span style={{ color: 'var(--text-gray)', fontSize: '0.82rem' }}>or</span>
+          <div style={{ flex: 1, height: 1, background: '#333' }} />
+        </div>
+
+        <GoogleSignInButton
+          referralCode={referralCode || undefined}
+          adCode={adCode || undefined}
+          onAuthSuccess={(token) => {
+            localStorage.setItem('token', token);
+            localStorage.removeItem('referralCode');
+            localStorage.removeItem('adCode');
+            navigate('/portfolio');
+          }}
+          onError={setError}
+        />
 
         <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', textAlign: 'right' }}>
           <Link to="/forgot-password" style={{ color: 'var(--text-gray)' }}>Forgot password?</Link>

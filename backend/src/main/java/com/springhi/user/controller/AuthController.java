@@ -2,6 +2,7 @@ package com.springhi.user.controller;
 
 import com.springhi.user.dto.AuthRequest;
 import com.springhi.user.dto.AuthResponse;
+import com.springhi.user.dto.GoogleLoginRequest;
 import com.springhi.user.dto.SignupRequest;
 import com.springhi.user.service.AuthService;
 import jakarta.validation.Valid;
@@ -41,6 +42,11 @@ public class AuthController {
     public ResponseEntity<AuthResponse> signin(@RequestBody AuthRequest request) {
         log.info("Signin request received for user: {}", request.getUsername());
         return ResponseEntity.ok(authService.signin(request));
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<AuthResponse> google(@RequestBody GoogleLoginRequest request) {
+        return ResponseEntity.ok(authService.googleLogin(request.getCode(), request.getReferralCode(), request.getAdCode()));
     }
 
     @PostMapping("/forgot-password")

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 
 type FormFields = 'username' | 'email' | 'password' | 'confirmPassword';
 type FieldErrors = Partial<Record<FormFields, string>>;
@@ -163,6 +164,24 @@ const Signup: React.FC = () => {
           </div>
           <button type="submit" className="btn-primary-full">Sign Up</button>
         </form>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: '1rem 0' }}>
+          <div style={{ flex: 1, height: 1, background: '#333' }} />
+          <span style={{ color: 'var(--text-gray)', fontSize: '0.82rem' }}>or</span>
+          <div style={{ flex: 1, height: 1, background: '#333' }} />
+        </div>
+
+        <GoogleSignInButton
+          referralCode={referralCode || undefined}
+          adCode={adCode || undefined}
+          onAuthSuccess={(token) => {
+            localStorage.setItem('token', token);
+            localStorage.removeItem('referralCode');
+            localStorage.removeItem('adCode');
+            navigate('/portfolio');
+          }}
+          onError={setError}
+        />
 
         <p className="auth-footer">
           Already have an account? <Link to="/login">Log in</Link>

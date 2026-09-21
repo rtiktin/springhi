@@ -23,6 +23,8 @@ import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class AuthService {
@@ -37,6 +39,7 @@ public class AuthService {
     private final TelnyxService telnyxService;
     private final ReferralService referralService;
     private final AdService adService;
+    private final GoogleOAuthService googleOAuthService;
 
     @Value("${application.mail.from}")
     private String mailFrom;
@@ -56,7 +59,8 @@ public class AuthService {
                        JavaMailSender mailSender,
                        TelnyxService telnyxService,
                        ReferralService referralService,
-                       AdService adService) {
+                       AdService adService,
+                       GoogleOAuthService googleOAuthService) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -68,6 +72,7 @@ public class AuthService {
         this.telnyxService = telnyxService;
         this.referralService = referralService;
         this.adService = adService;
+        this.googleOAuthService = googleOAuthService;
     }
 
     @Transactional
@@ -118,6 +123,62 @@ public class AuthService {
         }
         String jwtToken = jwtService.generateToken(user);
         return new AuthResponse(jwtToken);
+    }
+
+    @Transactional
+    public AuthResponse googleLogin(String code, String referralCode, String adCode) {
+        GoogleOAuthService.GoogleUserInfo info = googleOAuthService.exchange(code);
+        String email = info.email();
+
+        Optional<User> existing = repository.findByEmail(email);
+        if (existing.isPresent()) {
+            User user = existing.get();
+            if (user.getUserType() == 4) {
+                throw new RuntimeException("Your account has been suspended. You cannot log in.");
+            }
+            if (user.getUserType() == 6) {
+                throw new RuntimeException("Your account has been closed. You cannot log in.");
+            }
+            return new AuthResponse(jwtService.generateToken(user));
+        }
+
+        if (repository.existsSuspendedByEmailOrName(
+                email,
+                info.givenName() != null ? info.givenName() : "",
+                info.familyName() != null ? info.familyName() : "")) {
+            throw new RuntimeException("Account registration is not permitted.");
+        }
+
+        User user = createGoogleUser(info);
+        referralService.attributeSignup(user.getId(), referralCode);
+        adService.attributeSignup(user.getId(), adCode);
+        return new AuthResponse(jwtService.generateToken(user));
+    }
+
+    private User createGoogleUser(GoogleOAuthService.GoogleUserInfo info) {
+        String base = info.givenName();
+        String sanitized = (base == null || base.isBlank())
+                ? "user"
+                : base.toLowerCase().replaceAll("[^a-z0-9]", "");
+        if (sanitized.isEmpty()) {
+            sanitized = "user";
+        }
+        String prefix = "sh_memb_" + sanitized + "_";
+        for (int n = 1; n <= 1000; n++) {
+            String username = prefix + n;
+            if (repository.findByUsername(username).isPresent()) {
+                continue;
+            }
+            User user = new User();
+            user.setUsername(username);
+            user.setEmail(info.email());
+            user.setPassword(passwordEncoder.encode(UUID.randomUUID() + "-" + RANDOM.nextLong()));
+            user.setFirstName(info.givenName());
+            user.setLastName(info.familyName());
+            user.setEmailVerified(true);
+            return repository.save(user);
+        }
+        throw new RuntimeException("Unable to create account. Please try again.");
     }
 
     public AuthResponse sendEmailVerification(String username, String newEmail) {
