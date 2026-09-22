@@ -73,10 +73,11 @@ public class PortfolioController {
         transaction.setUserId(principal.getId());
         transaction.setPortfolioId(portfolioId);
         if ("DEPOSIT".equals(transaction.getType()) || "WITHDRAWAL".equals(transaction.getType())) {
-            try { snapshotService.takeSnapshotForPortfolio(portfolioId); } catch (Exception e) {
+            PortfolioSnapshot snap = null;
+            try { snap = snapshotService.takeSnapshotForPortfolio(portfolioId); } catch (Exception e) {
                 log.error("Failed to take snapshot before cash transaction for portfolioId={}: {}", portfolioId, e.getMessage(), e);
             }
-            transaction.setTimestamp(java.time.LocalDateTime.now());
+            transaction.setTimestamp(snap != null ? snap.getSnapshotAt().plusNanos(1) : java.time.LocalDateTime.now());
         }
         return ResponseEntity.ok(portfolioService.processTransaction(transaction));
     }

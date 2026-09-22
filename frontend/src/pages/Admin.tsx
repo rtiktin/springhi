@@ -9,6 +9,7 @@ import {
 import { downloadPayoutCsv } from '../api/referralApi';
 import { adminTestSubscribe, adminCreateTestClock, adminAdvanceTestClock, adminCleanupSandbox, getStripeWebhookStatus, getStripeLinkSetting, setStripeLinkSetting, type StripeWebhookStatus, type StripeLinkSetting } from '../api/stripeApi';
 import AdsPanel from '../components/AdsPanel';
+import { getAdminPortfolioTwr, type TwrResult, type TwrRange } from '../api/portfolioApi';
 
 interface ReferralOverviewRow {
     userId: number;
@@ -108,7 +109,7 @@ const TYPE_BADGE_COLOR: Record<number, string> = {
     3: '#b91c1c',
 };
 
-type AdminTab = 'users' | 'portfolios' | 'stats' | 'config' | 'support' | 'payments' | 'referrals' | 'stripe' | 'ads';
+type AdminTab = 'users' | 'portfolios' | 'stats' | 'config' | 'support' | 'payments' | 'referrals' | 'stripe' | 'ads' | 'twr';
 
 interface AdminPaymentHistory {
     id: number;
@@ -144,6 +145,11 @@ const thStyle: React.CSSProperties = {
 const tdStyle: React.CSSProperties = {
     padding: '0.65rem 0.75rem',
 };
+
+const fmtMoney = (n: number | null | undefined) =>
+    n != null && !Number.isNaN(n)
+        ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : '—';
 
 interface DailyCount { date: string; count: number; }
 interface DailyRevenue { date: string; amount: number; }
@@ -652,6 +658,14 @@ const Admin: React.FC = () => {
     const [changingType, setChangingType] = useState<number | null>(null);
     const [impersonating, setImpersonating] = useState<number | null>(null);
 
+    const [twrUsernameFilter, setTwrUsernameFilter] = useState('');
+    const [twrNameFilter, setTwrNameFilter] = useState('');
+    const [twrSelectedId, setTwrSelectedId] = useState<number | null>(null);
+    const [twrRange, setTwrRange] = useState<TwrRange>('ALL');
+    const [twrResult, setTwrResult] = useState<TwrResult | null>(null);
+    const [twrLoading, setTwrLoading] = useState(false);
+    const [twrError, setTwrError] = useState('');
+
     type UserSortKey = 'username' | 'email' | 'name' | 'phone' | 'createdAt' | 'lastActiveAt' | 'planName' | 'userTypeName';
     const DATE_COLS: UserSortKey[] = ['createdAt', 'lastActiveAt'];
     const [userSort, setUserSort] = useState<{ key: UserSortKey; dir: 'asc' | 'desc' }>({ key: 'createdAt', dir: 'desc' });
@@ -801,6 +815,8 @@ const Admin: React.FC = () => {
         if (tab === 'users') {
             loadUsers();
         } else if (tab === 'portfolios') {
+            loadPortfolios();
+        } else if (tab === 'twr') {
             loadPortfolios();
         } else if (tab === 'stats') {
             loadStats(chartOffset);
@@ -1064,6 +1080,16 @@ const Admin: React.FC = () => {
             .finally(() => setLoadingPortfolios(false));
     };
 
+    const loadTwrBreakdown = () => {
+        if (twrSelectedId == null) return;
+        setTwrLoading(true);
+        setTwrError('');
+        getAdminPortfolioTwr(twrSelectedId, twrRange)
+            .then(setTwrResult)
+            .catch(() => setTwrError('Failed to load TWR breakdown.'))
+            .finally(() => setTwrLoading(false));
+    };
+
     const handleTypeChange = (userId: number, value: string) => {
         setChangingType(userId);
         if (value === 'chargeback') {
@@ -1227,6 +1253,7 @@ const Admin: React.FC = () => {
                     <button style={tabStyle('referrals')} onClick={() => setTab('referrals')}>Referrals</button>
                     <button style={tabStyle('stripe')} onClick={() => setTab('stripe')}>Stripe Sandbox</button>
                     <button style={tabStyle('ads')} onClick={() => setTab('ads')}>Ads</button>
+                    <button style={tabStyle('twr')} onClick={() => setTab('twr')}>TWR Breakdown</button>
                 </div>
 
                 <div style={{ background: 'var(--bg-card)', borderRadius: '0 8px 8px 8px', border: '1px solid var(--border)', borderTop: 'none', padding: '1.5rem' }}>
@@ -1557,6 +1584,133 @@ const Admin: React.FC = () => {
                                             )}
                                         </tbody>
                                     </table>
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {tab === 'twr' && (
+                        <>
+                            {loadingPortfolios ? (
+                                <div className="portfolio-loading">Loading portfolios…</div>
+                            ) : (
+                                <div>
+                                    <p style={{ color: 'var(--text-gray)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                                        Pick a portfolio by username and portfolio name to inspect its Time-Weighted Return breakdown (per-snapshot sub-periods). Modified Dietz method; only DEPOSIT/WITHDRAWAL are treated as external cash flows.
+                                    </p>
+                                    <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
+                                        <input
+                                            placeholder="Filter username"
+                                            value={twrUsernameFilter}
+                                            onChange={e => { setTwrUsernameFilter(e.target.value); setTwrSelectedId(null); setTwrResult(null); }}
+                                            style={{ padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontSize: '0.85rem', width: 180 }}
+                                        />
+                                        <input
+                                            placeholder="Filter portfolio name"
+                                            value={twrNameFilter}
+                                            onChange={e => { setTwrNameFilter(e.target.value); setTwrSelectedId(null); setTwrResult(null); }}
+                                            style={{ padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontSize: '0.85rem', width: 220 }}
+                                        />
+                                        <select
+                                            value={twrSelectedId ?? ''}
+                                            onChange={e => { setTwrSelectedId(e.target.value ? Number(e.target.value) : null); setTwrResult(null); }}
+                                            style={{ padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontSize: '0.85rem', maxWidth: 360 }}
+                                        >
+                                            <option value="">Select portfolio…</option>
+                                            {portfolios
+                                                .filter(p => (!twrUsernameFilter || p.username.toLowerCase().includes(twrUsernameFilter.toLowerCase()))
+                                                    && (!twrNameFilter || p.name.toLowerCase().includes(twrNameFilter.toLowerCase())))
+                                                .slice(0, 200)
+                                                .map(p => (
+                                                    <option key={p.id} value={p.id}>{p.username} — {p.name} (#{p.id})</option>
+                                                ))}
+                                        </select>
+                                        <select
+                                            value={twrRange}
+                                            onChange={e => setTwrRange(e.target.value as TwrRange)}
+                                            style={{ padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                                        >
+                                            {(['1W', '1M', '3M', '6M', 'YTD', '1Y', 'ALL'] as TwrRange[]).map(r => (
+                                                <option key={r} value={r}>{r}</option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            onClick={loadTwrBreakdown}
+                                            disabled={twrSelectedId == null || twrLoading}
+                                            style={{ padding: '0.4rem 1rem', borderRadius: 6, border: '1px solid var(--border)', background: twrSelectedId == null ? 'var(--bg-dark)' : '#6c47ff', color: '#fff', cursor: twrSelectedId == null ? 'not-allowed' : 'pointer', fontSize: '0.85rem', opacity: twrSelectedId == null ? 0.5 : 1 }}
+                                        >
+                                            {twrLoading ? 'Loading…' : 'Load Breakdown'}
+                                        </button>
+                                    </div>
+
+                                    {twrError && <div style={{ color: '#f87171', marginBottom: '1rem' }}>{twrError}</div>}
+
+                                    {twrResult && (
+                                        <div>
+                                            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                                                <div style={{ background: 'var(--bg-dark)', borderRadius: 8, padding: '0.75rem 1.25rem', minWidth: 140 }}>
+                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-gray)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>TWR</div>
+                                                    <div style={{ fontSize: '1.6rem', fontWeight: 800, color: twrResult.twrPercent >= 0 ? '#4ade80' : '#f87171' }}>
+                                                        {twrResult.twrPercent >= 0 ? '+' : ''}{twrResult.twrPercent.toFixed(2)}%
+                                                    </div>
+                                                </div>
+                                                <div style={{ background: 'var(--bg-dark)', borderRadius: 8, padding: '0.75rem 1.25rem', minWidth: 120 }}>
+                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-gray)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Snapshots</div>
+                                                    <div style={{ fontSize: '1.6rem', fontWeight: 800 }}>{twrResult.snapshotCount}</div>
+                                                </div>
+                                                <div style={{ background: 'var(--bg-dark)', borderRadius: 8, padding: '0.75rem 1.25rem', minWidth: 200 }}>
+                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-gray)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Window</div>
+                                                    <div style={{ fontSize: '1rem', fontWeight: 700 }}>{twrResult.startDate} → {twrResult.endDate}</div>
+                                                </div>
+                                            </div>
+
+                                            {twrResult.snapshotCount < 2 ? (
+                                                <div style={{ color: 'var(--text-gray)', padding: '1rem' }}>Not enough snapshots (need ≥2) to compute TWR for this range.</div>
+                                            ) : (
+                                                <div style={{ overflowX: 'auto' }}>
+                                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                                        <thead>
+                                                            <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                                                <th style={thStyle}>Start</th>
+                                                                <th style={thStyle}>End</th>
+                                                                <th style={{ ...thStyle, textAlign: 'right' }}>Begin Value</th>
+                                                                <th style={{ ...thStyle, textAlign: 'right' }}>End Value</th>
+                                                                <th style={{ ...thStyle, textAlign: 'right' }}>Net Cash Flow</th>
+                                                                <th style={{ ...thStyle, textAlign: 'right' }}>Period Return</th>
+                                                                <th style={thStyle}>Flag</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {twrResult.subPeriods.map((s, i) => {
+                                                                const outlier = Math.abs(s.periodReturnPercent) > 10;
+                                                                const hasFlow = Math.abs(s.netCashFlow) > 0.0001;
+                                                                return (
+                                                                    <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: outlier ? 'rgba(248,113,113,0.08)' : 'transparent' }}>
+                                                                        <td style={tdStyle}>{s.startDate}</td>
+                                                                        <td style={tdStyle}>{s.endDate}</td>
+                                                                        <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtMoney(s.beginValue)}</td>
+                                                                        <td style={{ ...tdStyle, textAlign: 'right' }}>{fmtMoney(s.endValue)}</td>
+                                                                        <td style={{ ...tdStyle, textAlign: 'right', color: hasFlow ? 'var(--text-primary)' : 'var(--text-gray)' }}>{hasFlow ? fmtMoney(s.netCashFlow) : '—'}</td>
+                                                                        <td style={{ ...tdStyle, textAlign: 'right', color: s.periodReturnPercent >= 0 ? '#34d399' : '#f87171', fontWeight: 600 }}>
+                                                                            {s.periodReturnPercent >= 0 ? '+' : ''}{s.periodReturnPercent.toFixed(2)}%
+                                                                        </td>
+                                                                        <td style={tdStyle}>
+                                                                            {outlier ? <span style={{ color: '#f87171', fontWeight: 700 }}>⚠ outlier</span>
+                                                                                : hasFlow ? <span style={{ color: '#f59e0b' }}>cash flow</span>
+                                                                                : ''}
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                            <p style={{ color: 'var(--text-gray)', fontSize: '0.78rem', marginTop: '0.75rem' }}>
+                                                Tip: a red "outlier" day usually means a stale price snapshot (total value fell back to cost basis when no live quote was cached). Snapshots are taken Mon–Fri ~16:05 ET, so crypto/weekend moves may also look off.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </>

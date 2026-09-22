@@ -7,6 +7,7 @@ import com.springhi.portfolio.dto.PnlSummaryDto;
 import com.springhi.portfolio.dto.PortfolioProfileDto;
 import com.springhi.portfolio.dto.RecommendationDto;
 import com.springhi.portfolio.dto.TransactionDto;
+import com.springhi.portfolio.dto.TwrResponseDto;
 import com.springhi.portfolio.model.PortfolioRecommendation;
 import com.springhi.portfolio.repository.OptimizationScheduleRepository;
 import com.springhi.portfolio.repository.PortfolioProfileRepository;
@@ -14,6 +15,7 @@ import com.springhi.portfolio.repository.PortfolioRecommendationRepository;
 import com.springhi.portfolio.security.UserPrincipal;
 import com.springhi.portfolio.service.LeaderboardService;
 import com.springhi.portfolio.service.PortfolioService;
+import com.springhi.portfolio.service.TwrService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -33,17 +35,20 @@ public class LeaderboardController {
     private final PortfolioRecommendationRepository recommendationRepository;
     private final PortfolioProfileRepository profileRepository;
     private final OptimizationScheduleRepository scheduleRepository;
+    private final TwrService twrService;
 
     public LeaderboardController(LeaderboardService leaderboardService,
                                  PortfolioService portfolioService,
                                  PortfolioRecommendationRepository recommendationRepository,
                                  PortfolioProfileRepository profileRepository,
-                                 OptimizationScheduleRepository scheduleRepository) {
+                                 OptimizationScheduleRepository scheduleRepository,
+                                 TwrService twrService) {
         this.leaderboardService = leaderboardService;
         this.portfolioService = portfolioService;
         this.recommendationRepository = recommendationRepository;
         this.profileRepository = profileRepository;
         this.scheduleRepository = scheduleRepository;
+        this.twrService = twrService;
     }
 
     @GetMapping("/monthly")
@@ -65,6 +70,15 @@ public class LeaderboardController {
             @AuthenticationPrincipal UserPrincipal principal) {
         if (principal == null) return ResponseEntity.status(403).build();
         return ResponseEntity.ok(leaderboardService.getLeaderboard(range, scope, principal.getId(), authHeader, goal));
+    }
+
+    @GetMapping("/portfolio/{portfolioId}/twr")
+    public ResponseEntity<TwrResponseDto> getPortfolioTwr(
+            @PathVariable Long portfolioId,
+            @RequestParam(required = false) String range,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null || !principal.isAdmin()) return ResponseEntity.status(403).build();
+        return ResponseEntity.ok(twrService.computeTwr(portfolioId, range));
     }
 
     @GetMapping("/portfolio/{portfolioId}/holdings")

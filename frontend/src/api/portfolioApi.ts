@@ -247,6 +247,14 @@ export const getTwr = async (portfolioId: number, range: TwrRange = 'ALL'): Prom
     return response.data;
 };
 
+export const getAdminPortfolioTwr = async (portfolioId: number, range: TwrRange = 'ALL'): Promise<TwrResult> => {
+    const response = await axios.get(`${API_GATEWAY}/api/v1/leaderboard/portfolio/${portfolioId}/twr`, {
+        headers: authHeader(),
+        params: { range },
+    });
+    return response.data;
+};
+
 export const getAiRunTimestamps = async (portfolioId: number): Promise<string[]> => {
     const response = await axios.get(`${BASE_URL}/recommendations/runs`, {
         headers: authHeader(),

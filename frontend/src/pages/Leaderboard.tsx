@@ -179,6 +179,16 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                     const totalPortfolio = totalMV + (cashBalance ?? 0);
                     return (
                         <div className="portfolio-summary" style={{ flexWrap: 'wrap', marginBottom: '1rem', gap: '0.5rem' }}>
+                            <div className={`summary-card ${entry.twrPercent >= 0 ? 'positive' : 'negative'}`}>
+                                <span
+                                    className="summary-label"
+                                    title="Time-Weighted Return: measures investment performance independent of cash deposits and withdrawals"
+                                    style={{ cursor: 'help', borderBottom: '1px dotted var(--text-gray)', display: 'block', marginBottom: '0.35rem' }}
+                                >TWR</span>
+                                <span className="summary-value" style={{ fontSize: '1.2rem' }}>
+                                    {entry.twrPercent >= 0 ? '+' : ''}{entry.twrPercent.toFixed(2)}%
+                                </span>
+                            </div>
                             <div className="summary-card">
                                 <span className="summary-label">Market Value</span>
                                 <span className="summary-value">{fmt(totalMV)}</span>
