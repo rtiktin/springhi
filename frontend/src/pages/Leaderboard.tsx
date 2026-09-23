@@ -177,6 +177,11 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                     const totalGL = totalMV - totalCB;
                     const totalGLPct = totalCB !== 0 ? (totalGL / totalCB) * 100 : 0;
                     const totalPortfolio = totalMV + (cashBalance ?? 0);
+                    const fmtTwrDate = (d?: string | null) =>
+                        d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null;
+                    const twrStart = fmtTwrDate(entry.twrStartDate);
+                    const twrEnd = fmtTwrDate(entry.twrEndDate);
+                    const twrPeriod = twrStart && twrEnd ? `${twrStart} – ${twrEnd}` : null;
                     return (
                         <div className="portfolio-summary" style={{ flexWrap: 'wrap', marginBottom: '1rem', gap: '0.5rem' }}>
                             <div className={`summary-card ${entry.twrPercent >= 0 ? 'positive' : 'negative'}`}>
@@ -188,6 +193,11 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                                 <span className="summary-value" style={{ fontSize: '1.2rem' }}>
                                     {entry.twrPercent >= 0 ? '+' : ''}{entry.twrPercent.toFixed(2)}%
                                 </span>
+                                {twrPeriod && (
+                                    <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-gray)', marginTop: '0.3rem' }}>
+                                        {twrPeriod}
+                                    </span>
+                                )}
                             </div>
                             <div className="summary-card">
                                 <span className="summary-label">Market Value</span>
@@ -776,17 +786,21 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
 };
 
 const LeaderboardPane: React.FC<{ scope: LeaderboardScope; range: LeaderboardRange; goal: string }> = ({ scope, range, goal }) => {
-    const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
+    const key = `${scope}|${range}|${goal}`;
+    const [snapshot, setSnapshot] = useState<{ entries: LeaderboardEntry[]; error: string; key: string }>({
+        entries: [], error: '', key: ''
+    });
+    const entries = snapshot.entries;
+    const error = snapshot.error;
+    const loading = snapshot.key !== key;
 
     useEffect(() => {
-        setLoading(true);
+        let cancelled = false;
         getLeaderboard(range, scope, goal)
-            .then(setEntries)
-            .catch(() => setError('Failed to load leaderboard. Please try again.'))
-            .finally(() => setLoading(false));
-    }, [scope, range, goal]);
+            .then(rows => { if (!cancelled) setSnapshot({ entries: rows, error: '', key }); })
+            .catch(() => { if (!cancelled) setSnapshot({ entries: [], error: 'Failed to load leaderboard. Please try again.', key }); });
+        return () => { cancelled = true; };
+    }, [scope, range, goal, key]);
 
     if (loading) return <div style={{ textAlign: 'center', color: 'var(--text-gray)', padding: '3rem' }}>Loading…</div>;
     if (error) return <div style={{ textAlign: 'center', color: '#f87171', padding: '1rem' }}>{error}</div>;
@@ -795,18 +809,22 @@ const LeaderboardPane: React.FC<{ scope: LeaderboardScope; range: LeaderboardRan
 };
 
 const MonthlyLeaderboardPane: React.FC<{ month: string; goal: string }> = ({ month, goal }) => {
-    const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
+    const key = `${month}|${goal}`;
+    const [snapshot, setSnapshot] = useState<{ entries: LeaderboardEntry[]; error: string; key: string }>({
+        entries: [], error: '', key: ''
+    });
+    const entries = snapshot.entries;
+    const error = snapshot.error;
+    const loading = snapshot.key !== key;
 
     useEffect(() => {
         if (!month) return;
-        setLoading(true);
+        let cancelled = false;
         getMonthlyLeaderboard(month, goal)
-            .then(setEntries)
-            .catch(() => setError('Failed to load monthly leaderboard.'))
-            .finally(() => setLoading(false));
-    }, [month, goal]);
+            .then(rows => { if (!cancelled) setSnapshot({ entries: rows, error: '', key }); })
+            .catch(() => { if (!cancelled) setSnapshot({ entries: [], error: 'Failed to load monthly leaderboard.', key }); });
+        return () => { cancelled = true; };
+    }, [month, goal, key]);
 
     if (loading) return <div style={{ textAlign: 'center', color: 'var(--text-gray)', padding: '3rem' }}>Loading…</div>;
     if (error) return <div style={{ textAlign: 'center', color: '#f87171', padding: '1rem' }}>{error}</div>;

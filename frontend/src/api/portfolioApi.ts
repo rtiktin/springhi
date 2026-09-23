@@ -283,6 +283,8 @@ export interface LeaderboardEntry {
     competitionMonth: string | null;
     createdAt: string;
     goal?: string | null;
+    twrStartDate?: string | null;
+    twrEndDate?: string | null;
 }
 
 export const getLeaderboard = async (range: string, scope: 'mine' | 'all' = 'all', goal?: string): Promise<LeaderboardEntry[]> => {

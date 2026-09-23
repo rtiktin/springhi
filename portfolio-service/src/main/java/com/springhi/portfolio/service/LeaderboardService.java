@@ -175,7 +175,9 @@ public class LeaderboardService {
                         Math.round(maxPct * 10.0) / 10.0,
                         month,
                         portfolio.getCreatedAt(),
-                        goalMap.get(portfolio.getId())
+                        goalMap.get(portfolio.getId()),
+                        twr.startDate(),
+                        twr.endDate()
                 ));
             } catch (Exception e) {
                 log.warn("Skipping portfolio {} for leaderboard: {}", portfolio.getId(), e.getMessage());
@@ -188,7 +190,8 @@ public class LeaderboardService {
         for (int i = 0; i < entries.size(); i++) {
             LeaderboardEntryDto e = entries.get(i);
             ranked.add(new LeaderboardEntryDto(i + 1, e.portfolioId(), e.portfolioName(),
-                    e.username(), e.twrPercent(), e.marginVsSpy(), e.holdingCount(), e.maxHoldingPct(), e.competitionMonth(), e.createdAt(), e.goal()));
+                    e.username(), e.twrPercent(), e.marginVsSpy(), e.holdingCount(), e.maxHoldingPct(), e.competitionMonth(), e.createdAt(), e.goal(),
+                    e.twrStartDate(), e.twrEndDate()));
         }
         return ranked;
     }
