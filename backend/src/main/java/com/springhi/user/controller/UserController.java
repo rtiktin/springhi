@@ -3,6 +3,7 @@ package com.springhi.user.controller;
 import com.springhi.user.dto.AuthResponse;
 import com.springhi.user.dto.ProfileRequest;
 import com.springhi.user.dto.ProfileResponse;
+import com.springhi.user.dto.UserSignupStatusDto;
 import com.springhi.user.service.AuthService;
 import com.springhi.user.service.UserService;
 import java.security.Principal;
@@ -39,6 +40,18 @@ public class UserController {
             Principal principal) {
         if (principal == null) return ResponseEntity.status(401).build();
         return ResponseEntity.ok(userService.getDisplayNames(ids));
+    }
+
+    @GetMapping("/signup-statuses")
+    public ResponseEntity<Map<Long, UserSignupStatusDto>> getSignupStatuses(
+            @RequestParam List<Long> ids,
+            Principal principal) {
+        if (principal == null) return ResponseEntity.status(401).build();
+        try {
+            return ResponseEntity.ok(userService.getSignupStatuses(ids, principal.getName()));
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+            return ResponseEntity.status(403).build();
+        }
     }
 
     @GetMapping("/profile")

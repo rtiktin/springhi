@@ -1,5 +1,7 @@
 package com.springhi.portfolio.service;
 
+import com.springhi.portfolio.dto.UserSignupStatusDto;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,6 +42,19 @@ public class UserServiceClient {
             log.warn("Failed to fetch subscription limits for userId={}: {}", userId, e.getMessage());
             return Optional.empty();
         }
+    }
+
+    public Map<Long, UserSignupStatusDto> getSignupStatuses(List<Long> ids, String jwtToken) {
+        if (ids == null || ids.isEmpty()) return Collections.emptyMap();
+        String idsParam = ids.stream().map(String::valueOf).reduce((a, b) -> a + "," + b).orElse("");
+        Map<Long, UserSignupStatusDto> result = webClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/v1/users/signup-statuses")
+                        .queryParam("ids", idsParam).build())
+                .header("Authorization", jwtToken == null ? "" : jwtToken)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<Map<Long, UserSignupStatusDto>>() {})
+                .block();
+        return result != null ? result : Collections.emptyMap();
     }
 
     public Map<Long, String> getDisplayNames(List<Long> ids, String jwtToken) {

@@ -295,6 +295,41 @@ export const getLeaderboard = async (range: string, scope: 'mine' | 'all' = 'all
     return response.data;
 };
 
+export interface SubscribePromptConfig {
+    daysSinceJoined: number;
+    daysViewed: number;
+}
+
+export const recordLeaderboardPortfolioClick = async (portfolioId: number): Promise<{ forceSubscribe: boolean }> => {
+    const response = await axios.post(`${API_GATEWAY}/api/v1/leaderboard/portfolio/${portfolioId}/click`, {}, { headers: authHeader() });
+    return response.data;
+};
+
+export const getSubscribePromptConfig = async (): Promise<SubscribePromptConfig> => {
+    const response = await axios.get(`${API_GATEWAY}/api/v1/leaderboard/subscribe-prompt/config`, { headers: authHeader() });
+    return response.data;
+};
+
+export const updateSubscribePromptConfig = async (config: SubscribePromptConfig): Promise<SubscribePromptConfig> => {
+    const response = await axios.put(`${API_GATEWAY}/api/v1/leaderboard/subscribe-prompt/config`, config, { headers: authHeader() });
+    return response.data;
+};
+
+export interface LeaderboardEngagementRow {
+    userId: number;
+    username: string;
+    daysViewed: number;
+    portfolioChecks: number;
+    distinctPortfoliosViewed: number;
+    daysSinceJoined: number | null;
+    subscriptionStatus: string;
+}
+
+export const getLeaderboardEngagement = async (): Promise<LeaderboardEngagementRow[]> => {
+    const response = await axios.get(`${API_GATEWAY}/api/v1/leaderboard/engagement`, { headers: authHeader() });
+    return response.data;
+};
+
 export const getLeaderboardPortfolioAiRunTimestamps = async (portfolioId: number): Promise<string[]> => {
     const response = await axios.get(`${API_GATEWAY}/api/v1/leaderboard/portfolio/${portfolioId}/recommendations/runs`, {
         headers: authHeader(),

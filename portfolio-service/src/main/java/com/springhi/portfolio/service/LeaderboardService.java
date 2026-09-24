@@ -1,18 +1,29 @@
 package com.springhi.portfolio.service;
 
 import com.springhi.portfolio.dto.AssetWithPrice;
+import com.springhi.portfolio.dto.LeaderboardEngagementDto;
 import com.springhi.portfolio.dto.LeaderboardEntryDto;
+import com.springhi.portfolio.dto.SubscribePromptConfigDto;
+import com.springhi.portfolio.dto.SubscribePromptGateDto;
+import com.springhi.portfolio.dto.UserSignupStatusDto;
+import com.springhi.portfolio.model.AppSetting;
+import com.springhi.portfolio.repository.AppSettingRepository;
 import com.springhi.portfolio.dto.TwrResponseDto;
+import com.springhi.portfolio.model.LeaderboardPortfolioClick;
 import com.springhi.portfolio.model.Portfolio;
 import com.springhi.portfolio.model.PortfolioProfile;
+import com.springhi.portfolio.repository.LeaderboardPortfolioClickRepository;
 import com.springhi.portfolio.repository.PortfolioProfileRepository;
 import com.springhi.portfolio.repository.PortfolioRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -29,19 +40,27 @@ public class LeaderboardService {
     private final UserServiceClient userServiceClient;
     private final SpyBenchmarkService spyBenchmarkService;
     private final PortfolioProfileRepository profileRepository;
+    private final LeaderboardPortfolioClickRepository clickRepository;
+    private final AppSettingRepository settingRepository;
+    private static final String JOIN_DAYS_KEY = "leaderboard.subscribe_prompt.join_days";
+    private static final String VIEW_DAYS_KEY = "leaderboard.subscribe_prompt.view_days";
 
     public LeaderboardService(PortfolioRepository portfolioRepository,
                               PortfolioService portfolioService,
                               TwrService twrService,
                               UserServiceClient userServiceClient,
                               SpyBenchmarkService spyBenchmarkService,
-                              PortfolioProfileRepository profileRepository) {
+                              PortfolioProfileRepository profileRepository,
+                              LeaderboardPortfolioClickRepository clickRepository,
+                              AppSettingRepository settingRepository) {
         this.portfolioRepository = portfolioRepository;
         this.portfolioService = portfolioService;
         this.twrService = twrService;
         this.userServiceClient = userServiceClient;
         this.spyBenchmarkService = spyBenchmarkService;
         this.profileRepository = profileRepository;
+        this.clickRepository = clickRepository;
+        this.settingRepository = settingRepository;
     }
 
     public List<LeaderboardEntryDto> getLeaderboard(String range, String scope, Long userId, String jwtToken, String goal) {
@@ -86,6 +105,84 @@ public class LeaderboardService {
         Double spyReturn = spyBenchmarkService.getSpyReturn(anchor);
 
         return buildEntries(filtered, null, usernameMap, true, spyReturn, false, goalMap, anchor, competitionMonth);
+    }
+
+    public SubscribePromptConfigDto getSubscribePromptConfig() {
+        int joinDays = settingRepository.findById(JOIN_DAYS_KEY)
+                .map(setting -> Integer.parseInt(setting.getValue())).orElse(30);
+        int viewDays = settingRepository.findById(VIEW_DAYS_KEY)
+                .map(setting -> Integer.parseInt(setting.getValue())).orElse(3);
+        return new SubscribePromptConfigDto(joinDays, viewDays);
+    }
+
+    @Transactional
+    public SubscribePromptConfigDto updateSubscribePromptConfig(SubscribePromptConfigDto config) {
+        if (config == null || config.daysSinceJoined() < 0 || config.daysViewed() < 0) {
+            throw new IllegalArgumentException("Thresholds must be non-negative whole numbers.");
+        }
+        settingRepository.save(new AppSetting(JOIN_DAYS_KEY, String.valueOf(config.daysSinceJoined())));
+        settingRepository.save(new AppSetting(VIEW_DAYS_KEY, String.valueOf(config.daysViewed())));
+        return config;
+    }
+
+    public SubscribePromptGateDto recordClick(Long userId, Long portfolioId, String jwtToken, boolean admin) {
+        if (userId == null || portfolioId == null || portfolioRepository.findById(portfolioId)
+                .filter(Portfolio::isEnabled).isEmpty()) {
+            throw new IllegalArgumentException("Portfolio not found.");
+        }
+        Map<Long, UserSignupStatusDto> statuses = userServiceClient.getSignupStatuses(List.of(userId), jwtToken);
+        UserSignupStatusDto user = statuses.get(userId);
+        if (user == null || user.createdAt() == null) {
+            throw new IllegalStateException("Unable to verify subscription status.");
+        }
+        LeaderboardPortfolioClick click = new LeaderboardPortfolioClick();
+        click.setUserId(userId);
+        click.setPortfolioId(portfolioId);
+        click.setClickedAt(LocalDateTime.now());
+        clickRepository.save(click);
+        return new SubscribePromptGateDto(shouldPrompt(userId, user, admin));
+    }
+
+    public boolean shouldPrompt(Long userId, String jwtToken, boolean admin) {
+        if (admin) return false;
+        UserSignupStatusDto user = userServiceClient.getSignupStatuses(List.of(userId), jwtToken).get(userId);
+        if (user == null || user.createdAt() == null) {
+            throw new IllegalStateException("Unable to verify subscription status.");
+        }
+        return shouldPrompt(userId, user, false);
+    }
+
+    private boolean shouldPrompt(Long userId, UserSignupStatusDto user, boolean admin) {
+        if (admin || user.subscribed()) return false;
+        SubscribePromptConfigDto config = getSubscribePromptConfig();
+        long daysSinceJoined = Math.max(0, ChronoUnit.DAYS.between(LocalDate.parse(user.createdAt().substring(0, 10)), LocalDate.now()));
+        return daysSinceJoined >= config.daysSinceJoined()
+                && clickRepository.countDistinctClickDaysByUser(userId) > config.daysViewed();
+    }
+
+    public List<LeaderboardEngagementDto> getEngagement(String jwtToken) {
+        List<Object[]> rows = clickRepository.findAllEngagementAggregates();
+        if (rows.isEmpty()) return List.of();
+        List<Long> userIds = rows.stream()
+                .map(r -> ((Number) r[0]).longValue())
+                .collect(Collectors.toList());
+        Map<Long, String> usernameMap = userServiceClient.getDisplayNames(userIds, jwtToken);
+        Map<Long, UserSignupStatusDto> statuses = userServiceClient.getSignupStatuses(userIds, jwtToken);
+        List<LeaderboardEngagementDto> result = new ArrayList<>();
+        for (Object[] r : rows) {
+            Long userId = ((Number) r[0]).longValue();
+            long totalChecks = ((Number) r[1]).longValue();
+            long distinctPortfolios = ((Number) r[2]).longValue();
+            long daysViewed = ((Number) r[3]).longValue();
+            String username = usernameMap.getOrDefault(userId, "user-" + userId);
+            UserSignupStatusDto user = statuses.get(userId);
+            Long daysSinceJoined = user != null && user.createdAt() != null
+                    ? Math.max(0, ChronoUnit.DAYS.between(LocalDate.parse(user.createdAt().substring(0, 10)), LocalDate.now())) : null;
+            String subscriptionStatus = user != null ? user.planName() + " (" + user.status() + ")" : "Unknown";
+            result.add(new LeaderboardEngagementDto(userId, username, daysViewed, totalChecks, distinctPortfolios,
+                    daysSinceJoined, subscriptionStatus));
+        }
+        return result;
     }
 
     private Map<Long, String> getGoalMap() {

@@ -9,6 +9,7 @@ import {
     getLeaderboardPortfolioCash,
     getLeaderboardPortfolioPnl,
     getMonthlyLeaderboard,
+    recordLeaderboardPortfolioClick,
 } from '../api/portfolioApi';
 import type { LeaderboardEntry, AssetWithPrice, Transaction, AiRunDetails, PnlSummary } from '../api/portfolioApi';
 import { getLoggedInUsername, isAdmin } from '../utils/auth';
@@ -617,6 +618,24 @@ interface LeaderboardTableProps {
 const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, showUser, rangeLabel, goal }) => {
     const currentUsername = getLoggedInUsername();
     const [selectedEntry, setSelectedEntry] = useState<LeaderboardEntry | null>(null);
+    const [subscribePrompt, setSubscribePrompt] = useState(false);
+    const [openingId, setOpeningId] = useState<number | null>(null);
+    const [openError, setOpenError] = useState('');
+
+    const handleOpenPortfolio = async (entry: LeaderboardEntry) => {
+        if (openingId !== null) return;
+        setOpeningId(entry.portfolioId);
+        setOpenError('');
+        try {
+            const gate = await recordLeaderboardPortfolioClick(entry.portfolioId);
+            if (gate.forceSubscribe) setSubscribePrompt(true);
+            else setSelectedEntry(entry);
+        } catch {
+            setOpenError('Unable to open this portfolio right now. Please try again.');
+        } finally {
+            setOpeningId(null);
+        }
+    };
     const [shareEntry, setShareEntry] = useState<{ entry: LeaderboardEntry; holdings: AssetWithPrice[]; aiDetails: AiRunDetails | null } | null>(null);
     const [sharingId, setSharingId] = useState<number | null>(null);
 
@@ -665,7 +684,7 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
                         {entries.map((entry, idx) => (
                             <tr
                                 key={entry.portfolioId}
-                                onClick={() => setSelectedEntry(entry)}
+                                onClick={() => { void handleOpenPortfolio(entry); }}
                                 style={{
                                     borderBottom: idx < entries.length - 1 ? '1px solid var(--border)' : 'none',
                                     background: entry.rank <= 3 ? 'rgba(99,102,241,0.05)' : 'transparent',
@@ -758,6 +777,23 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
                 </table>
             </div>
         </div>
+
+        {openError && <div className="error-msg" role="alert">{openError}</div>}
+
+        {subscribePrompt && (
+            <div className="modal-overlay" onClick={() => setSubscribePrompt(false)}>
+                <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 430, width: '95%' }}>
+                    <div className="modal-header">
+                        <h2>Subscribe to continue</h2>
+                        <button className="modal-close" onClick={() => setSubscribePrompt(false)}>✕</button>
+                    </div>
+                    <p style={{ color: 'var(--text-gray)', marginBottom: '1.5rem' }}>
+                        Your free leaderboard portfolio viewing period has ended. Subscribe to keep exploring portfolios.
+                    </p>
+                    <Link to="/subscription" className="btn-primary-full" style={{ display: 'inline-block', textDecoration: 'none', textAlign: 'center' }}>View subscriptions</Link>
+                </div>
+            </div>
+        )}
 
         {selectedEntry && (
                 <PortfolioDetailModal entry={selectedEntry} onClose={() => setSelectedEntry(null)} />

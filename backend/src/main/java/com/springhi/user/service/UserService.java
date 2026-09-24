@@ -3,8 +3,11 @@ package com.springhi.user.service;
 import com.springhi.user.dto.AdminUserDto;
 import com.springhi.user.dto.ProfileRequest;
 import com.springhi.user.dto.ProfileResponse;
+import com.springhi.user.dto.UserSignupStatusDto;
 import com.springhi.user.model.User;
+import com.springhi.user.model.UserSubscription;
 import com.springhi.user.repository.UserRepository;
+import com.springhi.user.repository.UserSubscriptionRepository;
 import com.springhi.user.security.JwtService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,16 +29,42 @@ public class UserService {
     private final UserRepository repository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final UserSubscriptionRepository subscriptionRepository;
 
-    public UserService(UserRepository repository, PasswordEncoder passwordEncoder, JwtService jwtService) {
+    public UserService(UserRepository repository, PasswordEncoder passwordEncoder, JwtService jwtService,
+                       UserSubscriptionRepository subscriptionRepository) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.subscriptionRepository = subscriptionRepository;
     }
 
     public Map<Long, String> getDisplayNames(List<Long> ids) {
         return repository.findAllById(ids).stream()
                 .collect(Collectors.toMap(User::getId, User::getUsername));
+    }
+
+    public Map<Long, UserSignupStatusDto> getSignupStatuses(List<Long> ids, String requester) {
+        if (ids == null || ids.isEmpty()) return java.util.Collections.emptyMap();
+        User caller = repository.findByUsername(requester)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + requester));
+        if (caller.getUserType() != 10 && (ids.size() != 1 || !ids.get(0).equals(caller.getId()))) {
+            throw new org.springframework.security.access.AccessDeniedException("Not authorized to view other users' subscription status.");
+        }
+        List<User> users = repository.findAllById(ids);
+        Map<Long, UserSubscription> subByUserId = subscriptionRepository.findByUserIdIn(
+                users.stream().map(User::getId).toList()
+        ).stream().collect(Collectors.toMap(UserSubscription::getUserId, s -> s, (a, b) -> a));
+        Map<Long, UserSignupStatusDto> result = new java.util.HashMap<>();
+        for (User user : users) {
+            UserSubscription sub = subByUserId.get(user.getId());
+            String planName = sub != null ? sub.getPlanName() : "FREE";
+            String status = sub != null ? sub.getStatus() : "NONE";
+            boolean subscribed = sub != null && "ACTIVE".equalsIgnoreCase(sub.getStatus()) && !"FREE".equalsIgnoreCase(sub.getPlanName());
+            String createdAt = user.getCreatedAt() != null ? user.getCreatedAt().toString() : null;
+            result.put(user.getId(), new UserSignupStatusDto(user.getId(), createdAt, planName, status, subscribed));
+        }
+        return result;
     }
 
     @Transactional

@@ -9,7 +9,7 @@ import {
 import { downloadPayoutCsv } from '../api/referralApi';
 import { adminTestSubscribe, adminCreateTestClock, adminAdvanceTestClock, adminCleanupSandbox, getStripeWebhookStatus, getStripeLinkSetting, setStripeLinkSetting, type StripeWebhookStatus, type StripeLinkSetting } from '../api/stripeApi';
 import AdsPanel from '../components/AdsPanel';
-import { getAdminPortfolioTwr, type TwrResult, type TwrRange } from '../api/portfolioApi';
+import { getAdminPortfolioTwr, type TwrResult, type TwrRange, getLeaderboardEngagement, type LeaderboardEngagementRow, getSubscribePromptConfig, updateSubscribePromptConfig, type SubscribePromptConfig } from '../api/portfolioApi';
 
 interface ReferralOverviewRow {
     userId: number;
@@ -109,7 +109,7 @@ const TYPE_BADGE_COLOR: Record<number, string> = {
     3: '#b91c1c',
 };
 
-type AdminTab = 'users' | 'portfolios' | 'stats' | 'config' | 'support' | 'payments' | 'referrals' | 'stripe' | 'ads' | 'twr';
+type AdminTab = 'users' | 'portfolios' | 'stats' | 'config' | 'support' | 'payments' | 'referrals' | 'stripe' | 'ads' | 'twr' | 'engagement';
 
 interface AdminPaymentHistory {
     id: number;
@@ -665,6 +665,9 @@ const Admin: React.FC = () => {
     const [twrResult, setTwrResult] = useState<TwrResult | null>(null);
     const [twrLoading, setTwrLoading] = useState(false);
     const [twrError, setTwrError] = useState('');
+    const [engagementRows, setEngagementRows] = useState<LeaderboardEngagementRow[]>([]);
+    const [engagementLoading, setEngagementLoading] = useState(false);
+    const [engagementError, setEngagementError] = useState('');
 
     type UserSortKey = 'username' | 'email' | 'name' | 'phone' | 'createdAt' | 'lastActiveAt' | 'planName' | 'userTypeName';
     const DATE_COLS: UserSortKey[] = ['createdAt', 'lastActiveAt'];
@@ -787,6 +790,10 @@ const Admin: React.FC = () => {
     const [configEdits, setConfigEdits] = useState<Record<string, Partial<SubscriptionPlan>>>({});
     const [configSaving, setConfigSaving] = useState<string | null>(null);
     const [configMessage, setConfigMessage] = useState<{ planName: string; text: string; error: boolean } | null>(null);
+    const [engagementConfig, setEngagementConfig] = useState<SubscribePromptConfig | null>(null);
+    const [engagementConfigError, setEngagementConfigError] = useState('');
+    const [engagementConfigSaving, setEngagementConfigSaving] = useState(false);
+    const [engagementConfigSaved, setEngagementConfigSaved] = useState(false);
 
     const [referralOverview, setReferralOverview] = useState<ReferralOverviewRow[]>([]);
     const [referralPayouts, setReferralPayouts] = useState<ReferralPayoutRow[]>([]);
@@ -818,10 +825,15 @@ const Admin: React.FC = () => {
             loadPortfolios();
         } else if (tab === 'twr') {
             loadPortfolios();
+        } else if (tab === 'engagement') {
+            loadEngagement();
         } else if (tab === 'stats') {
             loadStats(chartOffset);
         } else if (tab === 'config') {
             loadSubscriptionConfig();
+            setEngagementConfigError('');
+            getSubscribePromptConfig().then(setEngagementConfig)
+                .catch(() => setEngagementConfigError('Failed to load leaderboard engagement config.'));
         } else if (tab === 'payments') {
             loadPayments();
         } else if (tab === 'referrals') {
@@ -1090,6 +1102,34 @@ const Admin: React.FC = () => {
             .finally(() => setTwrLoading(false));
     };
 
+    const saveEngagementConfig = async () => {
+        if (!engagementConfig) return;
+        if (![engagementConfig.daysSinceJoined, engagementConfig.daysViewed].every(value => Number.isInteger(value) && value >= 0)) {
+            setEngagementConfigError('Enter non-negative whole numbers for both thresholds.');
+            return;
+        }
+        setEngagementConfigSaving(true);
+        setEngagementConfigError('');
+        setEngagementConfigSaved(false);
+        try {
+            setEngagementConfig(await updateSubscribePromptConfig(engagementConfig));
+            setEngagementConfigSaved(true);
+        } catch {
+            setEngagementConfigError('Failed to save leaderboard engagement config.');
+        } finally {
+            setEngagementConfigSaving(false);
+        }
+    };
+
+    const loadEngagement = () => {
+        setEngagementLoading(true);
+        setEngagementError('');
+        getLeaderboardEngagement()
+            .then(setEngagementRows)
+            .catch(() => setEngagementError('Failed to load engagement metrics.'))
+            .finally(() => setEngagementLoading(false));
+    };
+
     const handleTypeChange = (userId: number, value: string) => {
         setChangingType(userId);
         if (value === 'chargeback') {
@@ -1254,6 +1294,7 @@ const Admin: React.FC = () => {
                     <button style={tabStyle('stripe')} onClick={() => setTab('stripe')}>Stripe Sandbox</button>
                     <button style={tabStyle('ads')} onClick={() => setTab('ads')}>Ads</button>
                     <button style={tabStyle('twr')} onClick={() => setTab('twr')}>TWR Breakdown</button>
+                    <button style={tabStyle('engagement')} onClick={() => setTab('engagement')}>Engagement</button>
                 </div>
 
                 <div style={{ background: 'var(--bg-card)', borderRadius: '0 8px 8px 8px', border: '1px solid var(--border)', borderTop: 'none', padding: '1.5rem' }}>
@@ -1716,6 +1757,58 @@ const Admin: React.FC = () => {
                         </>
                     )}
 
+                    {tab === 'engagement' && (
+                        <>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                <p style={{ color: 'var(--text-gray)', fontSize: '0.85rem', margin: 0 }}>
+                                    Leaderboard click engagement per user. Days Viewed counts distinct calendar days with ≥1 portfolio click (multiple clicks or portfolios in a day still count as 1 day). Portfolio Checks is the total number of clicks. Distinct Portfolios is how many different portfolios the user opened.
+                                </p>
+                                <button
+                                    onClick={loadEngagement}
+                                    disabled={engagementLoading}
+                                    style={{ padding: '0.4rem 1rem', borderRadius: 6, border: '1px solid var(--border)', background: '#6c47ff', color: '#fff', cursor: engagementLoading ? 'not-allowed' : 'pointer', fontSize: '0.85rem', opacity: engagementLoading ? 0.6 : 1 }}
+                                >
+                                    {engagementLoading ? 'Loading…' : 'Refresh'}
+                                </button>
+                            </div>
+
+                            {engagementError && <div style={{ color: '#f87171', marginBottom: '1rem' }}>{engagementError}</div>}
+
+                            {engagementLoading ? (
+                                <div className="portfolio-loading">Loading engagement…</div>
+                            ) : engagementRows.length === 0 ? (
+                                <div style={{ color: 'var(--text-gray)', padding: '1rem' }}>No leaderboard clicks recorded yet.</div>
+                            ) : (
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                                <th style={thStyle}>Username</th>
+                                                <th style={{ ...thStyle, textAlign: 'right' }}>Days Since Joining</th>
+                                                <th style={thStyle}>Subscription Status</th>
+                                                <th style={{ ...thStyle, textAlign: 'right' }}>Days Viewed</th>
+                                                <th style={{ ...thStyle, textAlign: 'right' }}>Portfolio Checks</th>
+                                                <th style={{ ...thStyle, textAlign: 'right' }}>Distinct Portfolios Viewed</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {engagementRows.map(row => (
+                                                <tr key={row.userId} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                    <td style={tdStyle}>{row.username}</td>
+                                                    <td style={{ ...tdStyle, textAlign: 'right' }}>{row.daysSinceJoined ?? '—'}</td>
+                                                    <td style={tdStyle}>{row.subscriptionStatus}</td>
+                                                    <td style={{ ...tdStyle, textAlign: 'right' }}>{row.daysViewed}</td>
+                                                    <td style={{ ...tdStyle, textAlign: 'right' }}>{row.portfolioChecks}</td>
+                                                    <td style={{ ...tdStyle, textAlign: 'right' }}>{row.distinctPortfoliosViewed}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </>
+                    )}
+
                     {tab === 'stats' && (
                         <>
                             {loadingStats ? (
@@ -2060,6 +2153,32 @@ const Admin: React.FC = () => {
                                     })}
                                 </div>
                             )}
+                            <div style={{ marginTop: '2rem', padding: '1.25rem', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-card)' }}>
+                                <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.5rem' }}>Leaderboard Engagement Config</h2>
+                                <p style={{ color: 'var(--text-gray)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                                    Free users are prompted to subscribe when both thresholds are met. Days viewed must be greater than the configured number; changes take effect immediately.
+                                </p>
+                                {engagementConfig && (
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'end', gap: '1rem' }}>
+                                        <label style={{ fontSize: '0.85rem' }}>Days since joining (at least)
+                                            <input type="number" min={0} step={1} value={engagementConfig.daysSinceJoined}
+                                                onChange={e => { setEngagementConfig({ ...engagementConfig, daysSinceJoined: e.target.value === '' ? NaN : Number(e.target.value) }); setEngagementConfigSaved(false); }}
+                                                style={{ display: 'block', marginTop: 4, width: 180, padding: '0.4rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }} />
+                                        </label>
+                                        <label style={{ fontSize: '0.85rem' }}>Days viewing portfolios (more than)
+                                            <input type="number" min={0} step={1} value={engagementConfig.daysViewed}
+                                                onChange={e => { setEngagementConfig({ ...engagementConfig, daysViewed: e.target.value === '' ? NaN : Number(e.target.value) }); setEngagementConfigSaved(false); }}
+                                                style={{ display: 'block', marginTop: 4, width: 180, padding: '0.4rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }} />
+                                        </label>
+                                        <button onClick={() => { void saveEngagementConfig(); }} disabled={engagementConfigSaving}
+                                            style={{ background: '#6c47ff', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1rem', fontWeight: 600, cursor: 'pointer' }}>
+                                            {engagementConfigSaving ? 'Saving…' : 'Save'}
+                                        </button>
+                                        {engagementConfigSaved && <span style={{ color: '#22c55e' }}>Saved</span>}
+                                    </div>
+                                )}
+                                {engagementConfigError && <div role="alert" style={{ color: '#f87171', marginTop: '0.5rem' }}>{engagementConfigError}</div>}
+                            </div>
                         </>
                     )}
 

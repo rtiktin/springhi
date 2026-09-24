@@ -2,7 +2,10 @@ package com.springhi.portfolio.controller;
 
 import com.springhi.portfolio.dto.AiRunDetailsDto;
 import com.springhi.portfolio.dto.AssetWithPrice;
+import com.springhi.portfolio.dto.LeaderboardEngagementDto;
 import com.springhi.portfolio.dto.LeaderboardEntryDto;
+import com.springhi.portfolio.dto.SubscribePromptConfigDto;
+import com.springhi.portfolio.dto.SubscribePromptGateDto;
 import com.springhi.portfolio.dto.PnlSummaryDto;
 import com.springhi.portfolio.dto.PortfolioProfileDto;
 import com.springhi.portfolio.dto.RecommendationDto;
@@ -72,6 +75,46 @@ public class LeaderboardController {
         return ResponseEntity.ok(leaderboardService.getLeaderboard(range, scope, principal.getId(), authHeader, goal));
     }
 
+    @PostMapping("/portfolio/{portfolioId}/click")
+    public ResponseEntity<SubscribePromptGateDto> recordPortfolioClick(
+            @PathVariable Long portfolioId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) return ResponseEntity.status(403).build();
+        try {
+            return ResponseEntity.ok(leaderboardService.recordClick(principal.getId(), portfolioId, authHeader, principal.isAdmin()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @GetMapping("/subscribe-prompt/config")
+    public ResponseEntity<SubscribePromptConfigDto> getSubscribePromptConfig(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null || !principal.isAdmin()) return ResponseEntity.status(403).build();
+        return ResponseEntity.ok(leaderboardService.getSubscribePromptConfig());
+    }
+
+    @PutMapping("/subscribe-prompt/config")
+    public ResponseEntity<SubscribePromptConfigDto> updateSubscribePromptConfig(
+            @RequestBody SubscribePromptConfigDto config,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null || !principal.isAdmin()) return ResponseEntity.status(403).build();
+        try {
+            return ResponseEntity.ok(leaderboardService.updateSubscribePromptConfig(config));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @GetMapping("/engagement")
+    public ResponseEntity<List<LeaderboardEngagementDto>> getEngagement(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null || !principal.isAdmin()) return ResponseEntity.status(403).build();
+        return ResponseEntity.ok(leaderboardService.getEngagement(authHeader));
+    }
+
     @GetMapping("/portfolio/{portfolioId}/twr")
     public ResponseEntity<TwrResponseDto> getPortfolioTwr(
             @PathVariable Long portfolioId,
@@ -81,43 +124,52 @@ public class LeaderboardController {
         return ResponseEntity.ok(twrService.computeTwr(portfolioId, range));
     }
 
+    private boolean subscriptionRequired(UserPrincipal principal, String authHeader) {
+        return leaderboardService.shouldPrompt(principal.getId(), authHeader, principal.isAdmin());
+    }
+
     @GetMapping("/portfolio/{portfolioId}/holdings")
     public ResponseEntity<List<AssetWithPrice>> getPortfolioHoldings(
             @PathVariable Long portfolioId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @AuthenticationPrincipal UserPrincipal principal) {
-        if (principal == null) return ResponseEntity.status(403).build();
+        if (principal == null || subscriptionRequired(principal, authHeader)) return ResponseEntity.status(403).build();
         return ResponseEntity.ok(portfolioService.getUserAssetsWithPrices(portfolioId));
     }
 
     @GetMapping("/portfolio/{portfolioId}/transactions")
     public ResponseEntity<List<TransactionDto>> getPortfolioTransactions(
             @PathVariable Long portfolioId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @AuthenticationPrincipal UserPrincipal principal) {
-        if (principal == null) return ResponseEntity.status(403).build();
+        if (principal == null || subscriptionRequired(principal, authHeader)) return ResponseEntity.status(403).build();
         return ResponseEntity.ok(portfolioService.getUserTransactions(portfolioId));
     }
 
     @GetMapping("/portfolio/{portfolioId}/cash")
     public ResponseEntity<Map<String, BigDecimal>> getPortfolioCash(
             @PathVariable Long portfolioId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @AuthenticationPrincipal UserPrincipal principal) {
-        if (principal == null) return ResponseEntity.status(403).build();
+        if (principal == null || subscriptionRequired(principal, authHeader)) return ResponseEntity.status(403).build();
         return ResponseEntity.ok(Map.of("balance", portfolioService.getCashBalance(portfolioId)));
     }
 
     @GetMapping("/portfolio/{portfolioId}/pnl")
     public ResponseEntity<PnlSummaryDto> getPortfolioPnl(
             @PathVariable Long portfolioId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @AuthenticationPrincipal UserPrincipal principal) {
-        if (principal == null) return ResponseEntity.status(403).build();
+        if (principal == null || subscriptionRequired(principal, authHeader)) return ResponseEntity.status(403).build();
         return ResponseEntity.ok(portfolioService.getPnlSummary(portfolioId));
     }
 
     @GetMapping("/portfolio/{portfolioId}/recommendations/runs")
     public ResponseEntity<List<String>> getAiRunTimestamps(
             @PathVariable Long portfolioId,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @AuthenticationPrincipal UserPrincipal principal) {
-        if (principal == null) return ResponseEntity.status(403).build();
+        if (principal == null || subscriptionRequired(principal, authHeader)) return ResponseEntity.status(403).build();
         List<String> timestamps = recommendationRepository
                 .findDistinctGeneratedAtByPortfolioIdExcludingPendingOrderByDesc(portfolioId)
                 .stream().map(LocalDateTime::toString).toList();
@@ -128,8 +180,9 @@ public class LeaderboardController {
     public ResponseEntity<AiRunDetailsDto> getAiRunDetails(
             @PathVariable Long portfolioId,
             @RequestParam String generatedAt,
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
             @AuthenticationPrincipal UserPrincipal principal) {
-        if (principal == null) return ResponseEntity.status(403).build();
+        if (principal == null || subscriptionRequired(principal, authHeader)) return ResponseEntity.status(403).build();
         LocalDateTime ts = LocalDateTime.parse(generatedAt);
         List<PortfolioRecommendation> runRecs = recommendationRepository
                 .findByPortfolioIdAndGeneratedAtOrderByActionDescIdAsc(portfolioId, ts);

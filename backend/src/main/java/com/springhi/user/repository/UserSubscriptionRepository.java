@@ -14,6 +14,8 @@ import java.util.Optional;
 public interface UserSubscriptionRepository extends JpaRepository<UserSubscription, Long> {
     Optional<UserSubscription> findByUserId(Long userId);
 
+    List<UserSubscription> findByUserIdIn(java.util.Collection<Long> userIds);
+
     Optional<UserSubscription> findByStripeSubscriptionId(String stripeSubscriptionId);
 
     Optional<UserSubscription> findByStripeCustomerId(String stripeCustomerId);
