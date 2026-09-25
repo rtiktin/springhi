@@ -668,6 +668,44 @@ const Admin: React.FC = () => {
     const [engagementRows, setEngagementRows] = useState<LeaderboardEngagementRow[]>([]);
     const [engagementLoading, setEngagementLoading] = useState(false);
     const [engagementError, setEngagementError] = useState('');
+    const [engagementPage, setEngagementPage] = useState(0);
+    type EngagementSortKey = 'username' | 'daysSinceJoined' | 'subscriptionStatus' | 'daysViewed' | 'portfolioChecks' | 'distinctPortfoliosViewed';
+    const [engagementFilters, setEngagementFilters] = useState<Partial<Record<EngagementSortKey, string>>>({});
+    type EngagementComparison = 'eq' | 'lt' | 'gt';
+    const [engagementComparisons, setEngagementComparisons] = useState<Partial<Record<EngagementSortKey, EngagementComparison>>>({});
+    const [engagementSort, setEngagementSort] = useState<{ key: EngagementSortKey; dir: 'asc' | 'desc' }>({ key: 'daysViewed', dir: 'desc' });
+    const engagementColumns: { key: EngagementSortKey; label: string; numeric: boolean }[] = [
+        { key: 'username', label: 'Username', numeric: false },
+        { key: 'daysSinceJoined', label: 'Days Since Joining', numeric: true },
+        { key: 'subscriptionStatus', label: 'Subscription Status', numeric: false },
+        { key: 'daysViewed', label: 'Days Viewed', numeric: true },
+        { key: 'portfolioChecks', label: 'Portfolio Checks', numeric: true },
+        { key: 'distinctPortfoliosViewed', label: 'Distinct Portfolios Viewed', numeric: true },
+    ];
+    const filteredEngagementRows = engagementRows.filter(row => engagementColumns.every(col => {
+        const filter = engagementFilters[col.key]?.trim();
+        if (!filter) return true;
+        const value = row[col.key];
+        if (col.numeric) {
+            if (typeof value !== 'number' || !Number.isFinite(Number(filter))) return false;
+            const threshold = Number(filter);
+            const comparison = engagementComparisons[col.key] ?? 'eq';
+            return comparison === 'lt' ? value < threshold : comparison === 'gt' ? value > threshold : value === threshold;
+        }
+        return String(value ?? '').toLowerCase().includes(filter.toLowerCase());
+    }));
+    const sortedEngagementRows = [...filteredEngagementRows].sort((a, b) => {
+        const av = a[engagementSort.key];
+        const bv = b[engagementSort.key];
+        if (av == null || bv == null) return av == null && bv == null ? a.userId - b.userId : av == null ? 1 : -1;
+        const comparison = typeof av === 'number' && typeof bv === 'number'
+            ? av - bv : String(av).localeCompare(String(bv), undefined, { sensitivity: 'base' });
+        return (engagementSort.dir === 'asc' ? comparison : -comparison) || a.userId - b.userId;
+    });
+    const ENGAGEMENT_PAGE_SIZE = 20;
+    const engagementPageCount = Math.max(1, Math.ceil(sortedEngagementRows.length / ENGAGEMENT_PAGE_SIZE));
+    const currentEngagementPage = Math.min(engagementPage, engagementPageCount - 1);
+    const pagedEngagementRows = sortedEngagementRows.slice(currentEngagementPage * ENGAGEMENT_PAGE_SIZE, (currentEngagementPage + 1) * ENGAGEMENT_PAGE_SIZE);
 
     type UserSortKey = 'username' | 'email' | 'name' | 'phone' | 'createdAt' | 'lastActiveAt' | 'planName' | 'userTypeName';
     const DATE_COLS: UserSortKey[] = ['createdAt', 'lastActiveAt'];
@@ -1763,13 +1801,18 @@ const Admin: React.FC = () => {
                                 <p style={{ color: 'var(--text-gray)', fontSize: '0.85rem', margin: 0 }}>
                                     Leaderboard click engagement per user. Days Viewed counts distinct calendar days with ≥1 portfolio click (multiple clicks or portfolios in a day still count as 1 day). Portfolio Checks is the total number of clicks. Distinct Portfolios is how many different portfolios the user opened.
                                 </p>
-                                <button
-                                    onClick={loadEngagement}
-                                    disabled={engagementLoading}
-                                    style={{ padding: '0.4rem 1rem', borderRadius: 6, border: '1px solid var(--border)', background: '#6c47ff', color: '#fff', cursor: engagementLoading ? 'not-allowed' : 'pointer', fontSize: '0.85rem', opacity: engagementLoading ? 0.6 : 1 }}
-                                >
-                                    {engagementLoading ? 'Loading…' : 'Refresh'}
-                                </button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                                    <button type="button" onClick={() => { setEngagementFilters({}); setEngagementPage(0); }}
+                                        disabled={!Object.values(engagementFilters).some(Boolean)}
+                                        style={{ padding: '0.4rem 0.75rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem' }}>Clear filters</button>
+                                    <button
+                                        onClick={loadEngagement}
+                                        disabled={engagementLoading}
+                                        style={{ padding: '0.4rem 1rem', borderRadius: 6, border: '1px solid var(--border)', background: '#6c47ff', color: '#fff', cursor: engagementLoading ? 'not-allowed' : 'pointer', fontSize: '0.85rem', opacity: engagementLoading ? 0.6 : 1 }}
+                                    >
+                                        {engagementLoading ? 'Loading…' : 'Refresh'}
+                                    </button>
+                                </div>
                             </div>
 
                             {engagementError && <div style={{ color: '#f87171', marginBottom: '1rem' }}>{engagementError}</div>}
@@ -1783,16 +1826,42 @@ const Admin: React.FC = () => {
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                                         <thead>
                                             <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                                                <th style={thStyle}>Username</th>
-                                                <th style={{ ...thStyle, textAlign: 'right' }}>Days Since Joining</th>
-                                                <th style={thStyle}>Subscription Status</th>
-                                                <th style={{ ...thStyle, textAlign: 'right' }}>Days Viewed</th>
-                                                <th style={{ ...thStyle, textAlign: 'right' }}>Portfolio Checks</th>
-                                                <th style={{ ...thStyle, textAlign: 'right' }}>Distinct Portfolios Viewed</th>
+                                                {engagementColumns.map(col => (
+                                                    <th key={col.key} scope="col"
+                                                        aria-sort={engagementSort.key === col.key ? (engagementSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                                                        style={{ ...thStyle, textAlign: col.numeric ? 'right' : 'left', whiteSpace: 'nowrap' }}>
+                                                        <button type="button" onClick={() => {
+                                                            setEngagementSort(prev => ({
+                                                                key: col.key,
+                                                                dir: prev.key === col.key ? (prev.dir === 'asc' ? 'desc' : 'asc') : (col.numeric ? 'desc' : 'asc'),
+                                                            }));
+                                                            setEngagementPage(0);
+                                                        }} style={{ background: 'none', border: 0, padding: 0, color: 'inherit', font: 'inherit', cursor: 'pointer', textTransform: 'inherit', letterSpacing: 'inherit' }}>
+                                                            {col.label}{engagementSort.key === col.key ? (engagementSort.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
+                                                        </button>
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                            <tr>
+                                                {engagementColumns.map(col => (
+                                                    <th key={col.key} style={{ ...thStyle, paddingTop: 0 }}>
+                                                        <input type={col.numeric ? 'number' : 'text'} min={col.numeric ? 0 : undefined} step={col.numeric ? 1 : undefined}
+                                                            aria-label={`Filter ${col.label}`} placeholder={col.numeric ? 'Exact' : 'Filter'}
+                                                            value={engagementFilters[col.key] ?? ''}
+                                                            onChange={e => {
+                                                                setEngagementFilters(prev => ({ ...prev, [col.key]: e.target.value }));
+                                                                setEngagementPage(0);
+                                                            }}
+                                                            style={{ width: '100%', minWidth: col.numeric ? 85 : 115, boxSizing: 'border-box', padding: '0.35rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.8rem' }} />
+                                                    </th>
+                                                ))}
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {engagementRows.map(row => (
+                                            {pagedEngagementRows.length === 0 && (
+                                                <tr><td colSpan={engagementColumns.length} style={{ ...tdStyle, textAlign: 'center' }}>No matching users.</td></tr>
+                                            )}
+                                            {pagedEngagementRows.map(row => (
                                                 <tr key={row.userId} style={{ borderBottom: '1px solid var(--border)' }}>
                                                     <td style={tdStyle}>{row.username}</td>
                                                     <td style={{ ...tdStyle, textAlign: 'right' }}>{row.daysSinceJoined ?? '—'}</td>
@@ -1804,6 +1873,15 @@ const Admin: React.FC = () => {
                                             ))}
                                         </tbody>
                                     </table>
+                                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.75rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+                                        <button type="button" onClick={() => setEngagementPage(p => Math.max(0, p - 1))} disabled={currentEngagementPage === 0}
+                                            style={{ padding: '0.35rem 0.75rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', cursor: currentEngagementPage === 0 ? 'default' : 'pointer', opacity: currentEngagementPage === 0 ? 0.4 : 1 }}>Previous</button>
+                                        <span style={{ color: 'var(--text-gray)', fontSize: '0.85rem' }}>
+                                            Page {currentEngagementPage + 1} of {engagementPageCount} · {currentEngagementPage * ENGAGEMENT_PAGE_SIZE + 1}–{Math.min((currentEngagementPage + 1) * ENGAGEMENT_PAGE_SIZE, sortedEngagementRows.length)} of {sortedEngagementRows.length}
+                                        </span>
+                                        <button type="button" onClick={() => setEngagementPage(p => Math.min(engagementPageCount - 1, p + 1))} disabled={currentEngagementPage === engagementPageCount - 1}
+                                            style={{ padding: '0.35rem 0.75rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', cursor: currentEngagementPage === engagementPageCount - 1 ? 'default' : 'pointer', opacity: currentEngagementPage === engagementPageCount - 1 ? 0.4 : 1 }}>Next</button>
+                                    </div>
                                 </div>
                             )}
                         </>
