@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.springhi.user.security.JwtService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -35,7 +34,7 @@ public class AuthService {
     private final PasswordResetTokenRepository resetTokenRepository;
     private final UserEmailHistoryRepository emailHistoryRepository;
     private final UserPhoneHistoryRepository phoneHistoryRepository;
-    private final JavaMailSender mailSender;
+    private final SendGridEmailService emailService;
     private final TelnyxService telnyxService;
     private final ReferralService referralService;
     private final AdService adService;
@@ -56,7 +55,7 @@ public class AuthService {
                        PasswordResetTokenRepository resetTokenRepository,
                        UserEmailHistoryRepository emailHistoryRepository,
                        UserPhoneHistoryRepository phoneHistoryRepository,
-                       JavaMailSender mailSender,
+                       SendGridEmailService emailService,
                        TelnyxService telnyxService,
                        ReferralService referralService,
                        AdService adService,
@@ -68,7 +67,7 @@ public class AuthService {
         this.resetTokenRepository = resetTokenRepository;
         this.emailHistoryRepository = emailHistoryRepository;
         this.phoneHistoryRepository = phoneHistoryRepository;
-        this.mailSender = mailSender;
+        this.emailService = emailService;
         this.telnyxService = telnyxService;
         this.referralService = referralService;
         this.adService = adService;
@@ -220,7 +219,7 @@ public class AuthService {
                 "This code expires in " + resetCodeExpiryMinutes + " minutes.\n\n" +
                 "If you did not request this, please ignore this email."
         );
-        mailSender.send(message);
+        emailService.send(message);
 
         return new AuthResponse(jwtService.generateToken(user));
     }
@@ -278,7 +277,7 @@ public class AuthService {
                 "This code expires in " + resetCodeExpiryMinutes + " minutes.\n\n" +
                 "If you did not request a password reset, please ignore this email."
         );
-        mailSender.send(message);
+        emailService.send(message);
     }
 
     @Transactional

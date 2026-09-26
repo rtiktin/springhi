@@ -5,6 +5,13 @@ set JAVA_HOME=C:\Program Files\Java\jdk-25.0.2
 set PATH=%JAVA_HOME%\bin;%PATH%
 set ROOT=C:\Users\rosst\IdeaProjects\demo-web
 
+if exist "%~dp0local_environment.bat" (
+    call "%~dp0local_environment.bat"
+    if errorlevel 1 goto :error
+)
+call "%~dp0environment.bat"
+if errorlevel 1 goto :error
+
 echo ============================================
 echo  SpringHi.ai - Starting All Services
 echo ============================================
@@ -63,7 +70,7 @@ goto :end
 
 :error
 echo.
-echo Startup aborted due to build error.
+echo Startup aborted due to configuration or build error.
 exit /b 1
 
 :end

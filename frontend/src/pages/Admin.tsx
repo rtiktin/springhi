@@ -1802,8 +1802,8 @@ const Admin: React.FC = () => {
                                     Leaderboard click engagement per user. Days Viewed counts distinct calendar days with ≥1 portfolio click (multiple clicks or portfolios in a day still count as 1 day). Portfolio Checks is the total number of clicks. Distinct Portfolios is how many different portfolios the user opened.
                                 </p>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                                    <button type="button" onClick={() => { setEngagementFilters({}); setEngagementPage(0); }}
-                                        disabled={!Object.values(engagementFilters).some(Boolean)}
+                                    <button type="button" onClick={() => { setEngagementFilters({}); setEngagementComparisons({}); setEngagementPage(0); }}
+                                        disabled={!Object.values(engagementFilters).some(Boolean) && !Object.values(engagementComparisons).some(value => value && value !== 'eq')}
                                         style={{ padding: '0.4rem 0.75rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem' }}>Clear filters</button>
                                     <button
                                         onClick={loadEngagement}
@@ -1845,14 +1845,28 @@ const Admin: React.FC = () => {
                                             <tr>
                                                 {engagementColumns.map(col => (
                                                     <th key={col.key} style={{ ...thStyle, paddingTop: 0 }}>
-                                                        <input type={col.numeric ? 'number' : 'text'} min={col.numeric ? 0 : undefined} step={col.numeric ? 1 : undefined}
-                                                            aria-label={`Filter ${col.label}`} placeholder={col.numeric ? 'Exact' : 'Filter'}
-                                                            value={engagementFilters[col.key] ?? ''}
-                                                            onChange={e => {
-                                                                setEngagementFilters(prev => ({ ...prev, [col.key]: e.target.value }));
-                                                                setEngagementPage(0);
-                                                            }}
-                                                            style={{ width: '100%', minWidth: col.numeric ? 85 : 115, boxSizing: 'border-box', padding: '0.35rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.8rem' }} />
+                                                        <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                                            {col.numeric && (
+                                                                <select aria-label={`${col.label} comparison`} value={engagementComparisons[col.key] ?? 'eq'}
+                                                                    onChange={e => {
+                                                                        setEngagementComparisons(prev => ({ ...prev, [col.key]: e.target.value as EngagementComparison }));
+                                                                        setEngagementPage(0);
+                                                                    }}
+                                                                    style={{ padding: '0.35rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.8rem' }}>
+                                                                    <option value="eq">Equal to</option>
+                                                                    <option value="lt">Less than</option>
+                                                                    <option value="gt">Greater than</option>
+                                                                </select>
+                                                            )}
+                                                            <input type={col.numeric ? 'number' : 'text'} min={col.numeric ? 0 : undefined} step={col.numeric ? 1 : undefined}
+                                                                aria-label={`Filter ${col.label}`} placeholder={col.numeric ? 'Number' : 'Filter'}
+                                                                value={engagementFilters[col.key] ?? ''}
+                                                                onChange={e => {
+                                                                    setEngagementFilters(prev => ({ ...prev, [col.key]: e.target.value }));
+                                                                    setEngagementPage(0);
+                                                                }}
+                                                                style={{ width: '100%', minWidth: col.numeric ? 85 : 115, boxSizing: 'border-box', padding: '0.35rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: '0.8rem' }} />
+                                                        </div>
                                                     </th>
                                                 ))}
                                             </tr>

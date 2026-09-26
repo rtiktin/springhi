@@ -186,15 +186,20 @@ public class AlpacaService {
         return Optional.ofNullable(response.get(symbol));
     }
 
+    private static String alpacaStockSymbol(String symbol) {
+        return "BRK-B".equalsIgnoreCase(symbol) ? "BRK.B" : symbol;
+    }
+
     public Map<LocalDate, BigDecimal> fetchHistoricalDailyCloses(String symbol, LocalDate start, LocalDate end) {
         Map<LocalDate, BigDecimal> result = new LinkedHashMap<>();
         try {
+            String alpacaSymbol = alpacaStockSymbol(symbol);
             String startStr = start.format(DateTimeFormatter.ISO_LOCAL_DATE);
             String endStr = end.format(DateTimeFormatter.ISO_LOCAL_DATE);
             JsonNode response = webClient.get()
                     .uri(uriBuilder -> uriBuilder
                             .path("/v2/stocks/bars")
-                            .queryParam("symbols", symbol)
+                            .queryParam("symbols", alpacaSymbol)
                             .queryParam("timeframe", "1Day")
                             .queryParam("start", startStr)
                             .queryParam("end", endStr)
@@ -209,7 +214,7 @@ public class AlpacaService {
                     .bodyToMono(JsonNode.class)
                     .block();
             if (response == null) return result;
-            JsonNode bars = response.path("bars").path(symbol);
+            JsonNode bars = response.path("bars").path(alpacaSymbol);
             if (bars.isArray()) {
                 for (JsonNode bar : bars) {
                     String t = bar.path("t").asText(null);
@@ -285,7 +290,7 @@ public class AlpacaService {
 
     public Map<String, AlpacaSnapshotResponse.Snapshot> fetchSnapshots(List<String> symbols) {
         if (symbols == null || symbols.isEmpty()) return Map.of();
-        String joined = String.join(",", symbols);
+        String joined = symbols.stream().map(AlpacaService::alpacaStockSymbol).distinct().collect(Collectors.joining(","));
         try {
             Map<String, AlpacaSnapshotResponse.Snapshot> response = webClient.get()
                     .uri(uriBuilder -> uriBuilder
@@ -298,7 +303,13 @@ public class AlpacaService {
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, AlpacaSnapshotResponse.Snapshot>>() {})
                     .block();
-            return response != null ? response : Map.of();
+            if (response == null) return Map.of();
+            Map<String, AlpacaSnapshotResponse.Snapshot> result = new LinkedHashMap<>();
+            for (String symbol : symbols) {
+                AlpacaSnapshotResponse.Snapshot snapshot = response.get(alpacaStockSymbol(symbol));
+                if (snapshot != null) result.put(symbol, snapshot);
+            }
+            return result;
         } catch (Exception e) {
             log.error("Failed to fetch Alpaca snapshots for [{}]: {}", joined, e.getMessage());
             return Map.of();
