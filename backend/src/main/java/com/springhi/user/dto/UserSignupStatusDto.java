@@ -5,5 +5,6 @@ public record UserSignupStatusDto(
         String createdAt,
         String planName,
         String status,
-        boolean subscribed
+        boolean subscribed,
+        boolean phoneVerified
 ) {}

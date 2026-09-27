@@ -6,6 +6,7 @@ import com.springhi.user.dto.ProfileResponse;
 import com.springhi.user.dto.UserSignupStatusDto;
 import com.springhi.user.model.User;
 import com.springhi.user.model.UserSubscription;
+import com.springhi.user.repository.UserPhoneHistoryRepository;
 import com.springhi.user.repository.UserRepository;
 import com.springhi.user.repository.UserSubscriptionRepository;
 import com.springhi.user.security.JwtService;
@@ -16,8 +17,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -30,13 +33,15 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final UserSubscriptionRepository subscriptionRepository;
+    private final UserPhoneHistoryRepository phoneHistoryRepository;
 
     public UserService(UserRepository repository, PasswordEncoder passwordEncoder, JwtService jwtService,
-                       UserSubscriptionRepository subscriptionRepository) {
+                       UserSubscriptionRepository subscriptionRepository, UserPhoneHistoryRepository phoneHistoryRepository) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.subscriptionRepository = subscriptionRepository;
+        this.phoneHistoryRepository = phoneHistoryRepository;
     }
 
     public Map<Long, String> getDisplayNames(List<Long> ids) {
@@ -51,6 +56,35 @@ public class UserService {
         if (caller.getUserType() != 10 && (ids.size() != 1 || !ids.get(0).equals(caller.getId()))) {
             throw new org.springframework.security.access.AccessDeniedException("Not authorized to view other users' subscription status.");
         }
+        return signupStatuses(ids);
+    }
+
+    public Map<Long, UserSignupStatusDto> getLinkedPhoneSignupStatuses(String requester) {
+        User caller = repository.findByUsername(requester)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + requester));
+        Set<String> numbers = new HashSet<>();
+        addPhoneNumbers(numbers, caller.getPhone());
+        phoneHistoryRepository.findByUserId(caller.getId())
+                .forEach(history -> addPhoneNumbers(numbers, history.getPhone()));
+        if (numbers.isEmpty()) return Map.of();
+
+        Set<Long> linkedIds = new HashSet<>(repository.findIdsByPhoneDigitsIn(numbers));
+        linkedIds.addAll(phoneHistoryRepository.findUserIdsByPhoneDigitsIn(numbers));
+        linkedIds.remove(caller.getId());
+        if (linkedIds.isEmpty()) return Map.of();
+        return signupStatuses(List.copyOf(linkedIds));
+    }
+
+    private static void addPhoneNumbers(Set<String> numbers, String phone) {
+        if (phone == null) return;
+        String digits = phone.replaceAll("[^0-9]", "");
+        if (digits.length() < 10) return;
+        numbers.add(digits);
+        if (digits.length() == 10) numbers.add("1" + digits);
+        else if (digits.length() == 11 && digits.startsWith("1")) numbers.add(digits.substring(1));
+    }
+
+    private Map<Long, UserSignupStatusDto> signupStatuses(List<Long> ids) {
         List<User> users = repository.findAllById(ids);
         Map<Long, UserSubscription> subByUserId = subscriptionRepository.findByUserIdIn(
                 users.stream().map(User::getId).toList()
@@ -62,7 +96,8 @@ public class UserService {
             String status = sub != null ? sub.getStatus() : "NONE";
             boolean subscribed = sub != null && "ACTIVE".equalsIgnoreCase(sub.getStatus()) && !"FREE".equalsIgnoreCase(sub.getPlanName());
             String createdAt = user.getCreatedAt() != null ? user.getCreatedAt().toString() : null;
-            result.put(user.getId(), new UserSignupStatusDto(user.getId(), createdAt, planName, status, subscribed));
+            result.put(user.getId(), new UserSignupStatusDto(user.getId(), createdAt, planName, status, subscribed,
+                    user.getPhone() != null && !user.getPhone().isBlank() && user.isPhoneVerified()));
         }
         return result;
     }
@@ -108,10 +143,12 @@ public class UserService {
             }
         }
 
+        if (!Objects.equals(user.getPhone(), request.getPhone())) {
+            throw new RuntimeException("Use cell phone verification to change your number.");
+        }
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
         user.setBio(request.getBio());
-        user.setPhone(request.getPhone());
         user.setAddressLine1(request.getAddressLine1());
         user.setAddressLine2(request.getAddressLine2());
         user.setCity(request.getCity());

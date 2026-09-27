@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { getLoggedInUsername, isAdmin, isEmailVerified, isPhoneVerified } from '../utils/auth';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 import { getAccountProfile, updateAccountProfile, sendEmailVerification, verifyEmail, sendPhoneVerification, verifyPhone } from '../api/accountApi';
@@ -59,6 +59,7 @@ function validateForm(form: AccountProfile): FieldErrors {
 
 const AccountMaintenance: React.FC = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const username = getLoggedInUsername();
     const [form, setForm] = useState<AccountProfile>(empty);
     const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -86,7 +87,13 @@ const AccountMaintenance: React.FC = () => {
     useEffect(() => {
         getOrCreateDefaultPortfolio().then(p => setDefaultPortfolioId(p.id)).catch(() => {});
         getAccountProfile()
-            .then(data => setForm(data))
+            .then(data => {
+                setForm(data);
+                if (new URLSearchParams(location.search).has('verifyPhone')) {
+                    setUpdateNewPhone(data.phone?.replace(/^\+1/, '') ?? '');
+                    setUpdatePhoneStep('enter-phone');
+                }
+            })
             .catch((err) => {
                 console.error('Failed to load account details:', err?.response?.status, err?.response?.data, err?.message);
                 const status = err?.response?.status;
@@ -97,7 +104,7 @@ const AccountMaintenance: React.FC = () => {
                 }
             })
             .finally(() => setLoading(false));
-    }, []);
+    }, [location.search]);
 
     const set = (field: keyof AccountProfile, value: string) => {
         setForm(prev => ({ ...prev, [field]: value }));
@@ -299,20 +306,18 @@ const AccountMaintenance: React.FC = () => {
                             <label className="form-label">Cell Phone Number</label>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                 <span className="acct-readonly-value">{form.phone ?? '—'}</span>
-                                {isPhoneVerified() && (
-                                    <button
-                                        className="btn-primary"
-                                        style={{ fontSize: '0.82rem', padding: '0.35rem 0.9rem' }}
-                                        onClick={() => {
-                                            setUpdateNewPhone('');
-                                            setUpdatePhoneCode('');
-                                            setUpdatePhoneError('');
-                                            setUpdatePhoneStep('enter-phone');
-                                        }}
-                                    >
-                                        Update Cell Phone Number
-                                    </button>
-                                )}
+                                <button
+                                    className="btn-primary"
+                                    style={{ fontSize: '0.82rem', padding: '0.35rem 0.9rem' }}
+                                    onClick={() => {
+                                        setUpdateNewPhone(isPhoneVerified() ? '' : (form.phone?.replace(/^\+1/, '') ?? ''));
+                                        setUpdatePhoneCode('');
+                                        setUpdatePhoneError('');
+                                        setUpdatePhoneStep('enter-phone');
+                                    }}
+                                >
+                                    {isPhoneVerified() ? 'Update Cell Phone Number' : 'Add or verify cell phone'}
+                                </button>
                             </div>
                         </div>
                     </div>

@@ -22,4 +22,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByCreatedAtBetween(LocalDateTime from, LocalDateTime to);
     List<User> findByEmailIn(java.util.Collection<String> emails);
     List<User> findByPhoneIn(java.util.Collection<String> phones);
+
+    @Query(value = "SELECT DISTINCT id FROM springhi.users WHERE regexp_replace(phone, '[^0-9]', '', 'g') IN (:numbers)", nativeQuery = true)
+    List<Long> findIdsByPhoneDigitsIn(@Param("numbers") java.util.Collection<String> numbers);
 }

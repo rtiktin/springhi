@@ -348,6 +348,9 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                             const pageTs = aiRunTimestamps.slice(aiRunsPage * AI_RUNS_PAGE_SIZE, (aiRunsPage + 1) * AI_RUNS_PAGE_SIZE);
                             return (
                                 <>
+                                    <div style={{ textAlign: 'right', color: 'var(--text-gray)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
+                                        Click the icon below to see the optimizations
+                                    </div>
                                     {pageTs.map(ts => {
                                         const details = expandedRunDetails[ts];
                                         const isLoading = expandedRunLoading[ts];
@@ -618,7 +621,7 @@ interface LeaderboardTableProps {
 const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, showUser, rangeLabel, goal }) => {
     const currentUsername = getLoggedInUsername();
     const [selectedEntry, setSelectedEntry] = useState<LeaderboardEntry | null>(null);
-    const [subscribePrompt, setSubscribePrompt] = useState(false);
+    const [subscribePrompt, setSubscribePrompt] = useState<'OWN_LIMIT' | 'LINKED_FREE_USER_LIMIT' | 'PHONE_VERIFICATION_REQUIRED' | null>(null);
     const [openingId, setOpeningId] = useState<number | null>(null);
     const [openError, setOpenError] = useState('');
 
@@ -628,7 +631,7 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
         setOpenError('');
         try {
             const gate = await recordLeaderboardPortfolioClick(entry.portfolioId);
-            if (gate.forceSubscribe) setSubscribePrompt(true);
+            if (gate.forceSubscribe) setSubscribePrompt(gate.reason ?? 'OWN_LIMIT');
             else setSelectedEntry(entry);
         } catch {
             setOpenError('Unable to open this portfolio right now. Please try again.');
@@ -781,16 +784,22 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
         {openError && <div className="error-msg" role="alert">{openError}</div>}
 
         {subscribePrompt && (
-            <div className="modal-overlay" onClick={() => setSubscribePrompt(false)}>
+            <div className="modal-overlay" onClick={() => setSubscribePrompt(null)}>
                 <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 430, width: '95%' }}>
                     <div className="modal-header">
-                        <h2>Subscribe to continue</h2>
-                        <button className="modal-close" onClick={() => setSubscribePrompt(false)}>✕</button>
+                        <h2>{subscribePrompt === 'PHONE_VERIFICATION_REQUIRED' ? 'Verify your cell phone' : 'Subscribe to continue'}</h2>
+                        <button className="modal-close" onClick={() => setSubscribePrompt(null)}>✕</button>
                     </div>
                     <p style={{ color: 'var(--text-gray)', marginBottom: '1.5rem' }}>
-                        Your free leaderboard portfolio viewing period has ended. Subscribe to keep exploring portfolios.
+                        {subscribePrompt === 'PHONE_VERIFICATION_REQUIRED'
+                            ? 'Add and verify your cell phone number to view leaderboard portfolios.'
+                            : subscribePrompt === 'LINKED_FREE_USER_LIMIT'
+                                ? 'You already reached the free leaderboard portfolio viewing limits as another free user. Subscribe to keep exploring portfolios.'
+                                : 'Your free leaderboard portfolio viewing period has ended. Subscribe to keep exploring portfolios.'}
                     </p>
-                    <Link to="/subscription" className="btn-primary-full" style={{ display: 'inline-block', textDecoration: 'none', textAlign: 'center' }}>View subscriptions</Link>
+                    {subscribePrompt === 'PHONE_VERIFICATION_REQUIRED'
+                        ? <Link to="/account?verifyPhone=1" className="btn-primary-full" style={{ display: 'inline-block', textDecoration: 'none', textAlign: 'center' }}>Add and verify cell phone</Link>
+                        : <Link to="/subscription" className="btn-primary-full" style={{ display: 'inline-block', textDecoration: 'none', textAlign: 'center' }}>View subscriptions</Link>}
                 </div>
             </div>
         )}

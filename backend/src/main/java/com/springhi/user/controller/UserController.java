@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +24,9 @@ public class UserController {
 
     private final UserService userService;
     private final AuthService authService;
+
+    @Value("${app.internal.secret:dev-internal-secret-change-me}")
+    private String internalSecret;
 
     public UserController(UserService userService, AuthService authService) {
         this.userService = userService;
@@ -52,6 +56,16 @@ public class UserController {
         } catch (org.springframework.security.access.AccessDeniedException e) {
             return ResponseEntity.status(403).build();
         }
+    }
+
+    @GetMapping("/linked-phone-signup-statuses")
+    public ResponseEntity<Map<Long, UserSignupStatusDto>> getLinkedPhoneSignupStatuses(
+            @RequestHeader(value = "X-Internal-Secret", required = false) String secret,
+            Principal principal) {
+        if (principal == null || secret == null || !secret.equals(internalSecret)) {
+            return ResponseEntity.status(403).build();
+        }
+        return ResponseEntity.ok(userService.getLinkedPhoneSignupStatuses(principal.getName()));
     }
 
     @GetMapping("/profile")

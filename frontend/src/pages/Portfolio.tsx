@@ -859,6 +859,9 @@ const Portfolio: React.FC = () => {
                                         n != null ? `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
                                     return (
                                         <>
+                                            <div style={{ textAlign: 'right', color: 'var(--text-gray)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
+                                                Click the icon below to see the optimizations
+                                            </div>
                                             {pageTs.map(ts => {
                                                 const details = expandedRunDetails[ts];
                                                 const isLoading = expandedRunLoading[ts];

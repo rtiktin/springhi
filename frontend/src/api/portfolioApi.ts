@@ -300,7 +300,7 @@ export interface SubscribePromptConfig {
     daysViewed: number;
 }
 
-export const recordLeaderboardPortfolioClick = async (portfolioId: number): Promise<{ forceSubscribe: boolean }> => {
+export const recordLeaderboardPortfolioClick = async (portfolioId: number): Promise<{ forceSubscribe: boolean; reason: 'OWN_LIMIT' | 'LINKED_FREE_USER_LIMIT' | 'PHONE_VERIFICATION_REQUIRED' | null }> => {
     const response = await axios.post(`${API_GATEWAY}/api/v1/leaderboard/portfolio/${portfolioId}/click`, {}, { headers: authHeader() });
     return response.data;
 };

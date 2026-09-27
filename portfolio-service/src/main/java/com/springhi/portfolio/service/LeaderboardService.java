@@ -140,7 +140,8 @@ public class LeaderboardService {
         click.setPortfolioId(portfolioId);
         click.setClickedAt(LocalDateTime.now());
         clickRepository.save(click);
-        return new SubscribePromptGateDto(shouldPrompt(userId, user, admin));
+        String reason = promptReason(userId, user, jwtToken, admin);
+        return new SubscribePromptGateDto(reason != null, reason);
     }
 
     public boolean shouldPrompt(Long userId, String jwtToken, boolean admin) {
@@ -149,12 +150,25 @@ public class LeaderboardService {
         if (user == null || user.createdAt() == null) {
             throw new IllegalStateException("Unable to verify subscription status.");
         }
-        return shouldPrompt(userId, user, false);
+        return promptReason(userId, user, jwtToken, false) != null;
     }
 
-    private boolean shouldPrompt(Long userId, UserSignupStatusDto user, boolean admin) {
-        if (admin || user.subscribed()) return false;
+    private String promptReason(Long userId, UserSignupStatusDto user, String jwtToken, boolean admin) {
+        if (admin || user.subscribed()) return null;
+        if (!user.phoneVerified()) {
+            return clickRepository.countDistinctClickDaysByUser(userId) >= 2
+                    ? "PHONE_VERIFICATION_REQUIRED" : null;
+        }
         SubscribePromptConfigDto config = getSubscribePromptConfig();
+        if (reachedThreshold(userId, user, config)) return "OWN_LIMIT";
+        return userServiceClient.getLinkedPhoneSignupStatuses(jwtToken).values().stream()
+                .filter(linked -> linked != null && !userId.equals(linked.userId()) && !linked.subscribed())
+                .anyMatch(linked -> reachedThreshold(linked.userId(), linked, config))
+                ? "LINKED_FREE_USER_LIMIT" : null;
+    }
+
+    private boolean reachedThreshold(Long userId, UserSignupStatusDto user, SubscribePromptConfigDto config) {
+        if (user.createdAt() == null) return false;
         long daysSinceJoined = Math.max(0, ChronoUnit.DAYS.between(LocalDate.parse(user.createdAt().substring(0, 10)), LocalDate.now()));
         return daysSinceJoined >= config.daysSinceJoined()
                 && clickRepository.countDistinctClickDaysByUser(userId) > config.daysViewed();

@@ -57,6 +57,17 @@ public class UserServiceClient {
         return result != null ? result : Collections.emptyMap();
     }
 
+    public Map<Long, UserSignupStatusDto> getLinkedPhoneSignupStatuses(String jwtToken) {
+        Map<Long, UserSignupStatusDto> result = webClient.get()
+                .uri("/api/v1/users/linked-phone-signup-statuses")
+                .header("Authorization", jwtToken == null ? "" : jwtToken)
+                .header("X-Internal-Secret", internalSecret)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<Map<Long, UserSignupStatusDto>>() {})
+                .block();
+        return result != null ? result : Collections.emptyMap();
+    }
+
     public Map<Long, String> getDisplayNames(List<Long> ids, String jwtToken) {
         if (ids == null || ids.isEmpty()) return Collections.emptyMap();
         String idsParam = ids.stream().map(String::valueOf).reduce((a, b) -> a + "," + b).orElse("");
