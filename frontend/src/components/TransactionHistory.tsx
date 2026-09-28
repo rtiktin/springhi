@@ -143,6 +143,7 @@ const TransactionHistory: React.FC<Props> = ({ portfolioId }) => {
                                                 if (p === 'claude') return 'Claude';
                                                 if (p === 'chatgpt') return 'ChatGPT';
                                                 if (p === 'gemini') return 'Gemini';
+                                                if (p === 'grok') return 'Grok';
                                                 return 'AI';
                                             })()}
                                         </button>
@@ -173,7 +174,7 @@ const TransactionHistory: React.FC<Props> = ({ portfolioId }) => {
                                 const provider = aiRunModal.details.recommendations[0]?.aiProvider;
                                 if (!provider) return null;
                                 const p = provider.toLowerCase();
-                                const label = p === 'claude' ? 'Claude' : p === 'chatgpt' ? 'ChatGPT' : 'Gemini';
+                                const label = p === 'claude' ? 'Claude' : p === 'chatgpt' ? 'ChatGPT' : p === 'gemini' ? 'Gemini' : p === 'grok' ? 'Grok' : 'AI';
                                 return <span style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 4, padding: '0.1rem 0.5rem', fontSize: '0.8rem', color: 'var(--accent)', fontWeight: 600 }}>via {label}</span>;
                             })()}
                             {aiRunModal.details.scheduleFrequency && (
