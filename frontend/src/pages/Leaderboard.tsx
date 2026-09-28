@@ -183,6 +183,7 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                     const twrStart = fmtTwrDate(entry.twrStartDate);
                     const twrEnd = fmtTwrDate(entry.twrEndDate);
                     const twrPeriod = twrStart && twrEnd ? `${twrStart} – ${twrEnd}` : null;
+                    const spyReturn = entry.marginVsSpy != null ? entry.twrPercent - entry.marginVsSpy : null;
                     return (
                         <div className="portfolio-summary" style={{ flexWrap: 'wrap', marginBottom: '1rem', gap: '0.5rem' }}>
                             <div className={`summary-card ${entry.twrPercent >= 0 ? 'positive' : 'negative'}`}>
@@ -197,6 +198,19 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                                 {twrPeriod && (
                                     <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-gray)', marginTop: '0.3rem' }}>
                                         {twrPeriod}
+                                    </span>
+                                )}
+                            </div>
+                            <div className={`summary-card ${entry.marginVsSpy != null && entry.marginVsSpy >= 0 ? 'positive' : 'negative'}`}>
+                                <span className="summary-label">TWR vs S&amp;P 500 (SPY)</span>
+                                <span className="summary-value" style={{ fontSize: '1.2rem' }}>
+                                    {entry.marginVsSpy != null
+                                        ? `${entry.marginVsSpy >= 0 ? '+' : ''}${entry.marginVsSpy.toFixed(2)}%`
+                                        : '—'}
+                                </span>
+                                {spyReturn != null && (
+                                    <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-gray)', marginTop: '0.3rem' }}>
+                                        SPY: {spyReturn >= 0 ? '+' : ''}{spyReturn.toFixed(2)}%{twrPeriod ? ` · ${twrPeriod}` : ''}
                                     </span>
                                 )}
                             </div>

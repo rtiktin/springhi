@@ -380,6 +380,14 @@ export const getSpyBenchmark = async (): Promise<Record<string, number>> => {
     return response.data;
 };
 
+export const getSpyReturnForPeriod = async (startDate: string, endDate: string): Promise<number | null> => {
+    const response = await axios.get<{ returnPercent?: number }>(`${API_GATEWAY}/api/v1/benchmark/spy/period`, {
+        headers: authHeader(),
+        params: { startDate, endDate },
+    });
+    return response.data.returnPercent ?? null;
+};
+
 export const getMonthlyLeaderboard = async (month: string, goal?: string): Promise<LeaderboardEntry[]> => {
     const response = await axios.get(`${API_GATEWAY}/api/v1/leaderboard/monthly`, {
         headers: authHeader(),

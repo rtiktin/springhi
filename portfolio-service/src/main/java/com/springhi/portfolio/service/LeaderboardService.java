@@ -81,8 +81,7 @@ public class LeaderboardService {
             usernameMap = userServiceClient.getDisplayNames(userIds, jwtToken);
         }
 
-        Double spyReturn = getSpyReturnForRange(range);
-        return buildEntries(filtered, range, usernameMap, !"mine".equalsIgnoreCase(scope), spyReturn, false, goalMap);
+        return buildEntries(filtered, range, usernameMap, !"mine".equalsIgnoreCase(scope), false, goalMap);
     }
 
     public List<LeaderboardEntryDto> getMonthlyLeaderboard(String monthStr, String jwtToken, String goal) {
@@ -102,9 +101,7 @@ public class LeaderboardService {
         long yearsElapsed = java.time.temporal.ChronoUnit.YEARS.between(competitionMonth, today);
         anchor = competitionMonth.plusYears(yearsElapsed);
 
-        Double spyReturn = spyBenchmarkService.getSpyReturn(anchor);
-
-        return buildEntries(filtered, null, usernameMap, true, spyReturn, false, goalMap, anchor, competitionMonth);
+        return buildEntries(filtered, null, usernameMap, true, false, goalMap, anchor, competitionMonth);
     }
 
     public SubscribePromptConfigDto getSubscribePromptConfig() {
@@ -219,25 +216,15 @@ public class LeaderboardService {
                 .collect(Collectors.toList());
     }
 
-    private Double getSpyReturnForRange(String range) {
-        try {
-            Map<String, Double> returns = spyBenchmarkService.getSpyReturns();
-            String key = range != null ? range.toUpperCase() : "ALL";
-            return returns.get(key);
-        } catch (Exception e) {
-            return null;
-        }
+    private List<LeaderboardEntryDto> buildEntries(List<Portfolio> portfolios, String range,
+                                                   Map<Long, String> usernameMap, boolean includeUsername,
+                                                   boolean competitionOnly, Map<Long, String> goalMap) {
+        return buildEntries(portfolios, range, usernameMap, includeUsername, competitionOnly, goalMap, null, null);
     }
 
     private List<LeaderboardEntryDto> buildEntries(List<Portfolio> portfolios, String range,
                                                    Map<Long, String> usernameMap, boolean includeUsername,
-                                                   Double spyReturn, boolean competitionOnly, Map<Long, String> goalMap) {
-        return buildEntries(portfolios, range, usernameMap, includeUsername, spyReturn, competitionOnly, goalMap, null, null);
-    }
-
-    private List<LeaderboardEntryDto> buildEntries(List<Portfolio> portfolios, String range,
-                                                   Map<Long, String> usernameMap, boolean includeUsername,
-                                                   Double spyReturn, boolean competitionOnly, Map<Long, String> goalMap,
+                                                   boolean competitionOnly, Map<Long, String> goalMap,
                                                    LocalDate anchor, LocalDate compMonth) {
         List<LeaderboardEntryDto> entries = new ArrayList<>();
 
@@ -272,6 +259,14 @@ public class LeaderboardService {
                         ? usernameMap.getOrDefault(portfolio.getUserId(), "user-" + portfolio.getUserId())
                         : null;
 
+                Double spyReturn = null;
+                if (twr.startDate() != null && twr.endDate() != null) {
+                    try {
+                        spyReturn = spyBenchmarkService.getSpyReturn(twr.startDate(), twr.endDate());
+                    } catch (Exception e) {
+                        log.warn("Unable to load SPY return for portfolio {}: {}", portfolio.getId(), e.getMessage());
+                    }
+                }
                 Double margin = spyReturn != null ? twr.twrPercent() - spyReturn : null;
                 LocalDate month = compMonth != null ? compMonth : portfolio.getCompetitionMonth();
 

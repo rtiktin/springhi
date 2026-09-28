@@ -59,6 +59,10 @@ spring:
           uri: ${PORTFOLIO_URL:http://localhost:8081}
           predicates:
             - Path=/api/v1/leaderboard/**
+        - id: benchmark-service
+          uri: ${PORTFOLIO_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/benchmark/**
         - id: admin-users
           uri: ${BACKEND_URL:http://localhost:8080}
           predicates:

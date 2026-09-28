@@ -137,6 +137,21 @@ public class SpyBenchmarkService {
         return result;
     }
 
+    public Double getSpyReturn(LocalDate startDate, LocalDate endDate) {
+        Optional<MarketQuote> endOpt = marketQuoteRepository
+                .findTopBySymbolAndQuoteTypeAndTradingDayLessThanEqualOrderByTradingDayDesc(
+                        SPY, QUOTE_TYPE, endDate);
+        Optional<MarketQuote> startOpt = marketQuoteRepository
+                .findTopBySymbolAndQuoteTypeAndTradingDayLessThanEqualOrderByTradingDayDesc(
+                        SPY, QUOTE_TYPE, startDate);
+        if (startOpt.isEmpty() || endOpt.isEmpty()
+                || startOpt.get().getPrice() == null || endOpt.get().getPrice() == null) return null;
+
+        double start = startOpt.get().getPrice().doubleValue();
+        double end = endOpt.get().getPrice().doubleValue();
+        return start > 0 ? (end - start) / start * 100.0 : null;
+    }
+
     public Double getSpyReturn(LocalDate startDate) {
         Optional<MarketQuote> currentOpt = marketQuoteRepository
                 .findTopBySymbolAndQuoteTypeOrderByFetchedAtDesc(SPY, QUOTE_TYPE);

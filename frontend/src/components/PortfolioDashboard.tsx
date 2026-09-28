@@ -4,6 +4,7 @@ import {
     getCashBalance,
     getCompanyName,
     getTwr,
+    getSpyReturnForPeriod,
     getPnlSummary,
 } from '../api/portfolioApi';
 import type { AssetWithPrice, TwrResult, TwrRange, PnlSummary } from '../api/portfolioApi';
@@ -29,14 +30,26 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId, onTradeSuccess }) =>
     const [chartData, setChartData] = useState<QuoteResponse[]>([]);
     const [chartLoading, setChartLoading] = useState(false);
     const [cashBalance, setCashBalance] = useState<number | null>(null);
-    const [twrData, setTwrData] = useState<TwrResult | null>(null);
     const [twrRange, setTwrRange] = useState<TwrRange>('ALL');
-    const [twrLoading, setTwrLoading] = useState(false);
+    const [twrResponse, setTwrResponse] = useState<{ key: string; data: TwrResult | null } | null>(null);
+    const [spyResponse, setSpyResponse] = useState<{ key: string; value: number | null } | null>(null);
+    const twrKey = `${portfolioId}/${twrRange}`;
+    const twrData = twrResponse?.key === twrKey ? twrResponse.data : null;
+    const twrLoading = twrResponse?.key !== twrKey;
+    const spyReturn = spyResponse?.key === twrKey ? spyResponse.value : null;
+    const spyLoading = twrData != null && twrData.snapshotCount >= 2 && spyResponse?.key !== twrKey;
     const [pnl, setPnl] = useState<PnlSummary | null>(null);
 
+    const selectHolding = (holding: AssetWithPrice) => {
+        setSelectedHolding(holding);
+        setChartLoading(true);
+        getPriceHistory(holding.symbol)
+            .then(setChartData)
+            .catch(() => setChartData([]))
+            .finally(() => setChartLoading(false));
+    };
+
     useEffect(() => {
-        setLoading(true);
-        setError('');
         getHoldings(portfolioId)
             .then(data => {
                 setHoldings(data);
@@ -55,21 +68,21 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId, onTradeSuccess }) =>
     }, [portfolioId]);
 
     useEffect(() => {
-        setTwrLoading(true);
+        let active = true;
+        const key = `${portfolioId}/${twrRange}`;
         getTwr(portfolioId, twrRange)
-            .then(setTwrData)
-            .catch(() => setTwrData(null))
-            .finally(() => setTwrLoading(false));
+            .then(result => {
+                if (!active) return;
+                setTwrResponse({ key, data: result });
+                if (result.snapshotCount >= 2 && result.startDate && result.endDate) {
+                    getSpyReturnForPeriod(result.startDate, result.endDate)
+                        .then(value => { if (active) setSpyResponse({ key, value }); })
+                        .catch(() => { if (active) setSpyResponse({ key, value: null }); });
+                }
+            })
+            .catch(() => { if (active) setTwrResponse({ key, data: null }); });
+        return () => { active = false; };
     }, [portfolioId, twrRange]);
-
-    const selectHolding = (holding: AssetWithPrice) => {
-        setSelectedHolding(holding);
-        setChartLoading(true);
-        getPriceHistory(holding.symbol)
-            .then(setChartData)
-            .catch(() => setChartData([]))
-            .finally(() => setChartLoading(false));
-    };
 
     useEffect(() => {
         if (!selectedHolding) return;
@@ -173,7 +186,20 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId, onTradeSuccess }) =>
                             {twrData.startDate} → {twrData.endDate}
                         </span>
                     )}
-
+                </div>
+                <div className={`summary-card ${twrData && spyReturn != null && twrData.twrPercent - spyReturn >= 0 ? 'positive' : 'negative'}`}
+                    style={{ minWidth: 'max-content' }}>
+                    <span className="summary-label">TWR vs S&amp;P 500 (SPY)</span>
+                    <span className="summary-value" style={{ fontSize: '1.2rem' }}>
+                        {twrLoading || spyLoading ? '…' : twrData && twrData.snapshotCount >= 2 && spyReturn != null
+                            ? `${twrData.twrPercent - spyReturn >= 0 ? '+' : ''}${(twrData.twrPercent - spyReturn).toFixed(2)}%`
+                            : '—'}
+                    </span>
+                    {spyReturn != null && twrData && twrData.snapshotCount >= 2 && (
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-gray)' }}>
+                            SPY: {spyReturn >= 0 ? '+' : ''}{spyReturn.toFixed(2)}% · {twrData.startDate} → {twrData.endDate}
+                        </span>
+                    )}
                 </div>
             </div>
 
