@@ -6,6 +6,7 @@ import com.springhi.user.dto.AdminUserDto;
 import com.springhi.user.model.PaymentMethod;
 import com.springhi.user.model.SubscriptionConfig;
 import com.springhi.user.model.User;
+import com.springhi.user.model.UserSubscription;
 import com.springhi.user.model.UserIpAddress;
 import com.springhi.user.repository.PaymentHistoryRepository;
 import com.springhi.user.repository.PaymentMethodRepository;
@@ -108,6 +109,32 @@ public class AdminController {
                 .map(u -> AdminUserDto.from(u, planByUser.getOrDefault(u.getId(), "FREE")))
                 .collect(Collectors.toList());
         return ResponseEntity.ok(dtos);
+    }
+
+    @GetMapping("/users/inactive-free")
+    public ResponseEntity<List<AdminUserDto>> getInactiveFreeUsers(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(defaultValue = "30") int days) {
+        if (userDetails == null || !isAdmin(userDetails)) {
+            return ResponseEntity.status(403).build();
+        }
+        if (days < 0 || days > 36500) {
+            return ResponseEntity.badRequest().build();
+        }
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(days);
+        Map<Long, UserSubscription> subscriptions = userSubscriptionRepository.findAll().stream()
+                .collect(Collectors.toMap(UserSubscription::getUserId, s -> s, (a, b) -> a));
+        List<AdminUserDto> users = userRepository.findAllByOrderByCreatedAtDesc().stream()
+                .filter(u -> u.getUserType() == 8 && u.getCreatedAt() != null)
+                .filter(u -> {
+                    UserSubscription sub = subscriptions.get(u.getId());
+                    return sub == null || !"ACTIVE".equalsIgnoreCase(sub.getStatus())
+                            || "FREE".equalsIgnoreCase(sub.getPlanName());
+                })
+                .filter(u -> !((u.getLastActiveAt() != null ? u.getLastActiveAt() : u.getCreatedAt()).isAfter(cutoff)))
+                .map(AdminUserDto::from)
+                .toList();
+        return ResponseEntity.ok(users);
     }
 
     @GetMapping("/stats/users")

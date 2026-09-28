@@ -107,6 +107,17 @@ public class LeaderboardController {
         }
     }
 
+    @GetMapping("/admin/optimization-counts")
+    public ResponseEntity<Map<Long, Long>> getOptimizationCounts(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null || !principal.isAdmin()) return ResponseEntity.status(403).build();
+        Map<Long, Long> counts = new java.util.HashMap<>();
+        for (Object[] row : recommendationRepository.countOptimizationRunsByUser()) {
+            counts.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
+        }
+        return ResponseEntity.ok(counts);
+    }
+
     @GetMapping("/engagement")
     public ResponseEntity<List<LeaderboardEngagementDto>> getEngagement(
             @RequestHeader(value = "Authorization", required = false) String authHeader,

@@ -109,7 +109,7 @@ const TYPE_BADGE_COLOR: Record<number, string> = {
     3: '#b91c1c',
 };
 
-type AdminTab = 'users' | 'portfolios' | 'stats' | 'config' | 'support' | 'payments' | 'referrals' | 'stripe' | 'ads' | 'twr' | 'engagement';
+type AdminTab = 'users' | 'portfolios' | 'stats' | 'config' | 'support' | 'payments' | 'referrals' | 'stripe' | 'ads' | 'twr' | 'engagement' | 'mass-email';
 
 interface AdminPaymentHistory {
     id: number;
@@ -665,6 +665,12 @@ const Admin: React.FC = () => {
     const [twrResult, setTwrResult] = useState<TwrResult | null>(null);
     const [twrLoading, setTwrLoading] = useState(false);
     const [twrError, setTwrError] = useState('');
+    const [inactiveDays, setInactiveDays] = useState('30');
+    const [inactiveUsers, setInactiveUsers] = useState<AdminUser[]>([]);
+    const [inactiveEngagement, setInactiveEngagement] = useState<Record<number, number>>({});
+    const [inactiveOptimizations, setInactiveOptimizations] = useState<Record<number, number>>({});
+    const [inactiveLoading, setInactiveLoading] = useState(false);
+    const [inactiveError, setInactiveError] = useState('');
     const [engagementRows, setEngagementRows] = useState<LeaderboardEngagementRow[]>([]);
     const [engagementLoading, setEngagementLoading] = useState(false);
     const [engagementError, setEngagementError] = useState('');
@@ -865,6 +871,8 @@ const Admin: React.FC = () => {
             loadPortfolios();
         } else if (tab === 'engagement') {
             loadEngagement();
+        } else if (tab === 'mass-email') {
+            loadInactiveUsers();
         } else if (tab === 'stats') {
             loadStats(chartOffset);
         } else if (tab === 'config') {
@@ -1159,6 +1167,31 @@ const Admin: React.FC = () => {
         }
     };
 
+    const loadInactiveUsers = async () => {
+        const days = Number(inactiveDays);
+        if (!Number.isInteger(days) || days < 0 || days > 36500 || inactiveDays.trim() === '') {
+            setInactiveError('Enter a whole number of days between 0 and 36500.');
+            return;
+        }
+        setInactiveLoading(true);
+        setInactiveError('');
+        try {
+            const [usersResponse, engagement, countsResponse] = await Promise.all([
+                axios.get<AdminUser[]>(`${API_GATEWAY}/api/v1/admin/users/inactive-free`, { params: { days }, headers: authHeader() }),
+                getLeaderboardEngagement(),
+                axios.get<Record<number, number>>(`${API_GATEWAY}/api/v1/leaderboard/admin/optimization-counts`, { headers: authHeader() }),
+            ]);
+            setInactiveUsers(usersResponse.data);
+            setInactiveEngagement(Object.fromEntries(engagement.map(row => [row.userId, row.daysViewed])));
+            setInactiveOptimizations(countsResponse.data);
+        } catch {
+            setInactiveUsers([]);
+            setInactiveError('Failed to load inactive free users.');
+        } finally {
+            setInactiveLoading(false);
+        }
+    };
+
     const loadEngagement = () => {
         setEngagementLoading(true);
         setEngagementError('');
@@ -1333,6 +1366,7 @@ const Admin: React.FC = () => {
                     <button style={tabStyle('ads')} onClick={() => setTab('ads')}>Ads</button>
                     <button style={tabStyle('twr')} onClick={() => setTab('twr')}>TWR Breakdown</button>
                     <button style={tabStyle('engagement')} onClick={() => setTab('engagement')}>Engagement</button>
+                    <button style={tabStyle('mass-email')} onClick={() => setTab('mass-email')}>Mass Email</button>
                 </div>
 
                 <div style={{ background: 'var(--bg-card)', borderRadius: '0 8px 8px 8px', border: '1px solid var(--border)', borderTop: 'none', padding: '1.5rem' }}>
@@ -1793,6 +1827,40 @@ const Admin: React.FC = () => {
                                 </div>
                             )}
                         </>
+                    )}
+
+                    {tab === 'mass-email' && (
+                        <section>
+                            <h2 style={{ marginTop: 0 }}>Mass Email</h2>
+                            <p style={{ color: 'var(--text-gray)' }}>Review inactive free users. Email sending is not available yet.</p>
+                            <form onSubmit={e => { e.preventDefault(); void loadInactiveUsers(); }} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                                <label htmlFor="inactive-days">Days since last activity</label>
+                                <input id="inactive-days" type="number" min="0" max="36500" step="1" value={inactiveDays} onChange={e => setInactiveDays(e.target.value)}
+                                    style={{ width: 90, padding: '0.4rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }} />
+                                <button type="submit" disabled={inactiveLoading} style={{ padding: '0.4rem 1rem', borderRadius: 6, border: '1px solid var(--border)', background: '#6c47ff', color: '#fff' }}>Search</button>
+                            </form>
+                            {inactiveError && <div role="alert" style={{ color: '#f87171', marginBottom: '1rem' }}>{inactiveError}</div>}
+                            {inactiveLoading ? <div className="portfolio-loading">Loading users…</div> : !inactiveError && <>
+                                <p><strong>{inactiveUsers.length}</strong> users meet the criteria</p>
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                        <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                            {['Username', 'Email Address', 'Optimizations', 'Engagement Days', 'Join Date', 'Last Activity Date'].map(label => <th scope="col" key={label} style={thStyle}>{label}</th>)}
+                                        </tr></thead>
+                                        <tbody>
+                                            {inactiveUsers.map(user => <tr key={user.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                <td style={tdStyle}>{user.username}</td>
+                                                <td style={tdStyle}>{user.email}</td>
+                                                <td style={tdStyle}>{inactiveOptimizations[user.id] ?? 0}</td>
+                                                <td style={tdStyle}>{inactiveEngagement[user.id] ?? 0}</td>
+                                                <td style={tdStyle}>{new Date(user.createdAt).toLocaleDateString()}</td>
+                                                <td style={tdStyle}>{user.lastActiveAt ? new Date(user.lastActiveAt).toLocaleDateString() : 'Never'}</td>
+                                            </tr>)}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>}
+                        </section>
                     )}
 
                     {tab === 'engagement' && (
