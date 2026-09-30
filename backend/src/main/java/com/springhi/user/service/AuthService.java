@@ -44,7 +44,7 @@ public class AuthService {
 
     public record NewAccountCreated(String email) {}
 
-    @Value("${application.mail.from}")
+    @Value("${application.mail.sendgrid.from}")
     private String mailFrom;
 
     @Value("${application.mail.reset-code-expiry-minutes:15}")

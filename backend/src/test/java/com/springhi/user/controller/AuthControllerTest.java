@@ -1,6 +1,8 @@
 package com.springhi.user.controller;
 
 import com.springhi.user.dto.SignupRequest;
+import com.springhi.user.model.User;
+import com.springhi.user.repository.UserIpAddressRepository;
 import com.springhi.user.repository.UserRepository;
 import com.springhi.user.service.AuthService;
 import com.springhi.user.service.GoogleOAuthService;
@@ -38,6 +40,9 @@ public class AuthControllerTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private UserIpAddressRepository userIpAddressRepository;
 
     @Autowired
     private AuthService authService;
@@ -87,6 +92,36 @@ public class AuthControllerTest {
 
         assertEquals(1, events.stream(AuthService.NewAccountCreated.class).count());
         assertEquals(email, events.stream(AuthService.NewAccountCreated.class).findFirst().orElseThrow().email());
+    }
+
+    @Test
+    @Transactional
+    public void testUsersCanShareIpAddress() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        User first = new User();
+        testUsername = "ip_first_" + suffix;
+        first.setUsername(testUsername);
+        first.setEmail("ip_first_" + suffix + "@example.com");
+        first.setPassword("test-password");
+        first = userRepository.saveAndFlush(first);
+
+        User second = new User();
+        second.setUsername("ip_second_" + suffix);
+        second.setEmail("ip_second_" + suffix + "@example.com");
+        second.setPassword("test-password");
+        second = userRepository.saveAndFlush(second);
+
+        String ipAddress = "127.0.0.1";
+        userIpAddressRepository.record(first.getId(), ipAddress);
+        userIpAddressRepository.record(first.getId(), ipAddress);
+        userIpAddressRepository.record(second.getId(), ipAddress);
+
+        var firstEntries = userIpAddressRepository.findByUserIdOrderByLastSeenDesc(first.getId());
+        var secondEntries = userIpAddressRepository.findByUserIdOrderByLastSeenDesc(second.getId());
+        assertEquals(1, firstEntries.size());
+        assertEquals(2, firstEntries.get(0).getRequestCount());
+        assertEquals(1, secondEntries.size());
+        assertEquals(1, secondEntries.get(0).getRequestCount());
     }
 
     @AfterTransaction

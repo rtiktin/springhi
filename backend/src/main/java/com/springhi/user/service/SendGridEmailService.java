@@ -29,7 +29,7 @@ public class SendGridEmailService {
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private final ObjectMapper mapper = new ObjectMapper();
 
-    @Value("${application.mail.from}")
+    @Value("${application.mail.sendgrid.from}")
     private String mailFrom;
 
     public SendGridEmailService(@Value("${application.mail.sendgrid.api-key:}") String apiKey,
