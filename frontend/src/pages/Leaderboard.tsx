@@ -202,7 +202,7 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                                 )}
                             </div>
                             <div className={`summary-card ${entry.marginVsSpy != null && entry.marginVsSpy >= 0 ? 'positive' : 'negative'}`}>
-                                <span className="summary-label">TWR vs S&amp;P 500 (SPY)</span>
+                                <span className="summary-label" style={{ borderBottom: '1px dotted var(--text-gray)', display: 'block', marginBottom: '0.35rem' }}>TWR vs S&amp;P 500 (SPY)</span>
                                 <span className="summary-value" style={{ fontSize: '1.2rem' }}>
                                     {entry.marginVsSpy != null
                                         ? `${entry.marginVsSpy >= 0 ? '+' : ''}${entry.marginVsSpy.toFixed(2)}%`

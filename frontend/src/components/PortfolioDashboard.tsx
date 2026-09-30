@@ -189,7 +189,7 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId, onTradeSuccess }) =>
                 </div>
                 <div className={`summary-card ${twrData && spyReturn != null && twrData.twrPercent - spyReturn >= 0 ? 'positive' : 'negative'}`}
                     style={{ minWidth: 'max-content' }}>
-                    <span className="summary-label">TWR vs S&amp;P 500 (SPY)</span>
+                    <span className="summary-label" style={{ borderBottom: '1px dotted var(--text-gray)', display: 'block', marginBottom: '0.35rem' }}>TWR vs S&amp;P 500 (SPY)</span>
                     <span className="summary-value" style={{ fontSize: '1.2rem' }}>
                         {twrLoading || spyLoading ? '…' : twrData && twrData.snapshotCount >= 2 && spyReturn != null
                             ? `${twrData.twrPercent - spyReturn >= 0 ? '+' : ''}${(twrData.twrPercent - spyReturn).toFixed(2)}%`

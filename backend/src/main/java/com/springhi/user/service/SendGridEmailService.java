@@ -2,9 +2,13 @@ package com.springhi.user.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.io.IOException;
 import java.net.URI;
@@ -18,15 +22,34 @@ import java.util.Map;
 @Service
 public class SendGridEmailService {
 
+    private static final Logger log = LoggerFactory.getLogger(SendGridEmailService.class);
+
     private final String apiKey;
     private final URI url;
     private final HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private final ObjectMapper mapper = new ObjectMapper();
 
+    @Value("${application.mail.from}")
+    private String mailFrom;
+
     public SendGridEmailService(@Value("${application.mail.sendgrid.api-key:}") String apiKey,
                                 @Value("${application.mail.sendgrid.url}") String url) {
         this.apiKey = apiKey;
         this.url = URI.create(url);
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void sendWelcomeEmail(AuthService.NewAccountCreated account) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(mailFrom);
+        message.setTo(account.email());
+        message.setSubject("Welcome to SpringHi.ai");
+        message.setText("Welcome to SpringHi.ai!\n\nYour account is ready. Sign in to create a portfolio, explore the leaderboard, and get started with AI optimization.\n\nThe SpringHi team");
+        try {
+            send(message);
+        } catch (RuntimeException e) {
+            log.error("Could not send welcome email to new account", e);
+        }
     }
 
     public void send(SimpleMailMessage message) {

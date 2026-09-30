@@ -14,6 +14,7 @@ import com.springhi.user.repository.UserRepository;
 import org.springframework.transaction.annotation.Transactional;
 import com.springhi.user.security.JwtService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -39,6 +40,9 @@ public class AuthService {
     private final ReferralService referralService;
     private final AdService adService;
     private final GoogleOAuthService googleOAuthService;
+    private final ApplicationEventPublisher eventPublisher;
+
+    public record NewAccountCreated(String email) {}
 
     @Value("${application.mail.from}")
     private String mailFrom;
@@ -59,7 +63,8 @@ public class AuthService {
                        TelnyxService telnyxService,
                        ReferralService referralService,
                        AdService adService,
-                       GoogleOAuthService googleOAuthService) {
+                       GoogleOAuthService googleOAuthService,
+                       ApplicationEventPublisher eventPublisher) {
         this.repository = repository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -72,6 +77,7 @@ public class AuthService {
         this.referralService = referralService;
         this.adService = adService;
         this.googleOAuthService = googleOAuthService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -99,6 +105,7 @@ public class AuthService {
 
         referralService.attributeSignup(user.getId(), request.getReferralCode());
         adService.attributeSignup(user.getId(), request.getAdCode());
+        eventPublisher.publishEvent(new NewAccountCreated(user.getEmail()));
 
         String jwtToken = jwtService.generateToken(user);
         return new AuthResponse(jwtToken);
@@ -151,6 +158,7 @@ public class AuthService {
         User user = createGoogleUser(info);
         referralService.attributeSignup(user.getId(), referralCode);
         adService.attributeSignup(user.getId(), adCode);
+        eventPublisher.publishEvent(new NewAccountCreated(user.getEmail()));
         return new AuthResponse(jwtService.generateToken(user));
     }
 

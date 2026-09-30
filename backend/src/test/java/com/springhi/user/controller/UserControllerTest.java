@@ -3,19 +3,26 @@ package com.springhi.user.controller;
 import com.springhi.user.dto.SignupRequest;
 import com.springhi.user.dto.ProfileRequest;
 import com.springhi.user.dto.ProfileResponse;
+import com.springhi.user.service.UserIpAddressService;
+import com.springhi.user.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.transaction.AfterTransaction;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.util.Map;
+import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -31,6 +38,14 @@ public class UserControllerTest {
     @Autowired
     private WebApplicationContext context;
 
+    @MockitoBean
+    private UserIpAddressService userIpAddressService;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    private String testUsername;
+
     private ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
@@ -41,10 +56,13 @@ public class UserControllerTest {
     }
 
     @Test
+    @Transactional
     public void testGetAndUpdateProfile() throws Exception {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        testUsername = "profileuser_" + suffix;
         SignupRequest signupRequest = new SignupRequest();
-        signupRequest.setUsername("profileuser");
-        signupRequest.setEmail("profile@example.com");
+        signupRequest.setUsername(testUsername);
+        signupRequest.setEmail("profile_" + suffix + "@example.com");
         signupRequest.setPassword("password123");
 
         MvcResult signupResult = mockMvc.perform(post("/api/v1/auth/signup")
@@ -60,7 +78,7 @@ public class UserControllerTest {
         mockMvc.perform(get("/api/v1/users/profile")
                 .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.username").value("profileuser"));
+                .andExpect(jsonPath("$.username").value(testUsername));
 
         ProfileRequest updateRequest = new ProfileRequest();
         updateRequest.setFirstName("John");
@@ -75,5 +93,10 @@ public class UserControllerTest {
                 .andExpect(jsonPath("$.firstName").value("John"))
                 .andExpect(jsonPath("$.lastName").value("Doe"))
                 .andExpect(jsonPath("$.bio").value("Hello, I am a test user."));
+    }
+
+    @AfterTransaction
+    public void testUserIsRemoved() {
+        assertTrue(userRepository.findByUsername(testUsername).isEmpty());
     }
 }

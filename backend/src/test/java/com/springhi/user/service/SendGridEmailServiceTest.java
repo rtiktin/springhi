@@ -5,12 +5,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 import org.springframework.mail.SimpleMailMessage;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -43,6 +46,38 @@ class SendGridEmailServiceTest {
         } finally {
             server.stop(0);
         }
+    }
+
+    @Test
+    void sendsWelcomeEmailForNewAccount() throws Exception {
+        AtomicReference<String> body = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/v3/mail/send", exchange -> {
+            body.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            exchange.sendResponseHeaders(202, -1);
+            exchange.close();
+        });
+        server.start();
+        try {
+            SendGridEmailService service = new SendGridEmailService("test-key", "http://127.0.0.1:" + server.getAddress().getPort() + "/v3/mail/send");
+            ReflectionTestUtils.setField(service, "mailFrom", "info@springhi.ai");
+            service.sendWelcomeEmail(new AuthService.NewAccountCreated("new@example.com"));
+
+            JsonNode payload = mapper.readTree(body.get());
+            assertEquals("info@springhi.ai", payload.path("from").path("email").asText());
+            assertEquals("new@example.com", payload.path("personalizations").path(0).path("to").path(0).path("email").asText());
+            assertEquals("Welcome to SpringHi.ai", payload.path("subject").asText());
+            assertTrue(payload.path("content").path(0).path("value").asText().contains("Your account is ready"));
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void welcomeEmailFailureDoesNotFailSignup() {
+        SendGridEmailService service = new SendGridEmailService("", "https://api.sendgrid.com/v3/mail/send");
+        ReflectionTestUtils.setField(service, "mailFrom", "info@springhi.ai");
+        assertDoesNotThrow(() -> service.sendWelcomeEmail(new AuthService.NewAccountCreated("new@example.com")));
     }
 
     @Test
