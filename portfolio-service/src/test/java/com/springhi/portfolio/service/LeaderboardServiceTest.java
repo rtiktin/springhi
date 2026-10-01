@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -152,6 +153,49 @@ class LeaderboardServiceTest {
         assertEquals(lastSnapshot, entries.get(0).twrEndDate());
         verify(benchmark).getSpyReturn(firstSnapshot, lastSnapshot);
         verify(benchmark, never()).getSpyReturns();
+    }
+
+    @Test
+    void monthlyLeaderboardsUseOnlyPortfoliosCreatedInThePreviousMonth() {
+        PortfolioService portfolioService = mock(PortfolioService.class);
+        TwrService twrService = mock(TwrService.class);
+        SpyBenchmarkService benchmark = mock(SpyBenchmarkService.class);
+        PortfolioProfileRepository profiles = mock(PortfolioProfileRepository.class);
+        LeaderboardService leaderboard = new LeaderboardService(portfolios, portfolioService, twrService, users,
+                benchmark, profiles, clicks, settings);
+        Portfolio julyPortfolio = new Portfolio();
+        julyPortfolio.setId(1L);
+        julyPortfolio.setUserId(7L);
+        julyPortfolio.setName("July portfolio");
+        Portfolio augustPortfolio = new Portfolio();
+        augustPortfolio.setId(2L);
+        augustPortfolio.setUserId(8L);
+        augustPortfolio.setName("August portfolio");
+        when(portfolios.findByCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                LocalDateTime.of(2026, 7, 1, 0, 0), LocalDateTime.of(2026, 8, 1, 0, 0)))
+                .thenReturn(List.of(julyPortfolio));
+        when(portfolios.findByCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+                LocalDateTime.of(2026, 8, 1, 0, 0), LocalDateTime.of(2026, 9, 1, 0, 0)))
+                .thenReturn(List.of(augustPortfolio));
+        when(profiles.findAll()).thenReturn(List.of());
+        when(users.getDisplayNames(anyList(), eq("token"))).thenReturn(Map.of(7L, "july", 8L, "august"));
+        List<AssetWithPrice> holdings = java.util.stream.IntStream.range(0, 5).mapToObj(i -> {
+            AssetWithPrice holding = new AssetWithPrice();
+            holding.setMarketValue(new BigDecimal("100"));
+            return holding;
+        }).toList();
+        when(portfolioService.getUserAssetsWithPrices(anyLong())).thenReturn(holdings);
+        when(twrService.computeTwr(1L, null, LocalDate.of(2026, 8, 1)))
+                .thenReturn(new TwrResponseDto(10.0, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31), 2, List.of()));
+        when(twrService.computeTwr(2L, null, LocalDate.of(2026, 9, 1)))
+                .thenReturn(new TwrResponseDto(12.0, LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30), 2, List.of()));
+
+        var august = leaderboard.getMonthlyLeaderboard("2026-08", "token", null);
+        var september = leaderboard.getMonthlyLeaderboard("2026-09", "token", null);
+
+        assertEquals(List.of(1L), august.stream().map(e -> e.portfolioId()).toList());
+        assertEquals(List.of(2L), september.stream().map(e -> e.portfolioId()).toList());
+        verify(portfolios, never()).findByCreatedAtLessThan(any());
     }
 
     @Test

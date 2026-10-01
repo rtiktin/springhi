@@ -86,8 +86,9 @@ public class LeaderboardService {
 
     public List<LeaderboardEntryDto> getMonthlyLeaderboard(String monthStr, String jwtToken, String goal) {
         LocalDate competitionMonth = LocalDate.parse(monthStr + "-01");
-        java.time.LocalDateTime to = competitionMonth.atStartOfDay();
-        List<Portfolio> portfolios = portfolioRepository.findByCreatedAtLessThan(to);
+        LocalDateTime from = competitionMonth.minusMonths(1).atStartOfDay();
+        LocalDateTime to = competitionMonth.atStartOfDay();
+        List<Portfolio> portfolios = portfolioRepository.findByCreatedAtGreaterThanEqualAndCreatedAtLessThan(from, to);
 
         Map<Long, String> goalMap = getGoalMap();
         List<Portfolio> filtered = filterByGoal(portfolios, goal, goalMap);
@@ -96,12 +97,7 @@ public class LeaderboardService {
                 .map(Portfolio::getUserId).distinct().collect(Collectors.toList());
         Map<Long, String> usernameMap = userServiceClient.getDisplayNames(userIds, jwtToken);
 
-        LocalDate anchor = competitionMonth;
-        LocalDate today = LocalDate.now();
-        long yearsElapsed = java.time.temporal.ChronoUnit.YEARS.between(competitionMonth, today);
-        anchor = competitionMonth.plusYears(yearsElapsed);
-
-        return buildEntries(filtered, null, usernameMap, true, false, goalMap, anchor, competitionMonth);
+        return buildEntries(filtered, null, usernameMap, true, false, goalMap, competitionMonth, competitionMonth);
     }
 
     public SubscribePromptConfigDto getSubscribePromptConfig() {
