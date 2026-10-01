@@ -151,8 +151,7 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId, onTradeSuccess }) =>
                         ${(totalMarketValue + (cashBalance ?? 0)).toFixed(2)}
                     </span>
                 </div>
-                <div className={`summary-card ${twrData && twrData.twrPercent >= 0 ? 'positive' : 'negative'}`}
-                    style={{ minWidth: 'max-content' }}>
+                <div className={`summary-card ${twrData && twrData.twrPercent >= 0 ? 'positive' : 'negative'}`}>
                     <span
                         className="summary-label"
                         title="Time-Weighted Return: measures investment performance independent of cash deposits and withdrawals"
@@ -187,8 +186,7 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId, onTradeSuccess }) =>
                         </span>
                     )}
                 </div>
-                <div className={`summary-card ${twrData && spyReturn != null && twrData.twrPercent - spyReturn >= 0 ? 'positive' : 'negative'}`}
-                    style={{ minWidth: 'max-content' }}>
+                <div className={`summary-card ${twrData && spyReturn != null && twrData.twrPercent - spyReturn >= 0 ? 'positive' : 'negative'}`}>
                     <span className="summary-label" style={{ borderBottom: '1px dotted var(--text-gray)', display: 'block', marginBottom: '0.35rem' }}>TWR vs S&amp;P 500 (SPY)</span>
                     <span className="summary-value" style={{ fontSize: '1.2rem' }}>
                         {twrLoading || spyLoading ? '…' : twrData && twrData.snapshotCount >= 2 && spyReturn != null
@@ -226,20 +224,20 @@ const PortfolioDashboard: React.FC<Props> = ({ portfolioId, onTradeSuccess }) =>
                                 className={selectedHolding?.symbol === h.symbol ? 'selected-row' : ''}
                                 onClick={() => selectHolding(h)}
                             >
-                                <td className="symbol-cell">{h.symbol}</td>
-                                <td>{h.assetType}</td>
-                                <td>{h.quantity}</td>
-                                <td>${fmt(h.averagePrice, 4)}</td>
-                                <td>{h.currentPrice != null ? `$${fmt(h.currentPrice, 4)}` : <span className="no-price">No data</span>}</td>
-                                <td>{h.marketValue != null ? `$${fmt(h.marketValue)}` : '—'}</td>
-                                <td>{h.costBasis != null ? `$${fmt(h.costBasis)}` : '—'}</td>
-                                <td className={h.gainLoss != null && h.gainLoss >= 0 ? 'positive' : 'negative'}>
+                                <td data-label="Symbol" className="symbol-cell">{h.symbol}</td>
+                                <td data-label="Type">{h.assetType}</td>
+                                <td data-label="Qty">{h.quantity}</td>
+                                <td data-label="Avg Price">${fmt(h.averagePrice, 4)}</td>
+                                <td data-label="Current Price">{h.currentPrice != null ? `$${fmt(h.currentPrice, 4)}` : <span className="no-price">No data</span>}</td>
+                                <td data-label="Market Value">{h.marketValue != null ? `$${fmt(h.marketValue)}` : '—'}</td>
+                                <td data-label="Cost Basis">{h.costBasis != null ? `$${fmt(h.costBasis)}` : '—'}</td>
+                                <td data-label="Gain / Loss" className={h.gainLoss != null && h.gainLoss >= 0 ? 'positive' : 'negative'}>
                                     {h.gainLoss != null ? `${h.gainLoss >= 0 ? '+' : ''}$${fmt(h.gainLoss)}` : '—'}
                                 </td>
-                                <td className={h.gainLossPercent != null && h.gainLossPercent >= 0 ? 'positive' : 'negative'}>
+                                <td data-label="G/L %" className={h.gainLossPercent != null && h.gainLossPercent >= 0 ? 'positive' : 'negative'}>
                                     {h.gainLossPercent != null ? `${h.gainLossPercent >= 0 ? '+' : ''}${fmt(h.gainLossPercent)}%` : '—'}
                                 </td>
-                                <td onClick={e => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
+                                <td data-label="Action" onClick={e => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
                                     <button
                                         onClick={() => setTradeModal({ symbol: h.symbol, type: 'BUY' })}
                                         style={{ marginRight: '0.35rem', padding: '0.2rem 0.55rem', fontSize: '0.78rem', fontWeight: 700, background: '#22c55e', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}

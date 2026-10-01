@@ -102,10 +102,11 @@ const Signup: React.FC = () => {
         type={type}
         name={name}
         placeholder={placeholder}
+        aria-label={placeholder}
         value={formData[name]}
         onChange={handleChange}
         className={fieldErrors[name] ? 'input-error' : ''}
-        autoComplete={type === 'password' ? 'new-password' : undefined}
+        autoComplete={name === 'username' ? 'username' : name === 'email' ? 'email' : 'new-password'}
       />
       {fieldErrors[name] && <span className="field-error-msg">{fieldErrors[name]}</span>}
     </div>

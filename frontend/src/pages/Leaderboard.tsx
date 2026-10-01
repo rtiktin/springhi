@@ -261,7 +261,7 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                 {loading ? (
                     <div style={{ textAlign: 'center', color: 'var(--text-gray)', padding: '2rem' }}>Loading…</div>
                 ) : tab === 'holdings' ? (
-                    <div className="holdings-table-wrap">
+                    <div className="holdings-table-wrap leaderboard-detail-table">
                         <table className="holdings-table">
                             <thead>
                                 <tr>
@@ -276,12 +276,12 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                             <tbody>
                                 {holdings.map(h => (
                                     <tr key={h.id}>
-                                        <td style={{ fontWeight: 700 }}>{h.symbol}</td>
-                                        <td style={{ color: 'var(--text-gray)', fontSize: '0.85rem' }}>{h.companyName ?? '—'}</td>
-                                        <td style={{ textAlign: 'right' }}>{h.quantity}</td>
-                                        <td style={{ textAlign: 'right' }}>{fmt(h.currentPrice)}</td>
-                                        <td style={{ textAlign: 'right' }}>{fmt(h.marketValue)}</td>
-                                        <td style={{
+                                        <td data-label="Symbol" style={{ fontWeight: 700 }}>{h.symbol}</td>
+                                        <td data-label="Company" style={{ color: 'var(--text-gray)', fontSize: '0.85rem' }}>{h.companyName ?? '—'}</td>
+                                        <td data-label="Qty" style={{ textAlign: 'right' }}>{h.quantity}</td>
+                                        <td data-label="Price" style={{ textAlign: 'right' }}>{fmt(h.currentPrice)}</td>
+                                        <td data-label="Market Value" style={{ textAlign: 'right' }}>{fmt(h.marketValue)}</td>
+                                        <td data-label="Gain/Loss" style={{
                                             textAlign: 'right',
                                             color: h.gainLoss != null && h.gainLoss >= 0 ? '#34d399' : '#f87171',
                                             fontWeight: 600,
@@ -294,7 +294,7 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                         </table>
                     </div>
                 ) : tab === 'transactions' ? (
-                    <div className="holdings-table-wrap">
+                    <div className="holdings-table-wrap leaderboard-detail-table">
                         <table className="holdings-table">
                             <thead>
                                 <tr>
@@ -310,17 +310,17 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                             <tbody>
                                 {transactions.map(t => (
                                     <tr key={t.id}>
-                                        <td style={{ fontSize: '0.82rem', color: 'var(--text-gray)' }}>
+                                        <td data-label="Date" style={{ fontSize: '0.82rem', color: 'var(--text-gray)' }}>
                                             {new Date(t.timestamp).toLocaleDateString()}
                                         </td>
-                                        <td style={{ fontWeight: 700 }}>{t.symbol}</td>
-                                        <td style={{ color: t.type === 'BUY' || t.type === 'DIVIDEND' ? '#34d399' : t.type === 'SELL' ? '#f87171' : 'var(--text-gray)' }}>
+                                        <td data-label="Symbol" style={{ fontWeight: 700 }}>{t.symbol}</td>
+                                        <td data-label="Type" style={{ color: t.type === 'BUY' || t.type === 'DIVIDEND' ? '#34d399' : t.type === 'SELL' ? '#f87171' : 'var(--text-gray)' }}>
                                             {t.type}
                                         </td>
-                                        <td style={{ textAlign: 'right' }}>{t.quantity}</td>
-                                        <td style={{ textAlign: 'right' }}>${t.price.toFixed(4)}</td>
-                                        <td style={{ textAlign: 'right' }}>${(t.quantity * t.price).toFixed(2)}</td>
-                                        <td>
+                                        <td data-label="Qty" style={{ textAlign: 'right' }}>{t.quantity}</td>
+                                        <td data-label="Price" style={{ textAlign: 'right' }}>${t.price.toFixed(4)}</td>
+                                        <td data-label="Total" style={{ textAlign: 'right' }}>${(t.quantity * t.price).toFixed(2)}</td>
+                                        <td data-label="AI">
                                             {t.aiRunGeneratedAt ? (
                                                 <button
                                                     title="AI-generated trade — click to view the full optimization run"
@@ -682,8 +682,8 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
     return (
         <>
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
-                <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
+                <div className="leaderboard-table-wrap">
+                    <table className="leaderboard-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                         <tr style={{ background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid var(--border)' }}>
                             <th style={thStyle}>Rank</th>
@@ -702,6 +702,9 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
                             <tr
                                 key={entry.portfolioId}
                                 onClick={() => { void handleOpenPortfolio(entry); }}
+                                onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); void handleOpenPortfolio(entry); } }}
+                                tabIndex={0}
+                                aria-label={`View ${entry.portfolioName} portfolio`}
                                 style={{
                                     borderBottom: idx < entries.length - 1 ? '1px solid var(--border)' : 'none',
                                     background: entry.rank <= 3 ? 'rgba(99,102,241,0.05)' : 'transparent',
@@ -711,10 +714,10 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
                                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
                                 onMouseLeave={e => (e.currentTarget.style.background = entry.rank <= 3 ? 'rgba(99,102,241,0.05)' : 'transparent')}
                             >
-                                <td style={{ padding: '1rem 1.25rem', fontSize: '1.1rem', fontWeight: 700 }}>
+                                <td data-label="Rank" style={{ padding: '1rem 1.25rem', fontSize: '1.1rem', fontWeight: 700 }}>
                                     {rankMedal(entry.rank)}
                                 </td>
-                                <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
+                                <td data-label="Share" style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
                                     {(entry.username === currentUsername || !showUser) && (
                                         <button
                                             onClick={(e) => handleShare(e, entry)}
@@ -753,11 +756,11 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
                                     )}
                                 </td>
                                 {showUser && (
-                                    <td style={{ padding: '1rem 1.25rem', color: 'var(--text-gray)', fontSize: '0.9rem' }}>
+                                    <td data-label="Username" style={{ padding: '1rem 1.25rem', color: 'var(--text-gray)', fontSize: '0.9rem' }}>
                                         {entry.username ?? '—'}
                                     </td>
                                 )}
-                                <td style={{ padding: '1rem 1.25rem' }}>
+                                <td data-label="Portfolio" style={{ padding: '1rem 1.25rem' }}>
                                     <span style={{ fontWeight: 600, color: 'var(--accent)', textDecoration: 'underline', cursor: 'pointer' }}>
                                         {entry.portfolioName}
                                     </span>
@@ -765,27 +768,27 @@ const LeaderboardTable: React.FC<LeaderboardTableProps> = ({ entries, range, sho
                                         <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', background: 'rgba(99,102,241,0.2)', color: '#818cf8', borderRadius: 4, padding: '1px 5px' }}>🏆</span>
                                     )}
                                 </td>
-                                <td style={{ padding: '1rem 1.25rem', color: 'var(--text-gray)', fontSize: '0.85rem', textTransform: 'capitalize' }}>
+                                <td data-label="Goal" style={{ padding: '1rem 1.25rem', color: 'var(--text-gray)', fontSize: '0.85rem', textTransform: 'capitalize' }}>
                                     {entry.goal ?? '—'}
                                 </td>
-                                <td style={{
+                                <td data-label={`TWR${label ? ` (${label})` : ''}`} style={{
                                     padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700, fontSize: '1.05rem',
                                     color: entry.twrPercent >= 0 ? '#34d399' : '#f87171',
                                 }}>
                                     {entry.twrPercent >= 0 ? '+' : ''}{entry.twrPercent.toFixed(2)}%
                                 </td>
                                 {hasMargin && (
-                                    <td style={{
+                                    <td data-label="vs SPY" style={{
                                         padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 600,
                                         color: entry.marginVsSpy == null ? 'var(--text-gray)' : entry.marginVsSpy >= 0 ? '#34d399' : '#f87171',
                                     }}>
                                         {entry.marginVsSpy == null ? '—' : `${entry.marginVsSpy >= 0 ? '+' : ''}${entry.marginVsSpy.toFixed(2)}%`}
                                     </td>
                                 )}
-                                <td style={{ padding: '1rem 1.25rem', textAlign: 'right', color: 'var(--text-gray)' }}>
+                                <td data-label="Holdings" style={{ padding: '1rem 1.25rem', textAlign: 'right', color: 'var(--text-gray)' }}>
                                     {entry.holdingCount}
                                 </td>
-                                <td style={{ padding: '1rem 1.25rem', textAlign: 'right', color: 'var(--text-gray)' }}>
+                                <td data-label="Max Position" style={{ padding: '1rem 1.25rem', textAlign: 'right', color: 'var(--text-gray)' }}>
                                     {entry.maxHoldingPct.toFixed(1)}%
                                 </td>
                             </tr>
@@ -956,7 +959,7 @@ const Leaderboard: React.FC = () => {
                 </nav>
             </header>
 
-            <main style={{ padding: '4rem 10%', maxWidth: '1050px', margin: '0 auto' }}>
+            <main className="leaderboard-main" style={{ padding: '4rem 10%', maxWidth: '1050px', margin: '0 auto' }}>
                 <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
                     <h1 style={{
                         fontSize: '2.5rem', fontWeight: 800,
@@ -998,7 +1001,7 @@ const Leaderboard: React.FC = () => {
                     </div>
 
                     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div className="leaderboard-goal-filter" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             <span style={{ color: 'var(--text-gray)', fontSize: '0.9rem', fontWeight: 600 }}>Investment Goal:</span>
                             <div style={{ display: 'flex', gap: '0.4rem' }}>
                                 {GOAL_OPTIONS.map(o => (
@@ -1066,7 +1069,7 @@ const Leaderboard: React.FC = () => {
                             ))}
                         </div>
 
-                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem' }}>
+                        <div className="leaderboard-range-filter" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem' }}>
                             {(Object.keys(RANGE_LABELS) as LeaderboardRange[]).map(r => (
                                 <button key={r} onClick={() => setRange(r)} style={{
                                     padding: '0.4rem 1rem', borderRadius: '6px', border: '1px solid var(--border)',

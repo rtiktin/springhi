@@ -15,7 +15,7 @@ const About: React.FC = () => {
                     <Link to="/" className="logo">SpringHi.ai</Link>
                     {username && <span className="nav-welcome" style={{ fontSize: '0.75rem', marginTop: '-0.2rem', opacity: 0.8 }}>Welcome back, {username}</span>}
                 </div>
-                <nav style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <nav className="informational-nav" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Link to="/" className="nav-link">Home</Link>
                     <Link to="/getting-started" className="nav-link">Getting Started</Link>
                     <Link to="/pricing" className="nav-link">Pricing</Link>

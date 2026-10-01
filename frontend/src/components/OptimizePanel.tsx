@@ -741,7 +741,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                     <h3 ref={profileSectionRef} style={{ color: 'var(--text-light)', marginBottom: '0.75rem', fontSize: '0.95rem', marginTop: '1rem' }}>
                         Portfolio Profile used for this optimization
                     </h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 1.5rem', background: 'var(--bg-card)', borderRadius: 8, padding: '1rem', fontSize: '0.88rem', marginBottom: '1rem' }}>
+                    <div className="optimization-profile-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 1.5rem', background: 'var(--bg-card)', borderRadius: 8, padding: '1rem', fontSize: '0.88rem', marginBottom: '1rem' }}>
                         <div><span style={{ color: 'var(--text-gray)' }}>Risk Tolerance: </span>
                             <strong>{portfolioProfile.riskLevel?.replace('_', ' ') ?? 'N/A'}</strong></div>
                         <div><span style={{ color: 'var(--text-gray)' }}>Primary Goal: </span>
@@ -803,7 +803,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                     )}
 
                     {sells.length > 0 && (
-                        <div className="holdings-table-wrap" style={{ marginBottom: '1.5rem' }}>
+                        <div className="holdings-table-wrap recommendation-table" style={{ marginBottom: '1.5rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
                                 <div className="optimize-section-title sell-section-title" style={{ flex: 1 }}>
                                     Recommended Sells — exit these positions to fund rebalancing
@@ -839,24 +839,24 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                                 <tbody>
                                     {sells.map(rec => (
                                         <tr key={rec.id} className={rec.status !== 'PENDING' ? 'executed-row' : 'sell-row'}>
-                                            <td className="optimize-buy-cell">
+                                            <td data-label="Select" className="optimize-buy-cell">
                                                 <input type="checkbox" className="buy-checkbox"
                                                     checked={checkedIds.has(rec.id)}
                                                     onChange={() => toggleChecked(rec.id)}
                                                     disabled={executing || rec.status !== 'PENDING'} />
                                             </td>
-                                            <td className="symbol-cell">{rec.t}</td>
-                                            <td>{rec.n}</td>
-                                            <td>{rec.s}</td>
-                                            <td>{rec.w.toFixed(1)}%</td>
-                                            <td>
+                                            <td data-label="Ticker" className="symbol-cell">{rec.t}</td>
+                                            <td data-label="Name">{rec.n}</td>
+                                            <td data-label="Sector">{rec.s}</td>
+                                            <td data-label="Allocation">{rec.w.toFixed(1)}%</td>
+                                            <td data-label="Amount">
                                                 {rec.status === 'EXECUTED'
                                                     ? <span title="Actual proceeds received">{fmt(rec.estimatedValue)}</span>
                                                     : <span style={{ color: 'var(--text-gray)', fontSize: '0.85em' }} title="Estimated at current market value">~{fmt(rec.estimatedValue)}</span>
                                                 }
                                             </td>
-                                            <td className="optimize-rationale">{rec.r}</td>
-                                            <td><span className={`rec-status rec-${rec.status.toLowerCase()}`}>{rec.status}</span></td>
+                                            <td data-label="Rationale" className="optimize-rationale">{rec.r}</td>
+                                            <td data-label="Status"><span className={`rec-status rec-${rec.status.toLowerCase()}`}>{rec.status}</span></td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -872,7 +872,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                     )}
 
                     {buys.length > 0 && (
-                        <div className="holdings-table-wrap">
+                        <div className="holdings-table-wrap recommendation-table">
                             {cashBalance <= 0 && pendingSells.length === 0 && (
                                 <div className="optimize-cash-warn">
                                     No cash available. Deposit cash or execute sells first.
@@ -913,24 +913,24 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                                 <tbody>
                                     {buys.map(rec => (
                                         <tr key={rec.id} className={rec.status !== 'PENDING' ? 'executed-row' : ''}>
-                                            <td className="optimize-buy-cell">
+                                            <td data-label="Select" className="optimize-buy-cell">
                                                 <input type="checkbox" className="buy-checkbox"
                                                     checked={checkedIds.has(rec.id)}
                                                     onChange={() => toggleChecked(rec.id)}
                                                     disabled={executing || rec.status !== 'PENDING'} />
                                             </td>
-                                            <td className="symbol-cell">{rec.t}</td>
-                                            <td>{rec.n}</td>
-                                            <td>{rec.s}</td>
-                                            <td>{rec.w.toFixed(1)}%</td>
-                                            <td>
+                                            <td data-label="Ticker" className="symbol-cell">{rec.t}</td>
+                                            <td data-label="Name">{rec.n}</td>
+                                            <td data-label="Sector">{rec.s}</td>
+                                            <td data-label="Allocation">{rec.w.toFixed(1)}%</td>
+                                            <td data-label="Amount">
                                                 {rec.status === 'EXECUTED'
                                                     ? <span title="Actual amount spent">{fmt(rec.estimatedValue)}</span>
                                                     : <span style={{ color: 'var(--text-gray)', fontSize: '0.85em' }} title="Estimated based on current cash">~{fmt(rec.estimatedValue)}</span>
                                                 }
                                             </td>
-                                            <td className="optimize-rationale">{rec.r}</td>
-                                            <td><span className={`rec-status rec-${rec.status.toLowerCase()}`}>{rec.status}</span></td>
+                                            <td data-label="Rationale" className="optimize-rationale">{rec.r}</td>
+                                            <td data-label="Status"><span className={`rec-status rec-${rec.status.toLowerCase()}`}>{rec.status}</span></td>
                                         </tr>
                                     ))}
                                 </tbody>
