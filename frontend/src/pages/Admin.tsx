@@ -1339,7 +1339,7 @@ const Admin: React.FC = () => {
                     <Link to="/portfolio" className="btn-logout">Portfolios</Link>
                     <Link to="/leaderboard" className="btn-logout">Leaderboard</Link>
                     <Link to="/account" className="btn-logout">Account</Link>
-                    <Link to="/referral" className="btn-logout">Referral</Link>
+                    <Link to="/referral" className="btn-logout">Referral Payments</Link>
                     <button className="btn-logout" onClick={handleLogout}>Log Out</button>
                 </nav>
             </header>

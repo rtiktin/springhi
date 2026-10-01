@@ -240,7 +240,7 @@ const Referral: React.FC = () => {
                     <Link to="/leaderboard" className="btn-logout">Leaderboard</Link>
                     <Link to="/account" className="btn-logout">Account</Link>
                     <Link to="/subscription" className="btn-logout">Subscription</Link>
-                    <Link to="/referral" className="btn-logout">Referral</Link>
+                    <Link to="/referral" className="btn-logout">Referral Payments</Link>
                     {isAdmin() && <Link to="/admin" className="btn-logout">Admin</Link>}
                     <button className="btn-logout" onClick={handleLogout}>Log Out</button>
                 </nav>

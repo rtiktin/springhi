@@ -947,7 +947,7 @@ const Leaderboard: React.FC = () => {
                         <>
                             <Link to="/account" className="btn-logout">Account</Link>
                             <Link to="/portfolio" className="btn-logout">My Portfolios</Link>
-                            <Link to="/referral" className="btn-logout">Referral</Link>
+                            <Link to="/referral" className="btn-logout">Referral Payments</Link>
                             {isAdmin() && <Link to="/admin" className="btn-logout">Admin</Link>}
                         </>
                     ) : (

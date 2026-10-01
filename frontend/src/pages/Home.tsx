@@ -162,7 +162,7 @@ const Home: React.FC = () => {
                     <Link to="/pricing" className="nav-link">Pricing</Link>
                     {isLoggedIn() ? (
                         <>
-                            <Link to="/referral" className="nav-link">Referral</Link>
+                            <Link to="/referral" className="nav-link">Referral Payments</Link>
                             {isAdmin() && <Link to="/admin" className="nav-link">Admin</Link>}
                             <Link to="/portfolio" className="btn-primary">My Portfolio</Link>
                         </>
