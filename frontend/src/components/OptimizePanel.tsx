@@ -807,6 +807,7 @@ const OptimizePanel: React.FC<Props> = ({ portfolioId, onTradeSuccess, onNavigat
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
                                 <div className="optimize-section-title sell-section-title" style={{ flex: 1 }}>
                                     Recommended Sells — exit these positions to fund rebalancing
+                                    {buys.length > 0 && <span style={{ display: 'block', marginTop: '0.35rem', textTransform: 'none', letterSpacing: 'normal' }}>Scroll down to see recommended buys</span>}
                                 </div>
                                 <div style={{ display: 'flex', gap: '0.5rem', padding: '0.25rem 0.75rem' }}>
                                     <button className="btn-buy-all btn-sell"

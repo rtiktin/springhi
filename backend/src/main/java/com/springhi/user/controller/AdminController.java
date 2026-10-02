@@ -193,11 +193,29 @@ public class AdminController {
         userSubscriptionRepository.countActiveByPlan()
                 .forEach(row -> planCounts.put((String) row[0], (Long) row[1]));
         planCounts.put("FREE", totalUsers - planCounts.getOrDefault("BASIC", 0L) - planCounts.getOrDefault("PREMIUM", 0L));
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startOfToday = now.toLocalDate().atStartOfDay();
+        LocalDateTime startOfWeek = now.toLocalDate().with(java.time.DayOfWeek.MONDAY).atStartOfDay();
+        LocalDateTime startOfMonth = now.toLocalDate().withDayOfMonth(1).atStartOfDay();
+        LocalDateTime startOfYear = now.toLocalDate().withDayOfYear(1).atStartOfDay();
+        Map<String, Long> newBasic = new HashMap<>(Map.of("today", 0L, "thisWeek", 0L, "thisMonth", 0L, "thisYear", 0L));
+        Map<String, Long> newPremium = new HashMap<>(Map.of("today", 0L, "thisWeek", 0L, "thisMonth", 0L, "thisYear", 0L));
+        for (Object[] firstPayment : paymentHistoryRepository.findFirstPaidSubscriptionDates(startOfYear, now)) {
+            Map<String, Long> counts = "BASIC".equals(firstPayment[0]) ? newBasic : newPremium;
+            LocalDateTime date = (LocalDateTime) firstPayment[1];
+            counts.merge("thisYear", 1L, Long::sum);
+            if (!date.isBefore(startOfMonth)) counts.merge("thisMonth", 1L, Long::sum);
+            if (!date.isBefore(startOfWeek)) counts.merge("thisWeek", 1L, Long::sum);
+            if (!date.isBefore(startOfToday)) counts.merge("today", 1L, Long::sum);
+        }
         return ResponseEntity.ok(Map.of(
                 "totalUsers", totalUsers,
                 "free", planCounts.getOrDefault("FREE", 0L),
                 "basic", planCounts.getOrDefault("BASIC", 0L),
-                "premium", planCounts.getOrDefault("PREMIUM", 0L)
+                "premium", planCounts.getOrDefault("PREMIUM", 0L),
+                "newBasic", newBasic,
+                "newPremium", newPremium
         ));
     }
 

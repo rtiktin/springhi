@@ -155,7 +155,8 @@ interface DailyCount { date: string; count: number; }
 interface DailyRevenue { date: string; amount: number; }
 interface StatsData { today: number; thisWeek: number; thisMonth: number; thisYear: number; daily: DailyCount[]; }
 interface RevenueData { today: number; thisWeek: number; thisMonth: number; thisYear: number; allTime: number; daily: DailyRevenue[]; }
-interface SubscriptionStats { totalUsers: number; free: number; basic: number; premium: number; }
+type PeriodCounts = Pick<StatsData, 'today' | 'thisWeek' | 'thisMonth' | 'thisYear'>;
+interface SubscriptionStats { totalUsers: number; free: number; basic: number; premium: number; newBasic: PeriodCounts; newPremium: PeriodCounts; }
 interface SubscriptionDailyStats { basicDaily: DailyCount[]; premiumDaily: DailyCount[]; }
 
 const StatCard: React.FC<{ label: string; value: number; color: string }> = ({ label, value, color }) => (
@@ -352,7 +353,7 @@ const StatsPanel: React.FC<{
     setPortfolioChartOffset: (n: number) => void;
 }> = ({ userStats, portfolioStats, subscriptionStats, subscriptionDailyStats, chartOffset, setChartOffset, portfolioChartOffset, setPortfolioChartOffset }) => {
     if (!userStats || !portfolioStats) return <div style={{ color: 'var(--text-gray)', padding: '2rem', textAlign: 'center' }}>No data yet.</div>;
-    const periods: { label: string; key: keyof StatsData }[] = [
+    const periods: { label: string; key: keyof PeriodCounts }[] = [
         { label: 'Today', key: 'today' },
         { label: 'This Week', key: 'thisWeek' },
         { label: 'This Month', key: 'thisMonth' },
@@ -405,6 +406,18 @@ const StatsPanel: React.FC<{
                                 <span style={{ color: '#a855f7', fontWeight: 700 }}>{Math.round(subscriptionStats.premium / subscriptionStats.totalUsers * 100)}%</span> Premium
                             </>
                         )}
+                    </div>
+                    <h3 style={{ marginBottom: '1.25rem', color: 'var(--text-primary)', fontWeight: 700 }}>New Basic Subscriptions</h3>
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
+                        {periods.map(p => (
+                            <StatCard key={p.key} label={p.label} value={subscriptionStats.newBasic[p.key]} color="#f59e0b" />
+                        ))}
+                    </div>
+                    <h3 style={{ marginBottom: '1.25rem', color: 'var(--text-primary)', fontWeight: 700 }}>New Premium Subscriptions</h3>
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
+                        {periods.map(p => (
+                            <StatCard key={p.key} label={p.label} value={subscriptionStats.newPremium[p.key]} color="#a855f7" />
+                        ))}
                     </div>
                 </>
             )}
@@ -555,7 +568,7 @@ const AdminSupportPanel: React.FC = () => {
                         const isOpen = expandedId === t.id;
                         return (
                             <div key={t.id} style={{ background: 'var(--bg-input, #1e2035)', border: '1px solid var(--border)', borderRadius: 10, marginBottom: '0.75rem', overflow: 'hidden' }}>
-                                <div onClick={() => toggleExpand(t.id)} style={{ display: 'flex', alignItems: 'center', padding: '0.9rem 1.1rem', cursor: 'pointer', gap: '0.75rem', userSelect: 'none' }}>
+                                <div className="admin-support-ticket-header" onClick={() => toggleExpand(t.id)} style={{ display: 'flex', alignItems: 'center', padding: '0.9rem 1.1rem', cursor: 'pointer', gap: '0.75rem', userSelect: 'none' }}>
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.2rem', color: 'var(--text-primary)' }}>{t.subject}</div>
                                         <div style={{ fontSize: '0.77rem', color: 'var(--text-gray)' }}>
@@ -1329,7 +1342,7 @@ const Admin: React.FC = () => {
     });
 
     return (
-        <div className="portfolio-page">
+        <div className="portfolio-page admin-page">
             <header className="navbar">
                 <div className="navbar-brand" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                     <Link to="/" className="logo">SpringHi.ai</Link>
@@ -1354,7 +1367,24 @@ const Admin: React.FC = () => {
                     </div>
                 )}
 
-                <div style={{ display: 'flex', gap: '0.25rem', marginBottom: 0, borderBottom: '1px solid var(--border)' }}>
+                <label className="admin-mobile-tabs">
+                    Admin section
+                    <select value={tab} onChange={e => setTab(e.target.value as AdminTab)}>
+                        <option value="users">Users</option>
+                        <option value="portfolios">Portfolios</option>
+                        <option value="stats">Statistics</option>
+                        <option value="config">Config</option>
+                        <option value="payments">Payments</option>
+                        <option value="support">Support</option>
+                        <option value="referrals">Referrals</option>
+                        <option value="stripe">Stripe Sandbox</option>
+                        <option value="ads">Ads</option>
+                        <option value="twr">TWR Breakdown</option>
+                        <option value="engagement">Engagement</option>
+                        <option value="mass-email">Mass Email</option>
+                    </select>
+                </label>
+                <div className="admin-tabs" style={{ display: 'flex', gap: '0.25rem', marginBottom: 0, borderBottom: '1px solid var(--border)' }}>
                     <button style={tabStyle('users')} onClick={() => setTab('users')}>Users</button>
                     <button style={tabStyle('portfolios')} onClick={() => setTab('portfolios')}>Portfolios</button>
                     <button style={tabStyle('stats')} onClick={() => setTab('stats')}>Statistics</button>
@@ -1369,14 +1399,14 @@ const Admin: React.FC = () => {
                     <button style={tabStyle('mass-email')} onClick={() => setTab('mass-email')}>Mass Email</button>
                 </div>
 
-                <div style={{ background: 'var(--bg-card)', borderRadius: '0 8px 8px 8px', border: '1px solid var(--border)', borderTop: 'none', padding: '1.5rem' }}>
+                <div className="admin-panel-content" style={{ background: 'var(--bg-card)', borderRadius: '0 8px 8px 8px', border: '1px solid var(--border)', borderTop: 'none', padding: '1.5rem' }}>
                     {tab === 'users' && (
                         <>
                             {loadingUsers ? (
                                 <div className="portfolio-loading">Loading users…</div>
                             ) : (
                                 <>
-                                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
+                                <div className="admin-user-filters" style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
                                     {([
                                         { field: 'username' as const, placeholder: 'Username' },
                                         { field: 'name' as const, placeholder: 'Name' },
@@ -1434,7 +1464,7 @@ const Admin: React.FC = () => {
                                     </span>
                                 </div>
                                 <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                                    <table className="admin-list-table admin-users-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                         <thead>
                                             <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                                 {(
@@ -1672,7 +1702,7 @@ const Admin: React.FC = () => {
                                 <div className="portfolio-loading">Loading portfolios…</div>
                             ) : (
                                 <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                                    <table className="admin-list-table admin-portfolios-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                         <thead>
                                             <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                                 <th style={thStyle}>Username</th>
@@ -1711,7 +1741,7 @@ const Admin: React.FC = () => {
                                     <p style={{ color: 'var(--text-gray)', fontSize: '0.85rem', marginBottom: '1rem' }}>
                                         Pick a portfolio by username and portfolio name to inspect its Time-Weighted Return breakdown (per-snapshot sub-periods). Modified Dietz method; only DEPOSIT/WITHDRAWAL are treated as external cash flows.
                                     </p>
-                                    <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
+                                    <div className="admin-twr-filters" style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1rem', alignItems: 'center' }}>
                                         <input
                                             placeholder="Filter username"
                                             value={twrUsernameFilter}
@@ -1781,7 +1811,7 @@ const Admin: React.FC = () => {
                                                 <div style={{ color: 'var(--text-gray)', padding: '1rem' }}>Not enough snapshots (need ≥2) to compute TWR for this range.</div>
                                             ) : (
                                                 <div style={{ overflowX: 'auto' }}>
-                                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                                    <table className="admin-list-table admin-twr-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                                                         <thead>
                                                             <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                                                 <th style={thStyle}>Start</th>
@@ -1833,7 +1863,7 @@ const Admin: React.FC = () => {
                         <section>
                             <h2 style={{ marginTop: 0 }}>Mass Email</h2>
                             <p style={{ color: 'var(--text-gray)' }}>Review inactive free users. Email sending is not available yet.</p>
-                            <form onSubmit={e => { e.preventDefault(); void loadInactiveUsers(); }} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                            <form className="admin-inactive-search" onSubmit={e => { e.preventDefault(); void loadInactiveUsers(); }} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
                                 <label htmlFor="inactive-days">Days since last activity</label>
                                 <input id="inactive-days" type="number" min="0" max="36500" step="1" value={inactiveDays} onChange={e => setInactiveDays(e.target.value)}
                                     style={{ width: 90, padding: '0.4rem', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }} />
@@ -1843,7 +1873,7 @@ const Admin: React.FC = () => {
                             {inactiveLoading ? <div className="portfolio-loading">Loading users…</div> : !inactiveError && <>
                                 <p><strong>{inactiveUsers.length}</strong> users meet the criteria</p>
                                 <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                    <table className="admin-list-table admin-inactive-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                                         <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
                                             {['Username', 'Email Address', 'Optimizations', 'Engagement Days', 'Join Date', 'Last Activity Date'].map(label => <th scope="col" key={label} style={thStyle}>{label}</th>)}
                                         </tr></thead>
@@ -1865,7 +1895,7 @@ const Admin: React.FC = () => {
 
                     {tab === 'engagement' && (
                         <>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <div className="admin-engagement-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                                 <p style={{ color: 'var(--text-gray)', fontSize: '0.85rem', margin: 0 }}>
                                     Leaderboard click engagement per user. Days Viewed counts distinct calendar days with ≥1 portfolio click (multiple clicks or portfolios in a day still count as 1 day). Portfolio Checks is the total number of clicks. Distinct Portfolios is how many different portfolios the user opened.
                                 </p>
@@ -1891,7 +1921,7 @@ const Admin: React.FC = () => {
                                 <div style={{ color: 'var(--text-gray)', padding: '1rem' }}>No leaderboard clicks recorded yet.</div>
                             ) : (
                                 <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                    <table className="admin-list-table admin-engagement-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                                         <thead>
                                             <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                                 {engagementColumns.map(col => (
@@ -1997,7 +2027,7 @@ const Admin: React.FC = () => {
                                 <>
                                     <h3 style={{ margin: '0 0 0.75rem', color: 'var(--text-primary)', fontSize: '1rem' }}>Referrers</h3>
                                     <div style={{ overflowX: 'auto', marginBottom: '2rem' }}>
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                        <table className="admin-list-table admin-referrers-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                                             <thead>
                                                 <tr style={{ textAlign: 'left', color: 'var(--text-gray)', borderBottom: '1px solid var(--border)' }}>
                                                     <th style={{ padding: '0.5rem' }}>Username</th>
@@ -2031,7 +2061,7 @@ const Admin: React.FC = () => {
 
                                     <h3 style={{ margin: '0 0 0.75rem', color: 'var(--text-primary)', fontSize: '1rem' }}>Payouts</h3>
                                     <div style={{ overflowX: 'auto' }}>
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                        <table className="admin-list-table admin-payouts-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                                             <thead>
                                                 <tr style={{ textAlign: 'left', color: 'var(--text-gray)', borderBottom: '1px solid var(--border)' }}>
                                                     <th style={{ padding: '0.5rem' }}>ID</th>
@@ -2171,7 +2201,7 @@ const Admin: React.FC = () => {
                             ) : (
                                 <>
                                     <div style={{ overflowX: 'auto' }}>
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                                        <table className="admin-list-table admin-payments-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                             <thead>
                                                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                                     <th style={thStyle}>Date</th>
@@ -2397,7 +2427,7 @@ const Admin: React.FC = () => {
                                     Use <code>4242…4242</code> for success or the decline card to drive <code>invoice.payment_failed</code>.
                                     Then advance the clock below to fire renewal/dunning webhooks instantly.
                                 </p>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                                <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
                                     <div>
                                         <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-gray)', marginBottom: 4 }}>User ID</label>
                                         <input type="number" value={stripeUserId} onChange={e => setStripeUserId(e.target.value)} placeholder="e.g. 5" style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.4rem 0.6rem', color: 'var(--text-primary)', fontSize: '0.9rem' }} />
@@ -2450,7 +2480,7 @@ const Admin: React.FC = () => {
                                     Moves the clock forward by N days from now. Stripe then fires renewal / payment-failed webhooks
                                     (ensure the webhook endpoint + secret are configured and the CLI forwarder is running locally).
                                 </p>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                                <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
                                     <div>
                                         <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-gray)', marginBottom: 4 }}>Test Clock ID</label>
                                         <input type="text" value={stripeClockId} onChange={e => setStripeClockId(e.target.value)} placeholder="clock_…" style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 6, padding: '0.4rem 0.6rem', color: 'var(--text-primary)', fontSize: '0.9rem' }} />
@@ -2625,7 +2655,8 @@ const Admin: React.FC = () => {
                             ) : linkedAccounts.length === 0 ? (
                                 <p style={{ color: 'var(--text-gray)' }}>No linked accounts found.</p>
                             ) : (
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+                                <div className="admin-modal-table-scroll">
+                                <table className="admin-list-table admin-linked-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
                                     <thead>
                                         <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                             <th style={{ textAlign: 'left', padding: '0.4rem 0.75rem', color: 'var(--text-gray)', fontWeight: 600 }}>User</th>
@@ -2647,6 +2678,7 @@ const Admin: React.FC = () => {
                                         ))}
                                     </tbody>
                                 </table>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -2666,7 +2698,8 @@ const Admin: React.FC = () => {
                             ) : ipAddresses.length === 0 ? (
                                 <p style={{ color: 'var(--text-gray)' }}>No IP addresses recorded yet.</p>
                             ) : (
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+                                <div className="admin-modal-table-scroll">
+                                <table className="admin-list-table admin-ips-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
                                     <thead>
                                         <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                             <th style={{ textAlign: 'left', padding: '0.4rem 0.75rem', color: 'var(--text-gray)', fontWeight: 600 }}>IP Address</th>
@@ -2686,6 +2719,7 @@ const Admin: React.FC = () => {
                                         ))}
                                     </tbody>
                                 </table>
+                                </div>
                             )}
                         </div>
                     </div>

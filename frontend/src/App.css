@@ -1309,6 +1309,336 @@ form input {
   }
 }
 
+.admin-mobile-tabs {
+  display: none;
+}
+
+.admin-tabs {
+  flex-wrap: wrap;
+}
+
+.admin-modal-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+@media (max-width: 700px) {
+  .admin-page .portfolio-main {
+    min-width: 0;
+  }
+
+  .admin-page .admin-tabs {
+    display: none !important;
+  }
+
+  .admin-mobile-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+    color: var(--text-gray);
+    font-weight: 600;
+  }
+
+  .admin-mobile-tabs select {
+    width: 100%;
+    min-height: 44px;
+    padding: 0.55rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-primary);
+  }
+
+  .admin-panel-content {
+    min-width: 0;
+    padding: 1rem !important;
+    border-top: 1px solid var(--border) !important;
+    border-radius: 8px !important;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-panel-content input:not([type="checkbox"]),
+  .admin-panel-content select,
+  .admin-panel-content textarea {
+    max-width: 100%;
+    box-sizing: border-box;
+    min-height: 44px;
+  }
+
+  .admin-panel-content button {
+    min-height: 40px;
+  }
+
+  .admin-user-filters input,
+  .admin-user-filters select,
+  .admin-twr-filters input,
+  .admin-twr-filters select {
+    width: 100% !important;
+  }
+
+  .admin-user-filters > *,
+  .admin-twr-filters > * {
+    min-width: 0;
+  }
+
+  .admin-panel-content .admin-form-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .admin-page table.admin-list-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .admin-list-table tbody,
+  .admin-list-table tbody tr {
+    display: block;
+  }
+
+  .admin-list-table tbody tr {
+    margin-bottom: 0.75rem;
+    padding: 0.55rem;
+    border: 1px solid var(--border) !important;
+    border-radius: 8px;
+    background: var(--bg-dark);
+  }
+
+  .admin-list-table tbody td {
+    display: grid;
+    grid-template-columns: minmax(0, 38%) minmax(0, 1fr);
+    align-items: start;
+    gap: 0.5rem;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.35rem 0.2rem !important;
+    text-align: left !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-list-table tbody td::before {
+    content: var(--admin-label);
+    color: var(--text-gray);
+    font-weight: 500;
+    font-size: 0.8rem;
+  }
+
+  .admin-list-table tbody td[colspan] {
+    display: block;
+    text-align: center !important;
+  }
+
+  .admin-list-table tbody td[colspan]::before {
+    content: none;
+  }
+
+  .admin-list-table thead {
+    display: none;
+  }
+
+  .admin-users-table thead,
+  .admin-engagement-table thead,
+  .admin-users-table thead tr,
+  .admin-engagement-table thead tr {
+    display: block;
+  }
+
+  .admin-users-table thead tr,
+  .admin-engagement-table thead tr:first-child {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .admin-users-table thead th,
+  .admin-engagement-table thead tr:first-child th {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0.4rem !important;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    text-align: left !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-users-table thead th:nth-child(n+9) {
+    display: none;
+  }
+
+  .admin-engagement-table thead tr:nth-child(2) {
+    display: grid;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .admin-engagement-table thead tr:nth-child(2) th {
+    display: block;
+    padding: 0 !important;
+    text-align: left;
+  }
+
+  .admin-engagement-table thead tr:nth-child(2) th::before {
+    content: var(--admin-label);
+    display: block;
+    margin-bottom: 0.25rem;
+    color: var(--text-gray);
+    font-weight: 500;
+    font-size: 0.8rem;
+  }
+
+  .admin-engagement-table thead tr:nth-child(2) th > div {
+    flex-wrap: wrap;
+  }
+
+  .admin-engagement-table thead input,
+  .admin-engagement-table thead select {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .admin-users-table tbody td:nth-child(10) {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .admin-users-table tbody td:nth-child(10)::before {
+    flex: 0 0 100%;
+  }
+
+  .admin-ads-daily-table tbody td:nth-child(10) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .admin-ads-daily-table tbody td:nth-child(10)::before {
+    flex: 0 0 38%;
+  }
+
+  .admin-linked-table tbody td:nth-child(3) {
+    display: block;
+  }
+
+  .admin-linked-table tbody td:nth-child(3)::before {
+    display: block;
+    margin-bottom: 0.35rem;
+  }
+
+  .admin-engagement-toolbar,
+  .admin-inactive-search,
+  .admin-support-ticket-header {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .admin-ad-create-fields {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .admin-users-table tbody td:nth-child(1), .admin-engagement-table tbody td:nth-child(1), .admin-inactive-table tbody td:nth-child(1), .admin-referrers-table tbody td:nth-child(1) { --admin-label: "Username"; }
+  .admin-users-table tbody td:nth-child(2), .admin-linked-table tbody td:nth-child(2), .admin-payments-table tbody td:nth-child(3) { --admin-label: "Email"; }
+  .admin-users-table tbody td:nth-child(3) { --admin-label: "Name"; }
+  .admin-users-table tbody td:nth-child(4) { --admin-label: "Phone"; }
+  .admin-users-table tbody td:nth-child(5) { --admin-label: "Member Since"; }
+  .admin-users-table tbody td:nth-child(6) { --admin-label: "Last Active"; }
+  .admin-users-table tbody td:nth-child(7), .admin-payments-table tbody td:nth-child(4) { --admin-label: "Plan"; }
+  .admin-users-table tbody td:nth-child(8) { --admin-label: "Type"; }
+  .admin-users-table tbody td:nth-child(9) { --admin-label: "Change Type"; }
+  .admin-users-table tbody td:nth-child(10), .admin-ads-daily-table tbody td:nth-child(10) { --admin-label: "Actions"; }
+
+  .admin-portfolios-table tbody td:nth-child(1) { --admin-label: "Username"; }
+  .admin-portfolios-table tbody td:nth-child(2) { --admin-label: "Portfolio Name"; }
+  .admin-portfolios-table tbody td:nth-child(3) { --admin-label: "Description"; }
+  .admin-portfolios-table tbody td:nth-child(4) { --admin-label: "Created"; }
+
+  .admin-twr-table tbody td:nth-child(1) { --admin-label: "Start"; }
+  .admin-twr-table tbody td:nth-child(2) { --admin-label: "End"; }
+  .admin-twr-table tbody td:nth-child(3) { --admin-label: "Begin Value"; }
+  .admin-twr-table tbody td:nth-child(4) { --admin-label: "End Value"; }
+  .admin-twr-table tbody td:nth-child(5) { --admin-label: "Net Cash Flow"; }
+  .admin-twr-table tbody td:nth-child(6) { --admin-label: "Period Return"; }
+  .admin-twr-table tbody td:nth-child(7) { --admin-label: "Flag"; }
+
+  .admin-inactive-table tbody td:nth-child(2) { --admin-label: "Email Address"; }
+  .admin-inactive-table tbody td:nth-child(3) { --admin-label: "Optimizations"; }
+  .admin-inactive-table tbody td:nth-child(4) { --admin-label: "Engagement Days"; }
+  .admin-inactive-table tbody td:nth-child(5) { --admin-label: "Join Date"; }
+  .admin-inactive-table tbody td:nth-child(6) { --admin-label: "Last Activity Date"; }
+
+  .admin-engagement-table tbody td:nth-child(2), .admin-engagement-table thead tr:nth-child(2) th:nth-child(2) { --admin-label: "Days Since Joining"; }
+  .admin-engagement-table tbody td:nth-child(3), .admin-engagement-table thead tr:nth-child(2) th:nth-child(3) { --admin-label: "Subscription Status"; }
+  .admin-engagement-table tbody td:nth-child(4), .admin-engagement-table thead tr:nth-child(2) th:nth-child(4) { --admin-label: "Days Viewed"; }
+  .admin-engagement-table tbody td:nth-child(5), .admin-engagement-table thead tr:nth-child(2) th:nth-child(5) { --admin-label: "Portfolio Checks"; }
+  .admin-engagement-table tbody td:nth-child(6), .admin-engagement-table thead tr:nth-child(2) th:nth-child(6) { --admin-label: "Distinct Portfolios Viewed"; }
+  .admin-engagement-table thead tr:nth-child(2) th:nth-child(1) { --admin-label: "Username"; }
+
+  .admin-referrers-table tbody td:nth-child(2) { --admin-label: "Code"; }
+  .admin-referrers-table tbody td:nth-child(3) { --admin-label: "Clicks"; }
+  .admin-referrers-table tbody td:nth-child(4) { --admin-label: "Unique"; }
+  .admin-referrers-table tbody td:nth-child(5) { --admin-label: "Signups"; }
+  .admin-referrers-table tbody td:nth-child(6) { --admin-label: "Conversions"; }
+  .admin-referrers-table tbody td:nth-child(7) { --admin-label: "Accrued"; }
+  .admin-referrers-table tbody td:nth-child(8) { --admin-label: "Paid"; }
+
+  .admin-payouts-table tbody td:nth-child(1) { --admin-label: "ID"; }
+  .admin-payouts-table tbody td:nth-child(2) { --admin-label: "Referrer"; }
+  .admin-payouts-table tbody td:nth-child(3), .admin-payments-table tbody td:nth-child(5) { --admin-label: "Amount"; }
+  .admin-payouts-table tbody td:nth-child(4), .admin-payments-table tbody td:nth-child(7), .admin-ads-table tbody td:nth-child(3) { --admin-label: "Status"; }
+  .admin-payouts-table tbody td:nth-child(5) { --admin-label: "Method"; }
+  .admin-payouts-table tbody td:nth-child(6) { --admin-label: "Run Id"; }
+  .admin-payouts-table tbody td:nth-child(7) { --admin-label: "Completed"; }
+  .admin-payouts-table tbody td:nth-child(8) { --admin-label: "CSV"; }
+
+  .admin-payments-table tbody td:nth-child(1), .admin-ads-daily-table tbody td:nth-child(1) { --admin-label: "Date"; }
+  .admin-payments-table tbody td:nth-child(2) { --admin-label: "User"; }
+  .admin-payments-table tbody td:nth-child(6) { --admin-label: "Billing"; }
+
+  .admin-linked-table tbody td:nth-child(1) { --admin-label: "User"; }
+  .admin-linked-table tbody td:nth-child(3) { --admin-label: "Shared Values"; }
+  .admin-ips-table tbody td:nth-child(1) { --admin-label: "IP Address"; }
+  .admin-ips-table tbody td:nth-child(2) { --admin-label: "First Seen"; }
+  .admin-ips-table tbody td:nth-child(3) { --admin-label: "Last Seen"; }
+  .admin-ips-table tbody td:nth-child(4) { --admin-label: "Requests"; }
+
+  .admin-ads-daily-table tbody td:nth-child(2), .admin-ads-table tbody td:nth-child(4) { --admin-label: "Impressions"; }
+  .admin-ads-daily-table tbody td:nth-child(3), .admin-ads-table tbody td:nth-child(5) { --admin-label: "Clicks"; }
+  .admin-ads-daily-table tbody td:nth-child(4), .admin-ads-table tbody td:nth-child(6) { --admin-label: "Spend"; }
+  .admin-ads-daily-table tbody td:nth-child(5), .admin-ads-table tbody td:nth-child(7) { --admin-label: "CTR"; }
+  .admin-ads-daily-table tbody td:nth-child(6), .admin-ads-table tbody td:nth-child(8) { --admin-label: "CPC"; }
+  .admin-ads-daily-table tbody td:nth-child(7), .admin-ads-table tbody td:nth-child(9) { --admin-label: "Conversions"; }
+  .admin-ads-daily-table tbody td:nth-child(8), .admin-ads-table tbody td:nth-child(10) { --admin-label: "Revenue"; }
+  .admin-ads-daily-table tbody td:nth-child(9), .admin-ads-table tbody td:nth-child(11) { --admin-label: "ROAS"; }
+  .admin-ads-table tbody td:nth-child(1) { --admin-label: "Name"; }
+  .admin-ads-table tbody td:nth-child(2) { --admin-label: "Platform"; }
+  .admin-ads-table tbody td:nth-child(12) { --admin-label: "ROI"; }
+  .admin-ads-table tbody td:nth-child(13) { --admin-label: "Signups"; }
+  .admin-ads-table tbody td:nth-child(14) { --admin-label: "Paid"; }
+  .admin-ads-table tbody td:nth-child(15) { --admin-label: "Attr Rev"; }
+  .admin-ads-table tbody td:nth-child(16) { --admin-label: "Attr ROAS"; }
+
+  .admin-modal-table-scroll {
+    width: 100%;
+  }
+
+  .admin-page .modal-card {
+    max-height: calc(100dvh - 1.5rem);
+    overflow-y: auto;
+    box-sizing: border-box;
+  }
+
+  .admin-page code,
+  .admin-panel-content pre {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+}
+
 @media (max-width: 380px) {
   .portfolio-summary,
   .modal-card .portfolio-summary {

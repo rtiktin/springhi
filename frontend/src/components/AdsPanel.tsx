@@ -170,7 +170,7 @@ const AdsPanel: React.FC = () => {
 
                         <h3 style={{ margin: '0 0 0.75rem', color: 'var(--text-primary)', fontSize: '1rem' }}>Daily breakdown ({detail.rangeFrom} → {detail.rangeTo})</h3>
                         <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                            <table className="admin-list-table admin-ads-daily-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                                 <thead>
                                     <tr style={{ textAlign: 'left', color: 'var(--text-gray)', borderBottom: '1px solid var(--border)' }}>
                                         <th style={thStyle}>Date</th><th style={thStyle}>Impr.</th><th style={thStyle}>Clicks</th><th style={thStyle}>Spend</th>
@@ -224,7 +224,7 @@ const AdsPanel: React.FC = () => {
 
             {showCreate && (
                 <form onSubmit={submitCreate} style={{ background: 'var(--bg-dark)', borderRadius: 8, padding: '1rem', marginBottom: '1.5rem', display: 'grid', gap: '0.6rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '0.6rem' }}>
+                    <div className="admin-ad-create-fields" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '0.6rem' }}>
                         <input placeholder="Ad / video name" value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} style={inputStyle} required />
                         <select value={createForm.platform} onChange={e => setCreateForm({ ...createForm, platform: e.target.value })} style={inputStyle}>
                             {PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
@@ -244,7 +244,7 @@ const AdsPanel: React.FC = () => {
 
             {loading ? <div className="portfolio-loading">Loading ads…</div> : (
                 <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                    <table className="admin-list-table admin-ads-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
                             <tr style={{ textAlign: 'left', color: 'var(--text-gray)', borderBottom: '1px solid var(--border)' }}>
                                 <th style={thStyle}>Name</th><th style={thStyle}>Platform</th><th style={thStyle}>Status</th>

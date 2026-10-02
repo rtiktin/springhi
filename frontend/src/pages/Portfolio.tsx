@@ -929,7 +929,7 @@ const Portfolio: React.FC = () => {
                                                                     </>
                                                                 )}
                                                                 <h3 style={{ color: 'var(--text-light)', marginBottom: '0.5rem', fontSize: '0.95rem' }}>Trades in this run</h3>
-                                                                <div className="holdings-table-wrap" style={{ marginBottom: '0.5rem' }}>
+                                                                <div className="holdings-table-wrap recommendation-table" style={{ marginBottom: '0.5rem' }}>
                                                                     <table className="holdings-table">
                                                                         <thead>
                                                                             <tr>
@@ -945,16 +945,16 @@ const Portfolio: React.FC = () => {
                                                                         <tbody>
                                                                             {details.recommendations.map(rec => (
                                                                                 <tr key={rec.id}>
-                                                                                    <td className={rec.action === 'BUY' ? 'positive' : 'negative'} style={{ fontWeight: 600 }}>{rec.action}</td>
-                                                                                    <td className="symbol-cell">{rec.t}</td>
-                                                                                    <td style={{ fontSize: '0.82rem', color: 'var(--text-gray)' }}>{rec.n}</td>
-                                                                                    <td>{rec.w.toFixed(1)}%</td>
-                                                                                    <td>{fmt(rec.estimatedValue)}</td>
-                                                                                    <td style={{
+                                                                                    <td data-label="Action" className={rec.action === 'BUY' ? 'positive' : 'negative'} style={{ fontWeight: 600 }}>{rec.action}</td>
+                                                                                    <td data-label="Symbol" className="symbol-cell">{rec.t}</td>
+                                                                                    <td data-label="Name" style={{ fontSize: '0.82rem', color: 'var(--text-gray)' }}>{rec.n}</td>
+                                                                                    <td data-label="Weight">{rec.w.toFixed(1)}%</td>
+                                                                                    <td data-label="Est. Amount">{fmt(rec.estimatedValue)}</td>
+                                                                                    <td data-label="Status" style={{
                                                                                         color: rec.status === 'EXECUTED' ? '#22c55e' : rec.status === 'SKIPPED' ? '#f59e0b' : 'var(--text-gray)',
                                                                                         fontWeight: 600, fontSize: '0.82rem',
                                                                                     }}>{rec.status}</td>
-                                                                                    <td style={{ fontSize: '0.78rem', color: 'var(--text-gray)', maxWidth: 200 }}>{rec.r}</td>
+                                                                                    <td data-label="Rationale" style={{ fontSize: '0.78rem', color: 'var(--text-gray)', maxWidth: 200 }}>{rec.r}</td>
                                                                                 </tr>
                                                                             ))}
                                                                         </tbody>
