@@ -625,6 +625,23 @@ form input {
   margin-bottom: 1rem;
 }
 
+.referral-deposit-links a {
+  color: #aee8ff;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.referral-deposit-links a:hover,
+.referral-deposit-links a:focus-visible {
+  color: #fff;
+}
+
+.referral-deposit-links a:focus-visible {
+  outline: 2px solid #aee8ff;
+  outline-offset: 3px;
+}
+
 .profile-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1204,6 +1221,75 @@ form input {
   .leaderboard-table tbody tr:focus-visible {
     outline: 2px solid var(--primary);
     outline-offset: -2px;
+  }
+
+  .leaderboard-portfolio-modal .modal-header h2 {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .leaderboard-detail-tabs,
+  .leaderboard-run-header {
+    flex-wrap: wrap;
+  }
+
+  .leaderboard-detail-tabs button {
+    flex: 1 1 auto;
+    min-height: 44px;
+    padding: 0.5rem !important;
+    white-space: normal;
+  }
+
+  .mobile-detail-table {
+    max-width: 100%;
+    overflow: visible;
+  }
+
+  .mobile-detail-table .holdings-table {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .mobile-detail-table thead {
+    display: none;
+  }
+
+  .mobile-detail-table tbody,
+  .mobile-detail-table tbody tr {
+    display: block;
+  }
+
+  .mobile-detail-table tbody tr {
+    padding: 0.7rem;
+    border-bottom: 1px solid #2a2a2c;
+  }
+
+  .mobile-detail-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.35rem 0.2rem !important;
+    border: 0;
+    text-align: right;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-detail-table tbody td::before {
+    content: attr(data-label);
+    flex: 0 0 38%;
+    text-align: left;
+    color: var(--text-gray);
+    font-size: 0.8rem;
+  }
+
+  .mobile-detail-table tbody td[data-label="Rationale"] {
+    max-width: none !important;
+  }
+
+  .mobile-detail-table tbody td:empty {
+    display: none;
   }
 
   .leaderboard-detail-table thead {

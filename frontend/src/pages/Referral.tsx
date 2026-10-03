@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getLoggedInUsername, isAdmin } from '../utils/auth';
 import ImpersonationBanner from '../components/ImpersonationBanner';
-import { getMyReferral, getPayoutProfile, savePayoutProfile } from '../api/referralApi';
+import { getMyReferral, getPayoutProfile, savePayoutProfile, setPayoutHold } from '../api/referralApi';
 import type { ReferralDashboard, PayoutProfile, PayoutProfilePayload } from '../api/referralApi';
 
 const StatCard: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
@@ -93,6 +93,8 @@ const Referral: React.FC = () => {
     const [taxIdInput, setTaxIdInput] = useState('');
     const [profileSaving, setProfileSaving] = useState(false);
     const [profileMsg, setProfileMsg] = useState<{ text: string; error: boolean } | null>(null);
+    const [holdSaving, setHoldSaving] = useState(false);
+    const [holdError, setHoldError] = useState('');
 
     useEffect(() => {
         getMyReferral()
@@ -173,6 +175,7 @@ const Referral: React.FC = () => {
 
     const saveProfile = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (holdSaving || profileSaving) return;
         setProfileSaving(true);
         setProfileMsg(null);
         const validationError = validateProfileForm();
@@ -204,6 +207,19 @@ const Referral: React.FC = () => {
             setProfileMsg({ text: msg, error: true });
         } finally {
             setProfileSaving(false);
+        }
+    };
+
+    const togglePayoutHold = async () => {
+        if (!profile || holdSaving || profileSaving) return;
+        setHoldSaving(true);
+        setHoldError('');
+        try {
+            setProfile(await setPayoutHold(!profile.payoutsOnHold));
+        } catch {
+            setHoldError('Could not update your payout hold. Please try again.');
+        } finally {
+            setHoldSaving(false);
         }
     };
 
@@ -286,33 +302,8 @@ const Referral: React.FC = () => {
                             {(() => {
                                 const qualifierMet = data.liveReferred >= data.minLiveReferred;
                                 const thresholdMet = Number(data.accruedBalance) >= data.payoutThreshold;
-                                const methodLabel =
-                                    data.payoutMethod === 'CONNECT' ? 'Stripe Connect — direct deposit'
-                                    : data.payoutMethod === 'CSV' ? 'CSV payout — manual transfer'
-                                    : 'Not yet determined';
-                                const countryLabel = data.declaredCountry ? data.declaredCountry.toUpperCase() : 'Not declared';
                                 return (
                                     <>
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                                            <div style={{ padding: '0.6rem 0.8rem', borderRadius: 8, background: '#161618', border: '1px solid #3a3a3c' }}>
-                                                <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.7 }}>Payout method</div>
-                                                <div style={{ fontWeight: 700, marginTop: '0.2rem' }}>{methodLabel}</div>
-                                                <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '0.15rem' }}>
-                                                    {data.payoutMethod === null
-                                                        ? 'Declare your country below so we can choose your payout rail.'
-                                                        : data.connectEnabled
-                                                            ? (data.connectEligible ? 'Your country qualifies for direct Connect payouts.' : 'Your country uses CSV payouts (Connect not available there yet).')
-                                                            : 'Direct Connect payouts are not yet enabled; everyone is paid by CSV for now.'}
-                                                </div>
-                                            </div>
-                                            <div style={{ padding: '0.6rem 0.8rem', borderRadius: 8, background: '#161618', border: '1px solid #3a3a3c' }}>
-                                                <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.7 }}>Declared country</div>
-                                                <div style={{ fontWeight: 700, marginTop: '0.2rem' }}>{countryLabel}</div>
-                                                <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '0.15rem' }}>
-                                                    {data.declaredCountry ? 'Update below to change your payout rail.' : 'Set it in Payout Details below.'}
-                                                </div>
-                                            </div>
-                                        </div>
                                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
                                             <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: 6, background: qualifierMet ? '#1f3d2b' : '#3d2b1f', color: qualifierMet ? '#22c55e' : '#f59e0b' }}>
                                                 {qualifierMet ? 'Qualified' : 'Not qualified'} — {data.liveReferred}/{data.minLiveReferred} live referrals
@@ -328,6 +319,22 @@ const Referral: React.FC = () => {
                                     </>
                                 );
                             })()}
+                            {profile && (
+                                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                                    <div style={{ fontWeight: 600, marginBottom: '0.4rem' }}>
+                                        {profile.payoutsOnHold ? 'Your referral payments are on hold' : 'Your referral payments are active'}
+                                    </div>
+                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-gray)', margin: '0 0 0.75rem' }}>
+                                        {profile.payoutsOnHold
+                                            ? 'Your balance continues to accrue, but no new payout will be included in a monthly payment run until you resume payments.'
+                                            : 'You can pause future monthly payments at any time. Your referral balance will continue to accrue while payments are on hold.'}
+                                    </p>
+                                    <button type="button" className="btn-trade" onClick={togglePayoutHold} disabled={holdSaving || profileSaving} style={{ minHeight: 44 }}>
+                                        {holdSaving ? 'Saving…' : profile.payoutsOnHold ? 'Resume referral payments' : 'Put referral payments on hold'}
+                                    </button>
+                                    {holdError && <div role="alert" style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '0.5rem' }}>{holdError}</div>}
+                                </div>
+                            )}
                         </div>
 
                         <div className="profile-form-card" style={{ marginBottom: '1.5rem' }}>
@@ -337,8 +344,8 @@ const Referral: React.FC = () => {
                             </p>
                             {profile && (
                                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-                                    <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: 6, background: profile.readyForPayout ? '#1f3d2b' : '#3d2b1f', color: profile.readyForPayout ? '#22c55e' : '#f59e0b' }}>
-                                        {profile.readyForPayout ? 'Ready for payout' : 'Payouts paused — add name & email'}
+                                    <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: 6, background: profile.readyForPayout && !profile.payoutsOnHold ? '#1f3d2b' : '#3d2b1f', color: profile.readyForPayout && !profile.payoutsOnHold ? '#22c55e' : '#f59e0b' }}>
+                                        {profile.payoutsOnHold ? 'Payments on hold' : profile.readyForPayout ? 'Ready for payout' : 'Payouts paused — add name & email'}
                                     </span>
                                     <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: 6, background: profile.taxInfoComplete ? '#1f3d2b' : '#3d2b1f', color: profile.taxInfoComplete ? '#22c55e' : '#f59e0b' }}>
                                         {profile.taxInfoComplete ? 'Tax info on file' : 'Tax info incomplete'}
@@ -399,7 +406,7 @@ const Referral: React.FC = () => {
                                     <div style={profileMsg.error ? { color: '#ef4444', fontSize: '0.85rem' } : { color: '#22c55e', fontSize: '0.85rem' }}>{profileMsg.text}</div>
                                 )}
                                 <div>
-                                    <button className="btn-trade" disabled={profileSaving}>{profileSaving ? 'Saving…' : 'Save Payout Details'}</button>
+                                    <button className="btn-trade" disabled={profileSaving || holdSaving}>{profileSaving ? 'Saving…' : 'Save Payout Details'}</button>
                                 </div>
                             </form>
                         </div>
@@ -412,8 +419,18 @@ const Referral: React.FC = () => {
                                 <li>When a referral pays, you earn 30% of their payment (subtotal, after discounts, before tax). Annual plans are split into 12 monthly installments.</li>
                                 <li>You keep earning 30% for the referral's first 12 months, starting at their first paid invoice.</li>
                                 <li>Each installment is held for 31 days, then locks in. Refunds or lost disputes claw back the matching fee in full.</li>
-                                <li>Declare your country in Payout Details — it picks your rail: {data.connectEnabled ? 'Stripe Connect (direct) for the US, CSV for everywhere else' : 'CSV for everyone for now'}.</li>
-                                <li>Payouts run monthly on the last day. You're onboarded for payouts once your payable balance reaches ${Number(data.payoutThreshold).toFixed(2)}; below that, it rolls over to the next cycle.</li>
+                                <li>Enter your name and email in Payout Details to receive an eCheck. Your eCheck will be made out to the name you provide.</li>
+                                <li>Payouts run at the end of each month. Once your payable balance reaches ${Number(data.payoutThreshold).toFixed(2)}, SpringHi.ai will send an eCheck to your payout email address in an email from Deluxe Payments; below that, your balance rolls over to the next cycle.</li>
+                            </ul>
+                        </div>
+
+                        <div className="profile-form-card" style={{ marginTop: '1.5rem' }}>
+                            <div className="profile-section-title">How to deposit your eCheck</div>
+                            <ul className="referral-deposit-links" style={{ margin: 0, paddingLeft: '1.25rem', lineHeight: 1.7 }}>
+                                <li>Use <a href="https://www.deluxe.com/echecks/edeposit" target="_blank" rel="noopener noreferrer">Deluxe eDeposit</a> to deposit your eCheck into your bank account. See <a href="https://echecks.zendesk.com/hc/en-us/articles/360002067068-How-do-I-start-using-Deposit-Services-" target="_blank" rel="noopener noreferrer">how to start using Deposit Services</a>.</li>
+                                <li>For eCheck questions or issues, call <a href="tel:8773336964">877-333-6964</a> or email <a href="mailto:support@deluxeechecks.com">support@deluxeechecks.com</a>.</li>
+                                <li>Advisers outside the US can open a <a href="https://wise.com/us/account" target="_blank" rel="noopener noreferrer">multi-currency account at Wise</a>, then follow the eDeposit instructions above to deposit into that account.</li>
+                                <li>In the US, you can also print the eCheck and deposit or cash it like any other check. This option is only available in the US.</li>
                             </ul>
                         </div>
                     </>

@@ -126,7 +126,7 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
 
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-card" onClick={e => e.stopPropagation()}
+            <div className="modal-card leaderboard-portfolio-modal" onClick={e => e.stopPropagation()}
                 style={{ maxWidth: 820, width: '95%', maxHeight: '85vh', overflowY: 'auto' }}>
                 <div className="modal-header">
                     <h2 style={{ fontSize: '1.15rem' }}>
@@ -136,7 +136,7 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                     <button className="modal-close" onClick={onClose}>✕</button>
                 </div>
 
-                <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: '1rem' }}>
+                <div className="leaderboard-detail-tabs" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: '1rem' }}>
                     {([
                         { key: 'holdings', label: 'Holdings' },
                         { key: 'transactions', label: 'Transactions' },
@@ -373,6 +373,7 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                                         return (
                                             <div key={ts} style={{ border: '1px solid var(--border)', borderRadius: 8, marginBottom: '1rem', overflow: 'hidden' }}>
                                                 <div
+                                                    className="leaderboard-run-header"
                                                     onClick={() => {
                                                         if (isExpanded) {
                                                             setExpandedRunDetails(prev => { const n = { ...prev }; delete n[ts]; return n; });
@@ -414,7 +415,7 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                                                                 <h3 style={{ color: 'var(--text-light)', marginBottom: '0.75rem', fontSize: '0.95rem' }}>
                                                                     Portfolio Profile used for this optimization
                                                                 </h3>
-                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 1.5rem', background: 'var(--bg-dark)', borderRadius: 8, padding: '1rem', fontSize: '0.88rem', marginBottom: '1.5rem' }}>
+                                                                <div className="optimization-profile-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem 1.5rem', background: 'var(--bg-dark)', borderRadius: 8, padding: '1rem', fontSize: '0.88rem', marginBottom: '1.5rem' }}>
                                                                     <div><span style={{ color: 'var(--text-gray)' }}>Risk Tolerance: </span><strong>{profile.riskLevel?.replace('_', ' ') ?? 'N/A'}</strong></div>
                                                                     <div><span style={{ color: 'var(--text-gray)' }}>Primary Goal: </span><strong>{profile.goal ?? 'N/A'}</strong></div>
                                                                     <div><span style={{ color: 'var(--text-gray)' }}>Time Horizon: </span><strong>{profile.horizonYears != null ? `${profile.horizonYears} years` : 'N/A'}</strong></div>
@@ -432,7 +433,7 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                                                             </>
                                                         )}
                                                         <h3 style={{ color: 'var(--text-light)', marginBottom: '0.5rem', fontSize: '0.95rem' }}>Trades in this run</h3>
-                                                        <div className="holdings-table-wrap" style={{ marginBottom: '0.5rem' }}>
+                                                        <div className="holdings-table-wrap mobile-detail-table" style={{ marginBottom: '0.5rem' }}>
                                                             <table className="holdings-table">
                                                                 <thead>
                                                                     <tr>
@@ -448,16 +449,16 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                                                                 <tbody>
                                                                     {details.recommendations.map(rec => (
                                                                         <tr key={rec.id}>
-                                                                            <td className={rec.action === 'BUY' ? 'positive' : 'negative'} style={{ fontWeight: 600 }}>{rec.action}</td>
-                                                                            <td className="symbol-cell">{rec.t}</td>
-                                                                            <td style={{ fontSize: '0.82rem', color: 'var(--text-gray)' }}>{rec.n}</td>
-                                                                            <td>{rec.w.toFixed(1)}%</td>
-                                                                            <td>{fmt(rec.estimatedValue)}</td>
-                                                                            <td style={{
+                                                                            <td data-label="Action" className={rec.action === 'BUY' ? 'positive' : 'negative'} style={{ fontWeight: 600 }}>{rec.action}</td>
+                                                                            <td data-label="Symbol" className="symbol-cell">{rec.t}</td>
+                                                                            <td data-label="Name" style={{ fontSize: '0.82rem', color: 'var(--text-gray)' }}>{rec.n}</td>
+                                                                            <td data-label="Weight">{rec.w.toFixed(1)}%</td>
+                                                                            <td data-label="Est. Amount">{fmt(rec.estimatedValue)}</td>
+                                                                            <td data-label="Status" style={{
                                                                                 color: rec.status === 'EXECUTED' ? '#22c55e' : rec.status === 'SKIPPED' ? '#f59e0b' : 'var(--text-gray)',
                                                                                 fontWeight: 600, fontSize: '0.82rem',
                                                                             }}>{rec.status}</td>
-                                                                            <td style={{ fontSize: '0.78rem', color: 'var(--text-gray)', maxWidth: 200 }}>{rec.r}</td>
+                                                                            <td data-label="Rationale" style={{ fontSize: '0.78rem', color: 'var(--text-gray)', maxWidth: 200 }}>{rec.r}</td>
                                                                         </tr>
                                                                     ))}
                                                                 </tbody>
@@ -530,7 +531,7 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                                 <h3 style={{ color: 'var(--text-light)', marginBottom: '0.75rem', fontSize: '0.95rem' }}>
                                     Portfolio Profile used for this optimization
                                 </h3>
-                                <div style={{
+                                <div className="optimization-profile-grid" style={{
                                     display: 'grid',
                                     gridTemplateColumns: '1fr 1fr',
                                     gap: '0.5rem 1.5rem',
@@ -566,7 +567,7 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                         <h3 style={{ color: 'var(--text-light)', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
                             Trades in this run
                         </h3>
-                        <div className="holdings-table-wrap" style={{ marginBottom: '1.5rem' }}>
+                        <div className="holdings-table-wrap mobile-detail-table" style={{ marginBottom: '1.5rem' }}>
                             <table className="holdings-table">
                                 <thead>
                                     <tr>
@@ -590,15 +591,15 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                                                     outline: '2px solid #6366f1',
                                                 } : {}}
                                             >
-                                                <td className={rec.action === 'BUY' ? 'positive' : 'negative'}
+                                                <td data-label="Action" className={rec.action === 'BUY' ? 'positive' : 'negative'}
                                                     style={{ fontWeight: isHighlighted ? 700 : undefined }}>
                                                     {rec.action}
                                                 </td>
-                                                <td className="symbol-cell">{rec.t}</td>
-                                                <td style={{ fontSize: '0.82rem', color: 'var(--text-gray)' }}>{rec.n}</td>
-                                                <td>{rec.w.toFixed(1)}%</td>
-                                                <td>{fmt(rec.estimatedValue)}</td>
-                                                <td style={{
+                                                <td data-label="Symbol" className="symbol-cell">{rec.t}</td>
+                                                <td data-label="Name" style={{ fontSize: '0.82rem', color: 'var(--text-gray)' }}>{rec.n}</td>
+                                                <td data-label="Weight">{rec.w.toFixed(1)}%</td>
+                                                <td data-label="Est. Amount">{fmt(rec.estimatedValue)}</td>
+                                                <td data-label="Status" style={{
                                                     color: rec.status === 'EXECUTED' ? '#22c55e'
                                                         : rec.status === 'SKIPPED' ? '#f59e0b'
                                                             : 'var(--text-gray)',
@@ -607,7 +608,7 @@ const PortfolioDetailModal: React.FC<PortfolioDetailModalProps> = ({ entry, onCl
                                                 }}>
                                                     {rec.status}
                                                 </td>
-                                                <td style={{ fontSize: '0.78rem', color: 'var(--text-gray)', maxWidth: 200 }}>
+                                                <td data-label="Rationale" style={{ fontSize: '0.78rem', color: 'var(--text-gray)', maxWidth: 200 }}>
                                                     {rec.r}
                                                 </td>
                                             </tr>

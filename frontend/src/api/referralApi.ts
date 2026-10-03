@@ -57,6 +57,7 @@ export const recordReferralClick = async (code: string): Promise<void> => {
 export interface PayoutProfile {
     payableName: string | null;
     payoutEmail: string | null;
+    payoutsOnHold: boolean;
     international: boolean;
     entityType: string | null;
     taxIdLast4: string | null;
@@ -71,7 +72,7 @@ export interface PayoutProfile {
     taxInfoComplete: boolean;
 }
 
-export type PayoutProfilePayload = Partial<Omit<PayoutProfile, 'taxIdLast4' | 'hasTaxId' | 'readyForPayout' | 'taxInfoComplete'>> & {
+export type PayoutProfilePayload = Partial<Omit<PayoutProfile, 'taxIdLast4' | 'hasTaxId' | 'readyForPayout' | 'taxInfoComplete' | 'payoutsOnHold'>> & {
     taxId?: string;
 };
 
@@ -82,6 +83,11 @@ export const getPayoutProfile = async (): Promise<PayoutProfile> => {
 
 export const savePayoutProfile = async (profile: PayoutProfilePayload): Promise<PayoutProfile> => {
     const response = await axios.put(`${BASE_URL}/payout-profile`, profile, { headers: authHeader() });
+    return response.data;
+};
+
+export const setPayoutHold = async (payoutsOnHold: boolean): Promise<PayoutProfile> => {
+    const response = await axios.put(`${BASE_URL}/payout-profile/hold`, { payoutsOnHold }, { headers: authHeader() });
     return response.data;
 };
 

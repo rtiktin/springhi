@@ -92,7 +92,7 @@ const TransactionHistory: React.FC<Props> = ({ portfolioId }) => {
                 <div className="error-msg" style={{ marginBottom: '0.5rem' }}>{aiRunError}</div>
             )}
 
-            <div className="holdings-table-wrap">
+            <div className="holdings-table-wrap mobile-detail-table">
                 <table className="holdings-table">
                     <thead>
                         <tr>
@@ -108,8 +108,9 @@ const TransactionHistory: React.FC<Props> = ({ portfolioId }) => {
                     <tbody>
                         {transactions.map(t => (
                             <tr key={t.id}>
-                                <td>{new Date(t.timestamp).toLocaleString()}</td>
+                                <td data-label="Date & Time">{new Date(t.timestamp).toLocaleString()}</td>
                                 <td
+                                    data-label="Symbol"
                                     className="symbol-cell"
                                     style={t.symbol !== 'CASH' ? { cursor: 'pointer', textDecoration: 'underline dotted' } : {}}
                                     title={t.symbol !== 'CASH' ? 'Click to look up company name' : undefined}
@@ -117,11 +118,11 @@ const TransactionHistory: React.FC<Props> = ({ portfolioId }) => {
                                 >
                                     {t.symbol}
                                 </td>
-                                <td className={t.type === 'BUY' || t.type === 'DIVIDEND' ? 'positive' : 'negative'}>{t.type}</td>
-                                <td>{t.quantity}</td>
-                                <td>${t.price.toFixed(4)}</td>
-                                <td>${(t.quantity * t.price).toFixed(2)}</td>
-                                <td>
+                                <td data-label="Type" className={t.type === 'BUY' || t.type === 'DIVIDEND' ? 'positive' : 'negative'}>{t.type}</td>
+                                <td data-label="Quantity">{t.quantity}</td>
+                                <td data-label="Price">${t.price.toFixed(4)}</td>
+                                <td data-label="Total Value">${(t.quantity * t.price).toFixed(2)}</td>
+                                <td data-label="AI">
                                     {t.aiRunGeneratedAt ? (
                                         <button
                                             title="AI-generated trade — click to view the full optimization run"
@@ -224,7 +225,7 @@ const TransactionHistory: React.FC<Props> = ({ portfolioId }) => {
                         <h3 style={{ color: 'var(--text-light)', marginBottom: '0.5rem', fontSize: '0.95rem' }}>
                             Trades in this run
                         </h3>
-                        <div className="holdings-table-wrap" style={{ marginBottom: '1.5rem' }}>
+                        <div className="holdings-table-wrap mobile-detail-table" style={{ marginBottom: '1.5rem' }}>
                             <table className="holdings-table">
                                 <thead>
                                     <tr>
@@ -248,15 +249,15 @@ const TransactionHistory: React.FC<Props> = ({ portfolioId }) => {
                                                     outline: '2px solid #6366f1',
                                                 } : {}}
                                             >
-                                                <td className={rec.action === 'BUY' ? 'positive' : 'negative'}
+                                                <td data-label="Action" className={rec.action === 'BUY' ? 'positive' : 'negative'}
                                                     style={{ fontWeight: isHighlighted ? 700 : undefined }}>
                                                     {rec.action}
                                                 </td>
-                                                <td className="symbol-cell">{rec.t}</td>
-                                                <td style={{ fontSize: '0.82rem', color: 'var(--text-gray)' }}>{rec.n}</td>
-                                                <td>{rec.w.toFixed(1)}%</td>
-                                                <td>{fmt(rec.estimatedValue)}</td>
-                                                <td style={{
+                                                <td data-label="Symbol" className="symbol-cell">{rec.t}</td>
+                                                <td data-label="Name" style={{ fontSize: '0.82rem', color: 'var(--text-gray)' }}>{rec.n}</td>
+                                                <td data-label="Weight">{rec.w.toFixed(1)}%</td>
+                                                <td data-label="Est. Amount">{fmt(rec.estimatedValue)}</td>
+                                                <td data-label="Status" style={{
                                                     color: rec.status === 'EXECUTED' ? '#22c55e'
                                                         : rec.status === 'SKIPPED' ? '#f59e0b'
                                                             : 'var(--text-gray)',
@@ -265,7 +266,7 @@ const TransactionHistory: React.FC<Props> = ({ portfolioId }) => {
                                                 }}>
                                                     {rec.status}
                                                 </td>
-                                                <td style={{ fontSize: '0.78rem', color: 'var(--text-gray)', maxWidth: 200 }}>
+                                                <td data-label="Rationale" style={{ fontSize: '0.78rem', color: 'var(--text-gray)', maxWidth: 200 }}>
                                                     {rec.r}
                                                 </td>
                                             </tr>

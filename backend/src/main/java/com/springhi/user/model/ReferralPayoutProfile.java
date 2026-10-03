@@ -20,6 +20,12 @@ public class ReferralPayoutProfile {
     @Column(name = "payout_email", length = 160)
     private String payoutEmail;
 
+    @Column(name = "payouts_on_hold", nullable = false, columnDefinition = "boolean default false")
+    private boolean payoutsOnHold;
+
+    @Column(name = "excluded_from_payout_runs", nullable = false, columnDefinition = "boolean default false")
+    private boolean excludedFromPayoutRuns;
+
     @Column(name = "international", nullable = false)
     private boolean international = false;
 
@@ -77,6 +83,10 @@ public class ReferralPayoutProfile {
     public void setPayableName(String payableName) { this.payableName = payableName; }
     public String getPayoutEmail() { return payoutEmail; }
     public void setPayoutEmail(String payoutEmail) { this.payoutEmail = payoutEmail; }
+    public boolean isPayoutsOnHold() { return payoutsOnHold; }
+    public void setPayoutsOnHold(boolean payoutsOnHold) { this.payoutsOnHold = payoutsOnHold; }
+    public boolean isExcludedFromPayoutRuns() { return excludedFromPayoutRuns; }
+    public void setExcludedFromPayoutRuns(boolean excludedFromPayoutRuns) { this.excludedFromPayoutRuns = excludedFromPayoutRuns; }
     public boolean isInternational() { return international; }
     public void setInternational(boolean international) { this.international = international; }
     public String getEntityType() { return entityType; }

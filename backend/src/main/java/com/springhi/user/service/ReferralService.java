@@ -540,6 +540,39 @@ public class ReferralService {
     @Scheduled(cron = "${app.referral.payout-cron:0 0 0 L * *}")
     @Transactional
     public void runMonthlyPayouts() {
+        processMonthlyPayouts(null);
+    }
+
+    @Transactional
+    public void runMonthlyPayoutsForUsers(Set<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            throw new IllegalArgumentException("Select at least one referrer");
+        }
+        processMonthlyPayouts(userIds);
+    }
+
+    @Transactional
+    public void setPayoutExclusions(Set<Long> userIds, boolean excluded) {
+        if (userIds == null || userIds.isEmpty() || userIds.stream().anyMatch(id -> id == null || id <= 0)) {
+            throw new IllegalArgumentException("Select at least one valid referrer");
+        }
+        for (Long userId : userIds) {
+            if (referralCodeRepository.findByUserId(userId).isEmpty()) {
+                throw new IllegalArgumentException("Unknown referrer: " + userId);
+            }
+        }
+        for (Long userId : userIds) {
+            ReferralPayoutProfile profile = payoutProfileRepository.findByUserId(userId).orElseGet(() -> {
+                ReferralPayoutProfile newProfile = new ReferralPayoutProfile();
+                newProfile.setUserId(userId);
+                return newProfile;
+            });
+            profile.setExcludedFromPayoutRuns(excluded);
+            payoutProfileRepository.save(profile);
+        }
+    }
+
+    private void processMonthlyPayouts(Set<Long> selectedUserIds) {
         // Idempotency key = (referrer_id, YYYY-MM) in UTC. Re-running the cron (or the admin trigger)
         // for the same month never double-pays: a prior payout for this run+referrer is skipped.
         String runId = YearMonth.now(ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("yyyyMM"));
@@ -547,6 +580,7 @@ public class ReferralService {
         int payouts = 0, skippedNotReady = 0, skippedBelowThreshold = 0, skippedAlreadyRun = 0;
         BigDecimal totalPaid = BigDecimal.ZERO;
         for (Long referrerId : referrers) {
+            if (selectedUserIds != null && !selectedUserIds.contains(referrerId)) continue;
             if (referralPayoutRepository.existsByRunIdAndReferrerUserId(runId, referrerId)) {
                 skippedAlreadyRun++;
                 continue;
@@ -557,6 +591,16 @@ public class ReferralService {
                 continue;
             }
             ReferralPayoutProfile profile = payoutProfileRepository.findByUserId(referrerId).orElse(null);
+            if (profile != null && profile.isExcludedFromPayoutRuns()) {
+                skippedNotReady++;
+                log.info("Skipping payout: referrerUserId={} excluded from payout runs", referrerId);
+                continue;
+            }
+            if (profile != null && profile.isPayoutsOnHold()) {
+                skippedNotReady++;
+                log.info("Skipping payout: referrerUserId={} balance={} customer hold active", referrerId, balance);
+                continue;
+            }
             // Payout rail is chosen by the referrer's declared country (domestic vs international
             // bucket). null = a Connect bucket is enabled with no country declared -> can't pick a
             // rail; skip and leave the balance for next month.
@@ -627,6 +671,8 @@ public class ReferralService {
             m.put("accruedBalance", payable);
             m.put("paidOut", paid);
             m.put("clawedBack", clawedBack);
+            m.put("excludedFromPayoutRuns", payoutProfileRepository.findByUserId(referrerId)
+                    .map(ReferralPayoutProfile::isExcludedFromPayoutRuns).orElse(false));
             rows.add(m);
         }
         return rows;
@@ -702,6 +748,17 @@ public class ReferralService {
         return toProfileDto(p);
     }
 
+    @Transactional
+    public Map<String, Object> setPayoutHold(Long userId, boolean onHold) {
+        ReferralPayoutProfile profile = payoutProfileRepository.findByUserId(userId).orElseGet(() -> {
+            ReferralPayoutProfile newProfile = new ReferralPayoutProfile();
+            newProfile.setUserId(userId);
+            return newProfile;
+        });
+        profile.setPayoutsOnHold(onHold);
+        return toProfileDto(payoutProfileRepository.save(profile));
+    }
+
     public String generatePayoutCsv(String runId) {
         if (runId == null || runId.isBlank()) return "";
         List<ReferralPayout> payouts = referralPayoutRepository.findByRunIdOrderByReferrerUserIdAsc(runId);
@@ -724,6 +781,7 @@ public class ReferralService {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("payableName", p.getPayableName());
         m.put("payoutEmail", p.getPayoutEmail());
+        m.put("payoutsOnHold", p.isPayoutsOnHold());
         m.put("international", p.isInternational());
         m.put("entityType", p.getEntityType());
         m.put("taxIdLast4", p.getTaxIdLast4());

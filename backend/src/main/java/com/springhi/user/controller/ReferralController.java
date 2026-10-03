@@ -11,7 +11,9 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/v1/referral")
@@ -66,6 +68,17 @@ public class ReferralController {
         }
     }
 
+    @PutMapping("/payout-profile/hold")
+    public ResponseEntity<?> setPayoutHold(@AuthenticationPrincipal UserDetails userDetails,
+                                           @RequestBody Map<String, Object> body) {
+        if (userDetails == null) return ResponseEntity.status(403).build();
+        if (body == null || !(body.get("payoutsOnHold") instanceof Boolean onHold)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "payoutsOnHold must be a boolean"));
+        }
+        Long userId = ((User) userDetails).getId();
+        return ResponseEntity.ok(referralService.setPayoutHold(userId, onHold));
+    }
+
     @GetMapping("/admin/all")
     public ResponseEntity<?> adminAll(@AuthenticationPrincipal UserDetails userDetails) {
         if (!isAdmin(userDetails)) return ResponseEntity.status(403).build();
@@ -83,6 +96,39 @@ public class ReferralController {
         if (!isAdmin(userDetails)) return ResponseEntity.status(403).build();
         referralService.runMonthlyPayouts();
         return ResponseEntity.ok(Map.of("ok", true));
+    }
+
+    @PostMapping("/admin/run-payouts/selected")
+    public ResponseEntity<?> adminRunSelectedPayouts(@AuthenticationPrincipal UserDetails userDetails,
+                                                     @RequestBody PayoutUserSelection selection) {
+        if (!isAdmin(userDetails)) return ResponseEntity.status(403).build();
+        if (selection == null || !validUserIds(selection.userIds())) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Select at least one valid referrer"));
+        }
+        referralService.runMonthlyPayoutsForUsers(Set.copyOf(selection.userIds()));
+        return ResponseEntity.ok(Map.of("ok", true));
+    }
+
+    @PutMapping("/admin/payout-exclusions")
+    public ResponseEntity<?> adminSetPayoutExclusions(@AuthenticationPrincipal UserDetails userDetails,
+                                                      @RequestBody PayoutExclusionSelection selection) {
+        if (!isAdmin(userDetails)) return ResponseEntity.status(403).build();
+        if (selection == null || !validUserIds(selection.userIds()) || selection.excluded() == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Select at least one valid referrer and an exclusion state"));
+        }
+        try {
+            referralService.setPayoutExclusions(Set.copyOf(selection.userIds()), selection.excluded());
+            return ResponseEntity.ok(Map.of("ok", true));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    private record PayoutUserSelection(List<Long> userIds) {}
+    private record PayoutExclusionSelection(List<Long> userIds, Boolean excluded) {}
+
+    private boolean validUserIds(List<Long> userIds) {
+        return userIds != null && !userIds.isEmpty() && userIds.stream().allMatch(id -> id != null && id > 0);
     }
 
     @GetMapping("/admin/payouts/{runId}/csv")
